@@ -21,8 +21,6 @@ class PlanConfig(TypedDict):
     features: PlanFeatures
 
 
-PLAN_ORDER = ["basic", "explore", "advance"]
-
 PLANS: dict[str, PlanConfig] = {
     "basic": {
         "label": "Basic",

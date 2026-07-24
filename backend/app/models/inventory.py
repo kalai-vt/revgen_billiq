@@ -19,9 +19,9 @@ class Inventory(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
     product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), unique=True, index=True)
-    quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    quantity: Mapped[float] = mapped_column(Float, default=0.0, index=True)
     reorder_level: Mapped[float] = mapped_column(Float, default=5.0)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, index=True)
 
 
 class StockHistory(Base):

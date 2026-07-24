@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
 import type { CellValueChangedEvent, ColDef, ICellRendererParams } from 'ag-grid-community';
@@ -32,8 +32,6 @@ function StatusCellRenderer(params: ICellRendererParams<ImportRow>) {
 const EDITABLE_FIELDS = new Set(['name', 'mobile', 'email', 'address', 'is_skipped']);
 
 export function ImportPreviewGrid({ importId, rows, onRowsChange }: ImportPreviewGridProps) {
-  const [, setPendingRowId] = useState<string | null>(null);
-
   const handleCellValueChanged = useCallback(
     async (event: CellValueChangedEvent<ImportRow>) => {
       const row = event.data;
@@ -41,14 +39,11 @@ export function ImportPreviewGrid({ importId, rows, onRowsChange }: ImportPrevie
       if (!row || !field || !EDITABLE_FIELDS.has(field)) return;
 
       const payload: customersApi.ImportRowUpdatePayload = { [field]: row[field as keyof ImportRow] } as never;
-      setPendingRowId(row.id);
       try {
         const updated = await customersApi.updateImportRow(importId, row.id, payload);
         onRowsChange(rows.map((r) => (r.id === row.id ? updated : r)));
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : 'Could not update row');
-      } finally {
-        setPendingRowId(null);
       }
     },
     [importId, rows, onRowsChange],

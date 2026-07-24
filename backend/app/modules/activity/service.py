@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.activity_log import ActivityLog
@@ -33,8 +34,6 @@ def list_activity_log(
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> tuple[list[ActivityLogOut], int]:
-    from sqlalchemy import func
-
     query = db.query(ActivityLog).filter(ActivityLog.tenant_id == tenant_id)
     if module:
         query = query.filter(ActivityLog.module == module)

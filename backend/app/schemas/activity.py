@@ -15,10 +15,3 @@ class ActivityLogOut(BaseModel):
     user_id: str | None = None
     user_name: str = ""
     created_at: datetime
-
-
-class ActivityLogListOut(BaseModel):
-    items: list[ActivityLogOut]
-    total: int
-    page: int
-    page_size: int

@@ -32,11 +32,11 @@ class Invoice(Base):
     taxable_amount: Mapped[float] = mapped_column(Float, default=0.0)
     tax_percentage: Mapped[float] = mapped_column(Float, default=0.0)
     tax_amount: Mapped[float] = mapped_column(Float, default=0.0)
-    total_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    total_amount: Mapped[float] = mapped_column(Float, default=0.0, index=True)
     payment_method: Mapped[str] = mapped_column(String(10), default="cash")
     amount_tendered: Mapped[float | None] = mapped_column(Float, nullable=True)
     change_due: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     items: Mapped[list["InvoiceItem"]] = relationship(cascade="all, delete-orphan")

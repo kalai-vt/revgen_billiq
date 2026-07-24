@@ -32,7 +32,7 @@ export interface NavGroup {
   children: NavLeaf[];
 }
 
-export type NavEntry = NavLeaf | NavGroup;
+type NavEntry = NavLeaf | NavGroup;
 
 export function isGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;

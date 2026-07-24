@@ -101,11 +101,6 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
-class TokenPairOut(BaseModel):
-    access_token: str
-    refresh_token: str
-
-
 class UpdateProfileRequest(BaseModel):
     first_name: str | None = Field(default=None, min_length=1)
     last_name: str | None = Field(default=None, min_length=1)
@@ -122,22 +117,9 @@ class ChangePasswordRequest(BaseModel):
         return validate_password_strength(value)
 
 
-class ChangePasswordResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    user: UserOut
-
-
 class LoginHistoryEntryOut(BaseModel):
     event_type: str
     created_at: datetime
-
-
-class LoginHistoryOut(BaseModel):
-    items: list[LoginHistoryEntryOut]
-    total: int
-    page: int
-    page_size: int
 
 
 class TeamMemberCreate(BaseModel):

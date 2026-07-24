@@ -45,8 +45,3 @@ class HeldBillOut(BaseModel):
     created_by: str
     created_by_name: str = ""
     created_at: datetime
-
-
-class HeldBillListOut(BaseModel):
-    items: list[HeldBillOut]
-    total: int

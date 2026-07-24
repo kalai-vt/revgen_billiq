@@ -31,13 +31,6 @@ class InventoryOut(BaseModel):
     updated_at: datetime
 
 
-class InventoryListOut(BaseModel):
-    items: list[InventoryOut]
-    total: int
-    page: int
-    page_size: int
-
-
 class InventoryDashboardOut(BaseModel):
     total_products: int
     total_stock_quantity: float
@@ -70,13 +63,6 @@ class StockHistoryOut(BaseModel):
     created_by: str
     created_by_name: str
     created_at: datetime
-
-
-class StockHistoryListOut(BaseModel):
-    items: list[StockHistoryOut]
-    total: int
-    page: int
-    page_size: int
 
 
 class ImportUploadResponse(BaseModel):

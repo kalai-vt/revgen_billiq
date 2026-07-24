@@ -161,10 +161,6 @@ export function createReturn(invoiceId: string, lines: ReturnLine[], reason?: st
   });
 }
 
-export function listInvoiceReturns(invoiceId: string): Promise<{ items: Return[] }> {
-  return request(`/api/invoices/${invoiceId}/returns`);
-}
-
 export function listReturns(page: number, pageSize = 20): Promise<ReturnListResult> {
   return request(`/api/returns?page=${page}&page_size=${pageSize}`);
 }

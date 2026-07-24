@@ -6,7 +6,11 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { CategoryFormDialog } from '@/features/categories/components/CategoryFormDialog';
 import { CategoryTable } from '@/features/categories/components/CategoryTable';
 import { useCategories } from '@/features/categories/hooks/useCategories';
-import type { CategorySortField } from '@/features/categories/api';
+import type { Category, CategorySortField } from '@/features/categories/api';
+
+// Stable reference so the fallback for "no data yet" doesn't defeat CategoryTable's memoization
+// with a fresh [] on every render (data is undefined for the whole initial-load window).
+const EMPTY_CATEGORIES: Category[] = [];
 
 export function CategoriesPage() {
   const { user } = useAuth();
@@ -49,7 +53,7 @@ export function CategoriesPage() {
         </div>
       }
     >
-      <CategoryTable categories={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <CategoryTable categories={data?.items ?? EMPTY_CATEGORIES} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
     </ModulePage>
   );
 }

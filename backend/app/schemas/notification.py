@@ -16,9 +16,3 @@ class NotificationOut(BaseModel):
     entity_id: str | None = None
     is_read: bool
     created_at: datetime
-
-
-class NotificationListOut(BaseModel):
-    items: list[NotificationOut]
-    total: int
-    unread_count: int

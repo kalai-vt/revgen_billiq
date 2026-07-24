@@ -38,13 +38,6 @@ class CustomerOut(BaseModel):
     updated_at: datetime
 
 
-class CustomerListOut(BaseModel):
-    items: list[CustomerOut]
-    total: int
-    page: int
-    page_size: int
-
-
 class CustomerImportUploadResponse(BaseModel):
     import_id: str
     file_name: str

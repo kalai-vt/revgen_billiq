@@ -77,13 +77,6 @@ class ProductOut(BaseModel):
     additional_identifiers: list[IdentifierItemOut] = []
 
 
-class ProductListOut(BaseModel):
-    items: list[ProductOut]
-    total: int
-    page: int
-    page_size: int
-
-
 class ProductMatchOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

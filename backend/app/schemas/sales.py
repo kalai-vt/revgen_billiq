@@ -68,13 +68,6 @@ class InvoiceOut(BaseModel):
     items: list[InvoiceItemOut] = []
 
 
-class InvoiceListOut(BaseModel):
-    items: list[InvoiceOut]
-    total: int
-    page: int
-    page_size: int
-
-
 class ReturnLineCreate(BaseModel):
     invoice_item_id: str
     quantity: float = Field(gt=0)
@@ -111,10 +104,3 @@ class ReturnOut(BaseModel):
     created_by: str
     created_at: datetime
     items: list[ReturnItemOut] = []
-
-
-class ReturnListOut(BaseModel):
-    items: list[ReturnOut]
-    total: int
-    page: int
-    page_size: int

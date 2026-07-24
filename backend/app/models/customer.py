@@ -20,7 +20,7 @@ class Customer(Base):
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
     mobile: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
