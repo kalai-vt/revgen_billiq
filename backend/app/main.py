@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 from collections.abc import Awaitable, Callable
@@ -29,8 +30,12 @@ from app.modules.settings.router import router as settings_router
 
 app = FastAPI(title="RevGen BillIQ API", version="1.0.0")
 
-Path("uploads").mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+if not os.environ.get("VERCEL"):
+    # Local dev only: uploads live on disk. In production the filesystem is read-only and
+    # ephemeral, and Vercel Blob (see app.core.blob) is the only storage backend, so this
+    # mount/directory would be pointless (and mkdir would fail) there.
+    Path("uploads").mkdir(exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from pathlib import Path
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -21,6 +20,7 @@ from app.core.audit import (
     count_recent_events,
     log_event,
 )
+from app.core.blob import upload_file
 from app.core.config import settings
 from app.core.email.service import send_password_reset_email, send_verification_email
 from app.core.limits import assert_feature, assert_under_limit
@@ -269,11 +269,9 @@ def save_avatar(db: Session, user: User, content: bytes, content_type: str) -> U
         raise AuthError(400, "Avatar must be smaller than 2MB")
 
     ext = ALLOWED_AVATAR_CONTENT_TYPES[content_type]
-    upload_dir = Path("uploads") / "avatars"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    (upload_dir / f"{user.id}.{ext}").write_bytes(content)
+    url = upload_file(f"avatars/{user.id}.{ext}", content, content_type)
 
-    user.avatar_url = f"/uploads/avatars/{user.id}.{ext}?v={int(utc_now().timestamp())}"
+    user.avatar_url = f"{url}?v={int(utc_now().timestamp())}"
     db.add(user)
     db.commit()
     db.refresh(user)

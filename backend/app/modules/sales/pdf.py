@@ -20,7 +20,8 @@ LOGO_MAX_HEIGHT = 20 * mm
 
 
 def _logo_flowable(logo_url: str) -> Image | None:
-    """Resolve a `/uploads/...` logo URL to a local file and size it to fit the invoice header.
+    """Resolve a logo URL (local `/uploads/...` path or a remote Blob URL) and size it to fit
+    the invoice header.
 
     Best-effort: any missing file, unreadable image, or unsupported format (e.g. SVG, which
     reportlab can't rasterize without an extra dependency) silently skips the logo rather than
@@ -29,19 +30,31 @@ def _logo_flowable(logo_url: str) -> Image | None:
     try:
         from PIL import Image as PILImage
 
-        local_path = Path(logo_url.split("?", 1)[0].lstrip("/"))
-        if not local_path.is_file():
-            return None
-        with PILImage.open(local_path) as img:
+        clean_url = logo_url.split("?", 1)[0]
+        if clean_url.startswith("http://") or clean_url.startswith("https://"):
+            import httpx
+
+            response = httpx.get(clean_url, timeout=10.0)
+            response.raise_for_status()
+            source: str | io.BytesIO = io.BytesIO(response.content)
+        else:
+            local_path = Path(clean_url.lstrip("/"))
+            if not local_path.is_file():
+                return None
+            source = str(local_path)
+
+        with PILImage.open(source) as img:
             img.load()  # force full decode now so a truncated/corrupt file is caught here, not mid-PDF-build
             width_px, height_px = img.size
+        if isinstance(source, io.BytesIO):
+            source.seek(0)
         aspect = height_px / width_px if width_px else 1
         width = LOGO_MAX_WIDTH
         height = width * aspect
         if height > LOGO_MAX_HEIGHT:
             height = LOGO_MAX_HEIGHT
             width = height / aspect
-        return Image(str(local_path), width=width, height=height)
+        return Image(source, width=width, height=height)
     except Exception:
         return None
 

@@ -5,6 +5,7 @@ Revises: cd14ad66dfa9
 Create Date: 2026-07-22 16:32:20.953610
 
 """
+import uuid
 from typing import Sequence, Union
 
 from alembic import op
@@ -102,11 +103,21 @@ def upgrade() -> None:
 
     # Backfill: every existing product gets a matching inventory row (quantity=0,
     # default reorder_level=5) so the rest of the app never has to defensively
-    # handle a product without one.
-    op.execute(
-        "INSERT INTO inventory (id, tenant_id, product_id, quantity, reorder_level, updated_at) "
-        "SELECT lower(hex(randomblob(16))), tenant_id, id, 0, 5, CURRENT_TIMESTAMP FROM products"
-    )
+    # handle a product without one. IDs are generated in Python (not via a SQL
+    # random-id function) so this works identically across SQLite and Postgres.
+    bind = op.get_bind()
+    products = bind.execute(sa.text("SELECT id, tenant_id FROM products")).fetchall()
+    if products:
+        bind.execute(
+            sa.text(
+                "INSERT INTO inventory (id, tenant_id, product_id, quantity, reorder_level, updated_at) "
+                "VALUES (:id, :tenant_id, :product_id, 0, 5, CURRENT_TIMESTAMP)"
+            ),
+            [
+                {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "product_id": product_id}
+                for product_id, tenant_id in products
+            ],
+        )
 
 
 def downgrade() -> None:

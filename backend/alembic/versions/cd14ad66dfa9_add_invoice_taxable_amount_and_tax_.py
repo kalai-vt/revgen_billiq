@@ -26,9 +26,16 @@ def upgrade() -> None:
     # from existing columns; tax_percentage is a best-effort derived rate since
     # the old per-product tax model had no single invoice-level rate.
     op.execute("UPDATE invoices SET taxable_amount = subtotal - discount_amount")
+    # Postgres's two-arg round() only accepts numeric, not double precision (SQLite has no
+    # such restriction), so the division needs an explicit cast on Postgres.
+    round_expr = (
+        "ROUND(CAST(tax_amount / taxable_amount * 100 AS numeric), 2)"
+        if op.get_bind().dialect.name == "postgresql"
+        else "ROUND(tax_amount / taxable_amount * 100, 2)"
+    )
     op.execute(
         "UPDATE invoices SET tax_percentage = "
-        "CASE WHEN taxable_amount > 0 THEN ROUND(tax_amount / taxable_amount * 100, 2) ELSE 0 END"
+        f"CASE WHEN taxable_amount > 0 THEN {round_expr} ELSE 0 END"
     )
     # Note: no create_foreign_key for products.category_id here — SQLite cannot
     # ALTER-add an FK constraint without a full table rebuild (batch mode), and

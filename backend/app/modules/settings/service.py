@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy.orm import Session
 
+from app.core.blob import upload_file
 from app.core.timeutils import utc_now
 from app.models.settings import Settings
 from app.schemas.settings import SettingsUpdate
@@ -29,11 +28,9 @@ def save_logo(db: Session, settings: Settings, content: bytes, content_type: str
         raise SettingsError(400, "Logo must be smaller than 2MB")
 
     ext = ALLOWED_LOGO_CONTENT_TYPES[content_type]
-    upload_dir = Path("uploads") / "logos"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    (upload_dir / f"{settings.tenant_id}.{ext}").write_bytes(content)
+    url = upload_file(f"logos/{settings.tenant_id}.{ext}", content, content_type)
 
-    settings.logo_url = f"/uploads/logos/{settings.tenant_id}.{ext}?v={int(utc_now().timestamp())}"
+    settings.logo_url = f"{url}?v={int(utc_now().timestamp())}"
     db.add(settings)
     db.commit()
     db.refresh(settings)
