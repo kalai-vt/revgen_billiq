@@ -26,6 +26,8 @@ node_modules/
 dist/
 build/
 .vite/
+*.tsbuildinfo
+.tsbuild-node/
 
 # Logs
 *.log
