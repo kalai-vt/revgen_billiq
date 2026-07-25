@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,9 +13,11 @@ import { ApiError } from '@/lib/api-client';
 interface ViewInvoiceDialogProps {
   invoiceId: string | null;
   onClose: () => void;
+  canReturn?: boolean;
+  onReturn?: (invoiceId: string) => void;
 }
 
-export function ViewInvoiceDialog({ invoiceId, onClose }: ViewInvoiceDialogProps) {
+export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onReturn }: ViewInvoiceDialogProps) {
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoice', invoiceId],
     queryFn: () => posApi.getInvoice(invoiceId!),
@@ -69,7 +71,7 @@ export function ViewInvoiceDialog({ invoiceId, onClose }: ViewInvoiceDialogProps
             </div>
             <InvoiceReceiptSummary invoice={invoice} />
             <DialogFooter className="flex-wrap gap-2 sm:justify-between">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={handlePrint}>
                   <Printer className="size-4" />
                   Print
@@ -78,6 +80,18 @@ export function ViewInvoiceDialog({ invoiceId, onClose }: ViewInvoiceDialogProps
                   <Download className="size-4" />
                   PDF
                 </Button>
+                {canReturn && onReturn && (invoice.status === 'paid' || invoice.status === 'partial') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      onReturn(invoice.id);
+                      onClose();
+                    }}
+                  >
+                    <Undo2 className="size-4" />
+                    Return
+                  </Button>
+                )}
               </div>
               <Button onClick={onClose}>Close</Button>
             </DialogFooter>

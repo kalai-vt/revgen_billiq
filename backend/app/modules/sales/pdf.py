@@ -11,6 +11,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.core.formatting import format_amount, format_date
+from app.models.returns import Return
 from app.models.sales import Invoice
 from app.models.settings import Settings
 from app.models.tenant import Tenant
@@ -150,6 +151,89 @@ def render_invoice_pdf(invoice: Invoice, tenant: Tenant, settings: Settings | No
     if settings and settings.receipt_footer:
         story.append(Spacer(1, 8 * mm))
         story.append(Paragraph(xml_escape(settings.receipt_footer), styles["Normal"]))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+_RETURN_STATUS_LABELS = {"fully_refunded": "Fully Refunded", "partially_refunded": "Partially Refunded", "cancelled": "Cancelled"}
+
+
+def render_return_pdf(ret: Return, invoice: Invoice, tenant: Tenant, settings: Settings | None = None) -> bytes:
+    decimal_precision = settings.decimal_precision if settings else 2
+    date_format = settings.date_format if settings else "DD/MM/YYYY"
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4, topMargin=18 * mm, bottomMargin=18 * mm, leftMargin=18 * mm, rightMargin=18 * mm
+    )
+    styles = getSampleStyleSheet()
+    story = []
+
+    if settings and settings.logo_url:
+        logo = _logo_flowable(settings.logo_url)
+        if logo:
+            story.append(logo)
+            story.append(Spacer(1, 4 * mm))
+
+    story.append(Paragraph(xml_escape(tenant.company_name), styles["Title"]))
+    story.append(Paragraph(f"Return Receipt {xml_escape(ret.return_number)}", styles["Heading2"]))
+    story.append(Paragraph(format_date(ret.created_at, date_format), styles["Normal"]))
+    story.append(Paragraph(f"Against Invoice {xml_escape(invoice.invoice_number)}", styles["Normal"]))
+    if invoice.customer_name:
+        story.append(Paragraph(f"Customer: {xml_escape(invoice.customer_name)}", styles["Normal"]))
+    story.append(Paragraph(f"Status: {_RETURN_STATUS_LABELS.get(ret.status, ret.status)}", styles["Normal"]))
+    story.append(Spacer(1, 8 * mm))
+
+    table_data = [["Item", "Identifier", "Qty", "Reason", "Refund"]]
+    for item in ret.items:
+        table_data.append(
+            [
+                item.product_name,
+                item.identifier_value,
+                f"{item.quantity_returned:g}",
+                item.reason.replace("_", " ").title(),
+                format_amount(item.line_refund_amount, decimal_precision),
+            ]
+        )
+
+    table = Table(table_data, colWidths=[55 * mm, 25 * mm, 15 * mm, 35 * mm, 25 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+            ]
+        )
+    )
+    story.append(table)
+    story.append(Spacer(1, 8 * mm))
+
+    summary_rows = [["Subtotal", format_amount(ret.subtotal_amount, decimal_precision)]]
+    if ret.discount_adjustment:
+        summary_rows.append(["Discount adjustment", f"-{format_amount(ret.discount_adjustment, decimal_precision)}"])
+    summary_rows.append(["Tax adjustment", format_amount(ret.tax_adjustment, decimal_precision)])
+    if ret.round_off:
+        summary_rows.append(["Round off", format_amount(ret.round_off, decimal_precision)])
+    summary_rows.append(["Grand Refund", format_amount(ret.refund_amount, decimal_precision)])
+    summary_rows.append(["Refund method", ret.refund_method.upper()])
+
+    summary_table = Table(summary_rows, colWidths=[130 * mm, 35 * mm])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("LINEABOVE", (0, -1), (-1, -1), 0.75, colors.black),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ]
+        )
+    )
+    story.append(summary_table)
 
     doc.build(story)
     return buffer.getvalue()

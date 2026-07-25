@@ -48,6 +48,7 @@ class InvoiceOut(BaseModel):
     tenant_id: str
     invoice_number: str
     created_by: str
+    created_by_name: str = ""
     customer_id: str | None = None
     customer_name: str | None = None
     customer_phone: str | None = None
@@ -68,14 +69,28 @@ class InvoiceOut(BaseModel):
     items: list[InvoiceItemOut] = []
 
 
+ReturnReason = Literal["damaged", "wrong_item", "expired", "changed_mind", "duplicate_purchase", "other"]
+ReturnCondition = Literal["sellable", "damaged", "expired", "opened"]
+InventoryAction = Literal["return_to_stock", "mark_damaged", "discard"]
+RefundMethod = Literal["cash", "card", "upi", "bank_transfer"]
+ReturnStatus = Literal["fully_refunded", "partially_refunded", "cancelled"]
+
+
 class ReturnLineCreate(BaseModel):
     invoice_item_id: str
     quantity: float = Field(gt=0)
+    reason: ReturnReason = "other"
+    condition: ReturnCondition = "sellable"
+    inventory_action: InventoryAction = "return_to_stock"
 
 
 class ReturnCreate(BaseModel):
     lines: list[ReturnLineCreate] = Field(min_length=1)
-    reason: str | None = None
+    refund_method: RefundMethod | None = None
+
+
+class ReturnCancelRequest(BaseModel):
+    reason: str = Field(min_length=1)
 
 
 class ReturnItemOut(BaseModel):
@@ -85,9 +100,14 @@ class ReturnItemOut(BaseModel):
     invoice_item_id: str
     product_id: str
     product_name: str
+    identifier_value: str = ""
     quantity_returned: float
     unit_price: float
     line_refund_amount: float
+    reason: ReturnReason = "other"
+    condition: ReturnCondition = "sellable"
+    inventory_action: InventoryAction = "return_to_stock"
+    restocked: bool = True
 
 
 class ReturnOut(BaseModel):
@@ -98,9 +118,29 @@ class ReturnOut(BaseModel):
     invoice_id: str
     invoice_number: str = ""
     return_number: str
-    reason: str | None = None
+    status: ReturnStatus = "fully_refunded"
+    subtotal_amount: float = 0.0
+    discount_adjustment: float = 0.0
+    tax_adjustment: float = 0.0
+    round_off: float = 0.0
     refund_amount: float
-    refund_method: str | None = None
+    refund_method: RefundMethod = "cash"
     created_by: str
+    created_by_name: str = ""
     created_at: datetime
+    cancelled_by: str | None = None
+    cancelled_by_name: str | None = None
+    cancelled_at: datetime | None = None
+    cancel_reason: str | None = None
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    cashier_name: str = ""
+    payment_method: str = ""
     items: list[ReturnItemOut] = []
+
+
+class ReturnsDashboardOut(BaseModel):
+    today_return_count: int
+    today_refund_amount: float
+    month_return_count: int
+    today_returned_product_qty: float

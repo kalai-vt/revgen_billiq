@@ -317,7 +317,12 @@ export function InvoicesListPage() {
         </TableBody>
       </Table>
     </ModulePage>
-    <ViewInvoiceDialog invoiceId={viewInvoiceId} onClose={() => setViewInvoiceId(null)} />
+    <ViewInvoiceDialog
+      invoiceId={viewInvoiceId}
+      onClose={() => setViewInvoiceId(null)}
+      canReturn={canReturn}
+      onReturn={setReturnInvoiceId}
+    />
     <ReturnDialog
       invoiceId={returnInvoiceId}
       onClose={() => setReturnInvoiceId(null)}

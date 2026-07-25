@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -6,6 +7,8 @@ interface ConfirmDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /** Extra content rendered between the description and the footer buttons (e.g. a reason input). */
+  children?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
@@ -18,6 +21,7 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
+  children,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   destructive = false,
@@ -31,6 +35,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isConfirming}>
             {cancelLabel}

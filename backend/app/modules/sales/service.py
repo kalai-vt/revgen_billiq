@@ -19,7 +19,7 @@ from app.models.settings import Settings
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.modules.inventory.service import write_stock_history
-from app.schemas.sales import InvoiceCreate, ReturnCreate
+from app.schemas.sales import InvoiceCreate, ReturnCreate, ReturnsDashboardOut
 
 
 class SalesError(Exception):
@@ -160,12 +160,16 @@ def list_invoices_for_export(
 
 
 def get_invoice(db: Session, tenant_id: str, invoice_id: str) -> Invoice | None:
-    return (
+    invoice = (
         db.query(Invoice)
         .options(joinedload(Invoice.items))
         .filter(Invoice.tenant_id == tenant_id, Invoice.id == invoice_id)
         .first()
     )
+    if invoice is not None:
+        user = db.get(User, invoice.created_by)
+        invoice.created_by_name = f"{user.first_name} {user.last_name}" if user else ""  # type: ignore[attr-defined]
+    return invoice
 
 
 def create_invoice(db: Session, tenant_id: str, current_user: User, payload: InvoiceCreate) -> Invoice:
@@ -387,12 +391,26 @@ def void_invoice(db: Session, invoice: Invoice, current_user: User) -> Invoice:
 
 def _next_return_number(db: Session, tenant_id: str) -> str:
     count = db.query(func.count(Return.id)).filter(Return.tenant_id == tenant_id).scalar() or 0
-    return f"RET-{count + 1:06d}"
+    year = datetime.now(timezone.utc).year
+    return f"RET-{year}-{count + 1:06d}"
+
+
+def _user_name(db: Session, user_id: str | None) -> str:
+    if not user_id:
+        return ""
+    user = db.get(User, user_id)
+    return f"{user.first_name} {user.last_name}" if user else ""
 
 
 def _to_return_out(db: Session, ret: Return) -> Return:
     invoice = db.get(Invoice, ret.invoice_id)
     ret.invoice_number = invoice.invoice_number if invoice else ""  # type: ignore[attr-defined]
+    ret.customer_name = invoice.customer_name if invoice else None  # type: ignore[attr-defined]
+    ret.customer_phone = invoice.customer_phone if invoice else None  # type: ignore[attr-defined]
+    ret.payment_method = invoice.payment_method if invoice else ""  # type: ignore[attr-defined]
+    ret.cashier_name = _user_name(db, invoice.created_by) if invoice else ""  # type: ignore[attr-defined]
+    ret.created_by_name = _user_name(db, ret.created_by)  # type: ignore[attr-defined]
+    ret.cancelled_by_name = _user_name(db, ret.cancelled_by) if ret.cancelled_by else None  # type: ignore[attr-defined]
     return ret
 
 
@@ -406,15 +424,17 @@ def create_return(db: Session, invoice: Invoice, current_user: User, payload: Re
         tenant_id=invoice.tenant_id,
         invoice_id=invoice.id,
         return_number=_next_return_number(db, invoice.tenant_id),
-        reason=payload.reason,
         refund_amount=0.0,
-        refund_method=invoice.payment_method,
+        refund_method=payload.refund_method or invoice.payment_method,
         created_by=current_user.id,
     )
     db.add(return_record)
     db.flush()
 
     total_refund = 0.0
+    total_subtotal = 0.0
+    total_discount_adj = 0.0
+    total_tax_adj = 0.0
     for line in payload.lines:
         item = items_by_id.get(line.invoice_item_id)
         if item is None:
@@ -427,9 +447,20 @@ def create_return(db: Session, invoice: Invoice, current_user: User, payload: Re
                 f"Cannot return more than the remaining {remaining:g} unit(s) of '{item.product_name}'",
             )
 
-        unit_refund = item.line_total / item.quantity
-        line_refund_amount = round(unit_refund * line.quantity, 2)
+        # Break the per-line refund into components proportional to the returned share of the
+        # original line, mirroring how create_invoice distributes discount/tax across lines.
+        share = line.quantity / item.quantity
+        line_subtotal_refund = round(item.line_subtotal * share, 2)
+        line_discount_refund = round((item.line_subtotal - (item.line_total - item.tax_amount)) * share, 2)
+        line_tax_refund = round(item.tax_amount * share, 2)
+        line_refund_amount = round((item.line_total / item.quantity) * line.quantity, 2)
+
+        total_subtotal += line_subtotal_refund
+        total_discount_adj += line_discount_refund
+        total_tax_adj += line_tax_refund
         total_refund += line_refund_amount
+
+        restocked = line.inventory_action == "return_to_stock"
 
         db.add(
             ReturnItem(
@@ -437,9 +468,14 @@ def create_return(db: Session, invoice: Invoice, current_user: User, payload: Re
                 invoice_item_id=item.id,
                 product_id=item.product_id,
                 product_name=item.product_name,
+                identifier_value=item.identifier_value,
                 quantity_returned=line.quantity,
                 unit_price=item.unit_price,
                 line_refund_amount=line_refund_amount,
+                reason=line.reason,
+                condition=line.condition,
+                inventory_action=line.inventory_action,
+                restocked=restocked,
             )
         )
 
@@ -452,33 +488,125 @@ def create_return(db: Session, invoice: Invoice, current_user: User, payload: Re
             .first()
         )
         if inv is not None:
-            previous_stock = inv.quantity
-            inv.quantity = previous_stock + line.quantity
-            db.add(inv)
-            write_stock_history(
-                db,
-                tenant_id=invoice.tenant_id,
-                product_id=item.product_id,
-                previous_stock=previous_stock,
-                added=line.quantity,
-                removed=0.0,
-                current_stock=inv.quantity,
-                reason="return",
-                source="system",
-                created_by=current_user.id,
-                reference_id=return_record.id,
-            )
+            if restocked:
+                previous_stock = inv.quantity
+                inv.quantity = previous_stock + line.quantity
+                db.add(inv)
+                write_stock_history(
+                    db,
+                    tenant_id=invoice.tenant_id,
+                    product_id=item.product_id,
+                    previous_stock=previous_stock,
+                    added=line.quantity,
+                    removed=0.0,
+                    current_stock=inv.quantity,
+                    reason="return",
+                    source="system",
+                    created_by=current_user.id,
+                    reference_id=return_record.id,
+                )
+            else:
+                # Not restocked (damaged/discarded) — still an audited stock event, just with
+                # no quantity change, so the disposition shows up in stock history.
+                write_stock_history(
+                    db,
+                    tenant_id=invoice.tenant_id,
+                    product_id=item.product_id,
+                    previous_stock=inv.quantity,
+                    added=0.0,
+                    removed=0.0,
+                    current_stock=inv.quantity,
+                    reason="return_damaged" if line.inventory_action == "mark_damaged" else "return_discarded",
+                    source="system",
+                    created_by=current_user.id,
+                    reference_id=return_record.id,
+                )
 
+    return_record.subtotal_amount = round(total_subtotal, 2)
+    return_record.discount_adjustment = round(total_discount_adj, 2)
+    return_record.tax_adjustment = round(total_tax_adj, 2)
     return_record.refund_amount = round(total_refund, 2)
-    db.add(return_record)
+    return_record.round_off = round(
+        return_record.refund_amount
+        - (return_record.subtotal_amount - return_record.discount_adjustment + return_record.tax_adjustment),
+        2,
+    )
 
     fully_returned = all(item.returned_quantity >= item.quantity for item in invoice.items)
     invoice.status = "refunded" if fully_returned else "partial"
     db.add(invoice)
+    return_record.status = "fully_refunded" if fully_returned else "partially_refunded"
+    db.add(return_record)
 
     db.commit()
     db.refresh(return_record)
     return _to_return_out(db, return_record)
+
+
+def cancel_return(db: Session, ret: Return, current_user: User, reason: str) -> Return:
+    if ret.status == "cancelled":
+        raise SalesError(400, "Return is already cancelled")
+
+    invoice = db.get(Invoice, ret.invoice_id)
+    if invoice is None:
+        raise SalesError(404, "Invoice for this return no longer exists")
+
+    items_by_id = {item.id: item for item in invoice.items}
+
+    for line in ret.items:
+        item = items_by_id.get(line.invoice_item_id)
+        if item is not None:
+            item.returned_quantity = max(0.0, round(item.returned_quantity - line.quantity_returned, 6))
+            db.add(item)
+
+        if line.restocked:
+            inv = (
+                db.query(Inventory)
+                .filter(Inventory.tenant_id == invoice.tenant_id, Inventory.product_id == line.product_id)
+                .first()
+            )
+            if inv is not None:
+                previous_stock = inv.quantity
+                inv.quantity = previous_stock - line.quantity_returned
+                db.add(inv)
+                write_stock_history(
+                    db,
+                    tenant_id=invoice.tenant_id,
+                    product_id=line.product_id,
+                    previous_stock=previous_stock,
+                    added=0.0,
+                    removed=line.quantity_returned,
+                    current_stock=inv.quantity,
+                    reason="return_cancelled",
+                    source="system",
+                    created_by=current_user.id,
+                    reference_id=ret.id,
+                )
+
+    any_returned = any(item.returned_quantity > 0 for item in invoice.items)
+    all_returned = invoice.items and all(item.returned_quantity >= item.quantity for item in invoice.items)
+    invoice.status = "refunded" if all_returned else ("partial" if any_returned else "paid")
+    db.add(invoice)
+
+    ret.status = "cancelled"
+    ret.cancelled_by = current_user.id
+    ret.cancelled_at = datetime.now(timezone.utc)
+    ret.cancel_reason = reason
+    db.add(ret)
+
+    db.commit()
+    db.refresh(ret)
+    return _to_return_out(db, ret)
+
+
+def get_return(db: Session, tenant_id: str, return_id: str) -> Return | None:
+    ret = (
+        db.query(Return)
+        .options(joinedload(Return.items))
+        .filter(Return.tenant_id == tenant_id, Return.id == return_id)
+        .first()
+    )
+    return _to_return_out(db, ret) if ret else None
 
 
 def list_returns_for_invoice(db: Session, tenant_id: str, invoice_id: str) -> list[Return]:
@@ -492,15 +620,133 @@ def list_returns_for_invoice(db: Session, tenant_id: str, invoice_id: str) -> li
     return [_to_return_out(db, r) for r in returns]
 
 
+_RETURN_SORTABLE_FIELDS = {
+    "created_at": Return.created_at,
+    "refund_amount": Return.refund_amount,
+    "return_number": Return.return_number,
+}
+
+
+def _filter_returns(
+    query,
+    q: str | None,
+    date_from: date | None,
+    date_to: date | None,
+    status: str | None,
+    refund_method: str | None,
+    created_by: str | None,
+):
+    if q:
+        pattern = f"%{q}%"
+        query = query.join(Invoice, Invoice.id == Return.invoice_id).filter(
+            or_(
+                Return.return_number.ilike(pattern),
+                Invoice.invoice_number.ilike(pattern),
+                Invoice.customer_name.ilike(pattern),
+                Invoice.customer_phone.ilike(pattern),
+            )
+        )
+    if date_from:
+        query = query.filter(Return.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        query = query.filter(Return.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
+    if status:
+        query = query.filter(Return.status == status)
+    if refund_method:
+        query = query.filter(Return.refund_method == refund_method)
+    if created_by:
+        query = query.filter(Return.created_by == created_by)
+    return query
+
+
 def list_returns(
-    db: Session, tenant_id: str, page: int = 1, page_size: int = 20
+    db: Session,
+    tenant_id: str,
+    page: int = 1,
+    page_size: int = 20,
+    q: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    status: str | None = None,
+    refund_method: str | None = None,
+    created_by: str | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
 ) -> tuple[list[Return], int]:
     query = db.query(Return).options(joinedload(Return.items)).filter(Return.tenant_id == tenant_id)
+    query = _filter_returns(query, q, date_from, date_to, status, refund_method, created_by)
+
     total = query.with_entities(func.count(Return.id)).scalar() or 0
-    items = (
-        query.order_by(Return.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+
+    sort_column = _RETURN_SORTABLE_FIELDS.get(sort_by, Return.created_at)
+    order = sort_column.asc() if sort_dir == "asc" else sort_column.desc()
+
+    items = query.order_by(order).offset((page - 1) * page_size).limit(page_size).all()
     return [_to_return_out(db, r) for r in items], total
+
+
+def list_returns_for_export(
+    db: Session,
+    tenant_id: str,
+    q: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    status: str | None = None,
+    refund_method: str | None = None,
+    created_by: str | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+) -> list[Return]:
+    query = db.query(Return).options(joinedload(Return.items)).filter(Return.tenant_id == tenant_id)
+    query = _filter_returns(query, q, date_from, date_to, status, refund_method, created_by)
+
+    sort_column = _RETURN_SORTABLE_FIELDS.get(sort_by, Return.created_at)
+    order = sort_column.asc() if sort_dir == "asc" else sort_column.desc()
+
+    items = query.order_by(order).all()
+    return [_to_return_out(db, r) for r in items]
+
+
+def _today_start_utc(tenant: Tenant | None) -> datetime:
+    tz_name = tenant.timezone if tenant else "UTC"
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+    local_now = datetime.now(tz)
+    local_midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return local_midnight.astimezone(timezone.utc)
+
+
+def get_returns_dashboard(db: Session, tenant_id: str) -> ReturnsDashboardOut:
+    tenant = db.get(Tenant, tenant_id)
+    today_start = _today_start_utc(tenant)
+    month_start = _month_start_utc(tenant)
+
+    today_query = db.query(Return).filter(
+        Return.tenant_id == tenant_id, Return.status != "cancelled", Return.created_at >= today_start
+    )
+    today_return_count = today_query.with_entities(func.count(Return.id)).scalar() or 0
+    today_refund_amount = today_query.with_entities(func.coalesce(func.sum(Return.refund_amount), 0.0)).scalar() or 0.0
+
+    month_return_count = (
+        db.query(func.count(Return.id))
+        .filter(Return.tenant_id == tenant_id, Return.status != "cancelled", Return.created_at >= month_start)
+        .scalar()
+        or 0
+    )
+
+    today_returned_product_qty = (
+        db.query(func.coalesce(func.sum(ReturnItem.quantity_returned), 0.0))
+        .join(Return, Return.id == ReturnItem.return_id)
+        .filter(Return.tenant_id == tenant_id, Return.status != "cancelled", Return.created_at >= today_start)
+        .scalar()
+        or 0.0
+    )
+
+    return ReturnsDashboardOut(
+        today_return_count=today_return_count,
+        today_refund_amount=float(today_refund_amount),
+        month_return_count=month_return_count,
+        today_returned_product_qty=float(today_returned_product_qty),
+    )

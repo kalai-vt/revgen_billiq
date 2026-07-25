@@ -51,6 +51,7 @@ const POSPage = lazy(() => import('@/features/pos/pages/POSPage').then((m) => ({
 const InvoicesListPage = lazy(() => import('@/features/pos/pages/InvoicesListPage').then((m) => ({ default: m.InvoicesListPage })));
 const ReturnHistoryPage = lazy(() => import('@/features/pos/pages/ReturnHistoryPage').then((m) => ({ default: m.ReturnHistoryPage })));
 const InvoicePrintPage = lazy(() => import('@/features/pos/pages/InvoicePrintPage').then((m) => ({ default: m.InvoicePrintPage })));
+const ReturnPrintPage = lazy(() => import('@/features/pos/pages/ReturnPrintPage').then((m) => ({ default: m.ReturnPrintPage })));
 const DashboardPage = lazy(() => import('@/features/analytics/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const AnalyticsPage = lazy(() => import('@/features/analytics/pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const PricingPage = lazy(() => import('@/features/plans/pages/PricingPage').then((m) => ({ default: m.PricingPage })));
@@ -72,7 +73,10 @@ export const router = createBrowserRouter([
   { path: '/pricing', element: <PricingPage /> },
   {
     element: <ProtectedRoute />,
-    children: [{ path: '/invoices/:id/print', element: <InvoicePrintPage /> }],
+    children: [
+      { path: '/invoices/:id/print', element: <InvoicePrintPage /> },
+      { path: '/returns/:id/print', element: <ReturnPrintPage /> },
+    ],
   },
   {
     element: <ProtectedRoute />,
