@@ -51,6 +51,24 @@ export function InvoiceReceiptSummary({ invoice }: InvoiceReceiptSummaryProps) {
             <span>{invoice.change_due.toFixed(2)}</span>
           </div>
         )}
+        {invoice.payment_status !== 'paid' && invoice.payment_status !== 'cancelled' && (
+          <>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Paid</span>
+              <span>{invoice.paid_amount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-medium">
+              <span>Outstanding</span>
+              <span className={invoice.is_overdue ? 'text-destructive' : ''}>{invoice.outstanding_amount.toFixed(2)}</span>
+            </div>
+            {invoice.due_date && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Due date</span>
+                <span className={invoice.is_overdue ? 'text-destructive' : ''}>{invoice.due_date}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

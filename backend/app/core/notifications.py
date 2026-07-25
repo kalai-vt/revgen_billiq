@@ -8,6 +8,8 @@ TYPE_LOW_STOCK = "low_stock"
 TYPE_IMPORT_COMPLETED = "import_completed"
 TYPE_INVOICE_CANCELLED = "invoice_cancelled"
 TYPE_NEW_PRODUCT = "new_product"
+TYPE_PAYMENT_RECEIVED = "payment_received"
+TYPE_CREDIT_LIMIT_EXCEEDED = "credit_limit_exceeded"
 # Reserved for when real subscription/billing-cycle data exists — nothing emits this yet.
 TYPE_SUBSCRIPTION_EXPIRY = "subscription_expiry"
 

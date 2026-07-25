@@ -19,6 +19,9 @@ const SignedOutPage = lazy(() => import('@/features/auth/pages/SignedOutPage').t
 const ActivityLogPage = lazy(() => import('@/features/activity/pages/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })));
 const CategoriesPage = lazy(() => import('@/features/categories/pages/CategoriesPage').then((m) => ({ default: m.CategoriesPage })));
 const CustomersPage = lazy(() => import('@/features/customers/pages/CustomersPage').then((m) => ({ default: m.CustomersPage })));
+const CustomerDetailPage = lazy(() =>
+  import('@/features/customers/pages/CustomerDetailPage').then((m) => ({ default: m.CustomerDetailPage })),
+);
 const ProductsPage = lazy(() => import('@/features/products/pages/ProductsPage').then((m) => ({ default: m.ProductsPage })));
 const InventoryDashboardPage = lazy(() =>
   import('@/features/inventory/pages/InventoryDashboardPage').then((m) => ({ default: m.InventoryDashboardPage })),
@@ -50,6 +53,9 @@ const CustomerImportHistoryPage = lazy(() =>
 const POSPage = lazy(() => import('@/features/pos/pages/POSPage').then((m) => ({ default: m.POSPage })));
 const InvoicesListPage = lazy(() => import('@/features/pos/pages/InvoicesListPage').then((m) => ({ default: m.InvoicesListPage })));
 const ReturnHistoryPage = lazy(() => import('@/features/pos/pages/ReturnHistoryPage').then((m) => ({ default: m.ReturnHistoryPage })));
+const OutstandingDashboardPage = lazy(() =>
+  import('@/features/payments/pages/OutstandingDashboardPage').then((m) => ({ default: m.OutstandingDashboardPage })),
+);
 const InvoicePrintPage = lazy(() => import('@/features/pos/pages/InvoicePrintPage').then((m) => ({ default: m.InvoicePrintPage })));
 const ReturnPrintPage = lazy(() => import('@/features/pos/pages/ReturnPrintPage').then((m) => ({ default: m.ReturnPrintPage })));
 const DashboardPage = lazy(() => import('@/features/analytics/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -90,6 +96,7 @@ export const router = createBrowserRouter([
             children: [
               { path: '/dashboard', element: <DashboardPage /> },
               { path: '/analytics', element: <AnalyticsPage /> },
+              { path: '/outstanding', element: <OutstandingDashboardPage /> },
               { path: '/inventory/import', element: <ImportInventoryPage /> },
               { path: '/inventory/import-history', element: <InventoryImportHistoryPage /> },
               { path: '/products/import', element: <ImportProductsPage /> },
@@ -105,6 +112,7 @@ export const router = createBrowserRouter([
           { path: '/inventory/products', element: <InventoryListPage /> },
           { path: '/inventory/history', element: <StockHistoryPage /> },
           { path: '/customers', element: <CustomersPage /> },
+          { path: '/customers/:id', element: <CustomerDetailPage /> },
           { path: '/pos', element: <POSPage /> },
           { path: '/invoices', element: <InvoicesListPage /> },
           { path: '/returns', element: <ReturnHistoryPage /> },

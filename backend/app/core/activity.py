@@ -8,6 +8,8 @@ from app.models.activity_log import ActivityLog
 MODULE_PRODUCT = "product"
 MODULE_INVENTORY = "inventory"
 MODULE_INVOICE = "invoice"
+MODULE_CUSTOMER = "customer"
+MODULE_PAYMENT = "payment"
 
 # Action labels
 ACTION_CREATED = "created"
@@ -15,6 +17,8 @@ ACTION_UPDATED = "updated"
 ACTION_DELETED = "deleted"
 ACTION_STOCK_UPDATED = "stock_updated"
 ACTION_CANCELLED = "cancelled"
+ACTION_CREDIT_SETTINGS_UPDATED = "credit_settings_updated"
+ACTION_PAYMENT_RECEIVED = "payment_received"
 
 
 def log_activity(

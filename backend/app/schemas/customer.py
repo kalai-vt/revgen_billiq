@@ -14,6 +14,12 @@ class CustomerCreate(BaseModel):
     mobile: str | None = None
     email: str | None = None
     address: str | None = None
+    is_credit_enabled: bool = False
+    credit_limit: float | None = Field(default=None, ge=0)
+    credit_days: int | None = Field(default=None, ge=0)
+    allow_credit_beyond_limit: bool = False
+    require_manager_approval: bool = False
+    auto_block_credit: bool = False
 
 
 class CustomerUpdate(BaseModel):
@@ -22,6 +28,12 @@ class CustomerUpdate(BaseModel):
     email: str | None = None
     address: str | None = None
     is_active: bool | None = None
+    is_credit_enabled: bool | None = None
+    credit_limit: float | None = Field(default=None, ge=0)
+    credit_days: int | None = Field(default=None, ge=0)
+    allow_credit_beyond_limit: bool | None = None
+    require_manager_approval: bool | None = None
+    auto_block_credit: bool | None = None
 
 
 class CustomerOut(BaseModel):
@@ -34,6 +46,17 @@ class CustomerOut(BaseModel):
     email: str | None = None
     address: str | None = None
     is_active: bool
+    is_credit_enabled: bool = False
+    credit_limit: float | None = None
+    credit_days: int | None = None
+    allow_credit_beyond_limit: bool = False
+    require_manager_approval: bool = False
+    auto_block_credit: bool = False
+    outstanding_amount: float = 0.0
+    overdue_amount: float = 0.0
+    due_invoices_count: int = 0
+    overdue_invoices_count: int = 0
+    last_payment_date: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+PaymentType = Literal["paid", "partial", "credit"]
 
 
 class InvoiceLineCreate(BaseModel):
@@ -22,6 +24,9 @@ class InvoiceCreate(BaseModel):
     tax_percentage: float = Field(default=0.0, ge=0, le=100)
     payment_method: Literal["cash", "card", "upi"]
     amount_tendered: float | None = Field(default=None, ge=0)
+    payment_type: PaymentType = "paid"
+    paid_now: float = Field(default=0.0, ge=0)
+    due_date: date | None = None
 
 
 class InvoiceItemOut(BaseModel):
@@ -65,6 +70,12 @@ class InvoiceOut(BaseModel):
     payment_method: str
     amount_tendered: float | None = None
     change_due: float | None = None
+    payment_status: str = "paid"
+    due_date: date | None = None
+    paid_amount: float = 0.0
+    outstanding_amount: float = 0.0
+    payment_terms: str | None = None
+    is_overdue: bool = False
     created_at: datetime
     items: list[InvoiceItemOut] = []
 

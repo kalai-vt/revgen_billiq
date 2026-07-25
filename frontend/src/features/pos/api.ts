@@ -3,6 +3,8 @@ import type { Product } from '@/features/products/api';
 
 export type PaymentMethod = 'cash' | 'card' | 'upi';
 export type DiscountType = 'flat' | 'percent' | null;
+export type PaymentType = 'paid' | 'partial' | 'credit';
+export type InvoicePaymentStatus = 'paid' | 'partially_paid' | 'credit' | 'cancelled';
 
 export interface InvoiceItem {
   id: string;
@@ -41,6 +43,12 @@ export interface Invoice {
   payment_method: PaymentMethod;
   amount_tendered: number | null;
   change_due: number | null;
+  payment_status: InvoicePaymentStatus;
+  due_date: string | null;
+  paid_amount: number;
+  outstanding_amount: number;
+  payment_terms: string | null;
+  is_overdue: boolean;
   created_at: string;
   items: InvoiceItem[];
 }
@@ -62,6 +70,9 @@ export interface InvoiceCreatePayload {
   tax_percentage?: number;
   payment_method: PaymentMethod;
   amount_tendered?: number | null;
+  payment_type?: PaymentType;
+  paid_now?: number;
+  due_date?: string | null;
 }
 
 export interface InvoiceListParams {

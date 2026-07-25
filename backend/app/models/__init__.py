@@ -13,6 +13,7 @@ from app.models.returns import Return, ReturnItem
 from app.models.held_bill import HeldBill
 from app.models.activity_log import ActivityLog
 from app.models.notification import Notification
+from app.models.payment import CustomerLedgerAdjustment, Payment, PaymentAllocation
 
 __all__ = [
     "Tenant",
@@ -42,4 +43,7 @@ __all__ = [
     "HeldBill",
     "ActivityLog",
     "Notification",
+    "Payment",
+    "PaymentAllocation",
+    "CustomerLedgerAdjustment",
 ]

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.activity import ACTION_CANCELLED, ACTION_CREATED, MODULE_INVOICE, log_activity
 from app.core.limits import assert_under_limit
-from app.core.notifications import TYPE_INVOICE_CANCELLED, create_notification
+from app.core.notifications import TYPE_CREDIT_LIMIT_EXCEEDED, TYPE_INVOICE_CANCELLED, create_notification
 from app.models.audit import PriceOverrideAudit
 from app.models.catalog import Product
 from app.models.customer import Customer
@@ -19,6 +19,7 @@ from app.models.settings import Settings
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.modules.inventory.service import write_stock_history
+from app.modules.payments.service import record_initial_payment
 from app.schemas.sales import InvoiceCreate, ReturnCreate, ReturnsDashboardOut
 
 
@@ -113,6 +114,9 @@ def list_invoices(
     order = sort_column.asc() if sort_dir == "asc" else sort_column.desc()
 
     items = query.order_by(order).offset((page - 1) * page_size).limit(page_size).all()
+    today = date.today()
+    for item in items:
+        item.is_overdue = _is_overdue(item, today)  # type: ignore[attr-defined]
     return items, total
 
 
@@ -159,6 +163,17 @@ def list_invoices_for_export(
     return query.order_by(order).all()
 
 
+def _is_overdue(invoice: Invoice, today: date) -> bool:
+    return invoice.payment_status in ("credit", "partially_paid") and invoice.due_date is not None and invoice.due_date < today
+
+
+def _annotate_invoice(db: Session, invoice: Invoice, today: date) -> Invoice:
+    user = db.get(User, invoice.created_by)
+    invoice.created_by_name = f"{user.first_name} {user.last_name}" if user else ""  # type: ignore[attr-defined]
+    invoice.is_overdue = _is_overdue(invoice, today)  # type: ignore[attr-defined]
+    return invoice
+
+
 def get_invoice(db: Session, tenant_id: str, invoice_id: str) -> Invoice | None:
     invoice = (
         db.query(Invoice)
@@ -167,9 +182,55 @@ def get_invoice(db: Session, tenant_id: str, invoice_id: str) -> Invoice | None:
         .first()
     )
     if invoice is not None:
-        user = db.get(User, invoice.created_by)
-        invoice.created_by_name = f"{user.first_name} {user.last_name}" if user else ""  # type: ignore[attr-defined]
+        invoice = _annotate_invoice(db, invoice, date.today())
     return invoice
+
+
+def _customer_total_outstanding(db: Session, tenant_id: str, customer_id: str) -> float:
+    return (
+        db.query(func.coalesce(func.sum(Invoice.outstanding_amount), 0.0))
+        .filter(Invoice.tenant_id == tenant_id, Invoice.customer_id == customer_id, Invoice.status != "cancelled")
+        .scalar()
+        or 0.0
+    )
+
+
+def _check_credit_limit(db: Session, customer: Customer, additional_amount: float, current_user: User) -> None:
+    """Enforces the credit-limit precedence from Customer's optional credit-control settings.
+    A limit is never mandatory — the limit-specific checks are a no-op whenever `credit_limit`
+    is unset, but `require_manager_approval` applies to every credit sale for this customer
+    regardless of amount or whether a limit is even configured."""
+    if additional_amount <= 0:
+        return
+
+    if customer.require_manager_approval and current_user.role not in ("owner", "manager"):
+        raise SalesError(403, f"Credit sales for '{customer.name}' require manager approval.")
+
+    if customer.credit_limit is None:
+        return
+
+    projected = _customer_total_outstanding(db, customer.tenant_id, customer.id) + additional_amount
+    if projected <= customer.credit_limit:
+        return
+
+    if customer.auto_block_credit:
+        raise SalesError(400, f"Credit blocked: '{customer.name}' has exceeded their credit limit.")
+    if not customer.allow_credit_beyond_limit and current_user.role not in ("owner", "manager"):
+        raise SalesError(
+            403, f"This sale would exceed '{customer.name}'s credit limit — ask a manager to approve it."
+        )
+
+    # Sale is allowed to proceed despite being over the limit (owner/manager override, or
+    # allow_credit_beyond_limit) — surface it so staff/owner can follow up.
+    create_notification(
+        db,
+        tenant_id=customer.tenant_id,
+        type=TYPE_CREDIT_LIMIT_EXCEEDED,
+        title="Credit limit exceeded",
+        message=f"'{customer.name}' now owes {projected:.2f}, over their {customer.credit_limit:.2f} credit limit.",
+        entity_type="Customer",
+        entity_id=customer.id,
+    )
 
 
 def create_invoice(db: Session, tenant_id: str, current_user: User, payload: InvoiceCreate) -> Invoice:
@@ -228,12 +289,36 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
 
     customer_name = payload.customer_name
     customer_phone = payload.customer_phone
+    customer: Customer | None = None
     if payload.customer_id:
         customer = db.query(Customer).filter(Customer.tenant_id == tenant_id, Customer.id == payload.customer_id).first()
         if not customer:
             raise SalesError(404, "Customer not found")
         customer_name = customer_name or customer.name
         customer_phone = customer_phone or customer.mobile
+
+    if payload.payment_type != "paid":
+        if customer is None:
+            raise SalesError(400, "A customer must be selected for a partial or credit sale")
+        if not customer.is_credit_enabled:
+            raise SalesError(400, f"'{customer.name}' is not enabled for credit sales")
+        if payload.due_date is None:
+            raise SalesError(400, "A due date is required for a partial or credit sale")
+        if payload.paid_now > total_amount:
+            raise SalesError(400, "Amount paid now cannot exceed the invoice total")
+        _check_credit_limit(db, customer, total_amount - payload.paid_now, current_user)
+
+    if payload.payment_type == "paid":
+        payment_status = "paid"
+        paid_amount = total_amount
+        due_date = None
+        payment_terms = None
+    else:
+        paid_amount = round(payload.paid_now, 2)
+        payment_status = "paid" if paid_amount >= total_amount else ("credit" if paid_amount == 0 else "partially_paid")
+        due_date = payload.due_date
+        payment_terms = f"Net {customer.credit_days}" if customer and customer.credit_days else "Custom"
+    outstanding_amount = round(total_amount - paid_amount, 2)
 
     invoice = Invoice(
         tenant_id=tenant_id,
@@ -254,9 +339,16 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
         total_amount=total_amount,
         payment_method=payload.payment_method,
         amount_tendered=payload.amount_tendered,
+        payment_status=payment_status,
+        due_date=due_date,
+        paid_amount=paid_amount,
+        outstanding_amount=outstanding_amount,
+        payment_terms=payment_terms,
     )
     db.add(invoice)
     db.flush()
+
+    record_initial_payment(db, tenant_id, invoice, current_user, paid_amount)
 
     for product, quantity, unit_price, line_subtotal in resolved:
         proportional_discount = (line_subtotal / subtotal * discount_amount) if subtotal > 0 else 0.0
@@ -311,7 +403,7 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
                 reference_id=invoice.id,
             )
 
-    if payload.payment_method == "cash":
+    if payload.payment_type == "paid" and payload.payment_method == "cash":
         if payload.amount_tendered is None or payload.amount_tendered < invoice.total_amount:
             raise SalesError(400, "Amount tendered must be provided and cover the total for cash payments")
         invoice.change_due = round(payload.amount_tendered - invoice.total_amount, 2)
@@ -338,7 +430,11 @@ def void_invoice(db: Session, invoice: Invoice, current_user: User) -> Invoice:
         raise SalesError(400, "Invoice is already cancelled")
     if invoice.status in ("partial", "refunded"):
         raise SalesError(400, "Cannot cancel an invoice that already has returns against it")
+    if invoice.paid_amount > 0 and invoice.payment_status != "paid":
+        raise SalesError(400, "Cannot cancel an invoice that already has payments recorded against it")
     invoice.status = "cancelled"
+    invoice.payment_status = "cancelled"
+    invoice.outstanding_amount = 0.0
     db.add(invoice)
 
     for item in invoice.items:

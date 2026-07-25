@@ -23,6 +23,7 @@ from app.modules.categories.router import router as categories_router
 from app.modules.customers.router import router as customers_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.notifications.router import router as notifications_router
+from app.modules.payments.router import router as payments_router
 from app.modules.pos.router import router as pos_router
 from app.modules.sales.router import router as sales_router
 from app.modules.search.router import router as search_router
@@ -80,6 +81,7 @@ app.include_router(billing_plans_router)
 app.include_router(categories_router)
 app.include_router(catalog_router)
 app.include_router(customers_router)
+app.include_router(payments_router)
 app.include_router(inventory_router)
 app.include_router(pos_router)
 app.include_router(sales_router)

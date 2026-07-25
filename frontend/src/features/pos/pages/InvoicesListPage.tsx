@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Printer, Ban, Eye, Undo2, Search, Receipt } from 'lucide-react';
+import { Download, Printer, Ban, Eye, Undo2, Search, Receipt, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
@@ -21,6 +21,8 @@ import { InvoiceExportButtons } from '@/features/pos/components/InvoiceExportBut
 import { ReturnDialog } from '@/features/pos/components/ReturnDialog';
 import { ViewInvoiceDialog } from '@/features/pos/components/ViewInvoiceDialog';
 import { invoiceStatusBadgeClassName, invoiceStatusLabel } from '@/features/pos/lib/invoiceStatus';
+import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/payments/lib/paymentStatus';
+import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { ApiError } from '@/lib/api-client';
 
 const PAGE_SIZE = 20;
@@ -51,7 +53,7 @@ const SORT_LABELS: Record<SortValue, string> = {
   'invoice_number:desc': 'Invoice #: Z to A',
 };
 
-const INITIAL_WIDTHS = { invoiceNumber: 140, customer: 160, payment: 110, total: 110, status: 110, date: 160 };
+const INITIAL_WIDTHS = { invoiceNumber: 140, customer: 160, payment: 110, total: 110, status: 110, paymentStatus: 120, date: 160 };
 
 export function InvoicesListPage() {
   const { user } = useAuth();
@@ -69,6 +71,7 @@ export function InvoicesListPage() {
   const [page, setPage] = useState(1);
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [returnInvoiceId, setReturnInvoiceId] = useState<string | null>(null);
+  const [receivePaymentCustomerId, setReceivePaymentCustomerId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { widths, startResize } = useResizableColumns(INITIAL_WIDTHS);
 
@@ -199,8 +202,9 @@ export function InvoicesListPage() {
           <col className="hidden sm:table-column" style={{ width: widths.payment }} />
           <col style={{ width: widths.total }} />
           <col style={{ width: widths.status }} />
+          <col className="hidden md:table-column" style={{ width: widths.paymentStatus }} />
           <col className="hidden sm:table-column" style={{ width: widths.date }} />
-          <col style={{ width: 128 }} />
+          <col style={{ width: 160 }} />
         </colgroup>
         <TableHeader>
           <TableRow>
@@ -224,25 +228,29 @@ export function InvoicesListPage() {
               Status
               <ColumnResizeHandle onPointerDown={startResize('status')} />
             </TableHead>
+            <TableHead className="relative hidden md:table-cell">
+              Payment Status
+              <ColumnResizeHandle onPointerDown={startResize('paymentStatus')} />
+            </TableHead>
             <SortableTableHead field="created_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="hidden sm:table-cell">
               Date
               <ColumnResizeHandle onPointerDown={startResize('date')} />
             </SortableTableHead>
-            <TableHead className="w-32" />
+            <TableHead className="w-40" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading &&
             Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={8}>
                   <Skeleton className="h-5 w-full" />
                 </TableCell>
               </TableRow>
             ))}
           {!isLoading && data?.items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7}>
+              <TableCell colSpan={8}>
                 <EmptyState icon={Receipt} title="No invoices found" description="Create a sale in POS or adjust your filters." />
               </TableCell>
             </TableRow>
@@ -257,6 +265,15 @@ export function InvoicesListPage() {
                 <Badge variant="outline" className={invoiceStatusBadgeClassName(invoice.status)}>
                   {invoiceStatusLabel(invoice.status)}
                 </Badge>
+              </TableCell>
+              <TableCell className="hidden truncate md:table-cell">
+                {invoice.status !== 'cancelled' && invoice.payment_status !== 'paid' ? (
+                  <Badge variant="outline" className={paymentStatusBadgeClassName(invoice.payment_status, invoice.is_overdue)}>
+                    {paymentStatusLabel(invoice.payment_status, invoice.is_overdue)}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </TableCell>
               <TableCell className="hidden truncate text-muted-foreground sm:table-cell">{new Date(invoice.created_at).toLocaleString()}</TableCell>
               <TableCell>
@@ -288,6 +305,17 @@ export function InvoicesListPage() {
                   >
                     <Download className="size-4" />
                   </Button>
+                  {invoice.customer_id && invoice.outstanding_amount > 0 && invoice.status !== 'cancelled' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label={`Receive payment for invoice ${invoice.invoice_number}`}
+                      onClick={() => setReceivePaymentCustomerId(invoice.customer_id)}
+                    >
+                      <Wallet className="size-4" />
+                    </Button>
+                  )}
                   {canReturn && (invoice.status === 'paid' || invoice.status === 'partial') && (
                     <Button
                       variant="ghost"
@@ -326,6 +354,12 @@ export function InvoicesListPage() {
     <ReturnDialog
       invoiceId={returnInvoiceId}
       onClose={() => setReturnInvoiceId(null)}
+      onSuccess={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}
+    />
+    <ReceivePaymentDialog
+      open={!!receivePaymentCustomerId}
+      customerId={receivePaymentCustomerId}
+      onClose={() => setReceivePaymentCustomerId(null)}
       onSuccess={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}
     />
     </>

@@ -16,7 +16,7 @@ import { computeTotals } from '@/features/pos/lib/calc';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import type { Customer } from '@/features/customers/api';
-import type { DiscountType, HeldBill, Invoice, PaymentMethod } from '@/features/pos/api';
+import type { DiscountType, HeldBill, Invoice, PaymentMethod, PaymentType } from '@/features/pos/api';
 import { ApiError } from '@/lib/api-client';
 
 export function POSPage() {
@@ -31,8 +31,12 @@ export function POSPage() {
   const [discountValue, setDiscountValue] = useState(0);
   const [taxPercentage, setTaxPercentage] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentType, setPaymentType] = useState<PaymentType>('paid');
   const [amountTendered, setAmountTendered] = useState<number | null>(null);
+  const [paidNow, setPaidNow] = useState<number | null>(null);
+  const [dueDate, setDueDate] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -55,9 +59,15 @@ export function POSPage() {
 
   function handleCustomerSelect(customer: Customer | null) {
     setCustomerId(customer?.id ?? null);
+    setSelectedCustomer(customer);
     if (customer) {
       setCustomerName(customer.name);
       setCustomerPhone(customer.mobile ?? '');
+      if (customer.credit_days && !dueDate) {
+        const due = new Date();
+        due.setDate(due.getDate() + customer.credit_days);
+        setDueDate(due.toISOString().slice(0, 10));
+      }
     }
   }
 
@@ -113,8 +123,12 @@ export function POSPage() {
     setDiscountValue(0);
     setTaxPercentage(preferences?.default_tax_percent ?? 0);
     setPaymentMethod(preferences?.default_payment_method ?? 'cash');
+    setPaymentType('paid');
     setAmountTendered(null);
+    setPaidNow(null);
+    setDueDate('');
     setCustomerId(null);
+    setSelectedCustomer(null);
     setCustomerName('');
     setCustomerPhone('');
     setError(null);
@@ -137,7 +151,10 @@ export function POSPage() {
         discount_value: discountValue,
         tax_percentage: taxPercentage,
         payment_method: paymentMethod,
-        amount_tendered: paymentMethod === 'cash' ? amountTendered : null,
+        amount_tendered: paymentType === 'paid' && paymentMethod === 'cash' ? amountTendered : null,
+        payment_type: paymentType,
+        paid_now: paymentType === 'partial' ? (paidNow ?? 0) : paymentType === 'credit' ? 0 : undefined,
+        due_date: paymentType !== 'paid' ? dueDate || null : null,
       });
       setCompletedInvoice(invoice);
     } catch (err) {
@@ -150,7 +167,8 @@ export function POSPage() {
     !createInvoice.isPending &&
     !completedInvoice &&
     !heldBillsOpen &&
-    (paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total));
+    (paymentType !== 'paid' || paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total)) &&
+    (paymentType === 'paid' || (!!customerId && !!dueDate));
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
   return (
@@ -178,8 +196,14 @@ export function POSPage() {
           onTaxPercentageChange={setTaxPercentage}
           paymentMethod={paymentMethod}
           onPaymentMethodChange={setPaymentMethod}
+          paymentType={paymentType}
+          onPaymentTypeChange={setPaymentType}
           amountTendered={amountTendered}
           onAmountTenderedChange={setAmountTendered}
+          paidNow={paidNow}
+          onPaidNowChange={setPaidNow}
+          dueDate={dueDate}
+          onDueDateChange={setDueDate}
           customerName={customerName}
           onCustomerNameChange={setCustomerName}
           customerPhone={customerPhone}
@@ -189,6 +213,7 @@ export function POSPage() {
           allowDiscounts={preferences?.allow_discounts ?? true}
           enableCustomerSelection={preferences?.enable_customer_selection ?? false}
           customerId={customerId}
+          selectedCustomer={selectedCustomer}
           onCustomerSelect={handleCustomerSelect}
           totals={totals}
           onCheckout={handleCheckout}

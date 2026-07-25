@@ -1,7 +1,9 @@
 import { memo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Pencil, Trash2, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -24,10 +26,11 @@ interface CustomerTableProps {
   onSort: (field: CustomerSortField) => void;
 }
 
-const INITIAL_WIDTHS = { name: 200, mobile: 140, email: 220, address: 220 };
+const INITIAL_WIDTHS = { name: 200, mobile: 140, email: 220, address: 180, outstanding: 130 };
 
 export const CustomerTable = memo(function CustomerTable({ data, isLoading, sortBy, sortDir, onSort }: CustomerTableProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const canEdit = user?.role === 'owner' || user?.role === 'manager';
   const canDelete = user?.role === 'owner';
   const queryClient = useQueryClient();
@@ -51,7 +54,10 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
           <col style={{ width: widths.name }} />
           <col style={{ width: widths.mobile }} />
           <col className="hidden sm:table-column" style={{ width: widths.email }} />
-          <col className="hidden md:table-column" style={{ width: widths.address }} />
+          <col className="hidden lg:table-column" style={{ width: widths.address }} />
+          <col className="hidden md:table-column" style={{ width: widths.outstanding }} />
+          <col className="hidden md:table-column" style={{ width: 110 }} />
+          <col className="hidden lg:table-column" style={{ width: 130 }} />
           {canEdit && <col style={{ width: 80 }} />}
         </colgroup>
         <TableHeader>
@@ -68,10 +74,16 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
               Email
               <ColumnResizeHandle onPointerDown={startResize('email')} />
             </SortableTableHead>
-            <TableHead className="relative hidden md:table-cell">
+            <TableHead className="relative hidden lg:table-cell">
               Address
               <ColumnResizeHandle onPointerDown={startResize('address')} />
             </TableHead>
+            <TableHead className="relative hidden text-right md:table-cell">
+              Outstanding
+              <ColumnResizeHandle onPointerDown={startResize('outstanding')} />
+            </TableHead>
+            <TableHead className="hidden md:table-cell">Payment Status</TableHead>
+            <TableHead className="hidden lg:table-cell">Last Payment</TableHead>
             {canEdit && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
@@ -79,28 +91,59 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
           {isLoading &&
             Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>
-                <TableCell colSpan={5}>
+                <TableCell colSpan={8}>
                   <Skeleton className="h-5 w-full" />
                 </TableCell>
               </TableRow>
             ))}
           {!isLoading && data?.items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5}>
+              <TableCell colSpan={8}>
                 <EmptyState icon={Users} title="No customers found" description="Add a customer or adjust your search." />
               </TableCell>
             </TableRow>
           )}
           {data?.items.map((customer) => (
-            <TableRow key={customer.id}>
+            <TableRow key={customer.id} className="cursor-pointer" onClick={() => navigate(`/customers/${customer.id}`)}>
               <TableCell className="max-w-[160px] truncate font-medium sm:max-w-none">{customer.name}</TableCell>
               <TableCell className="truncate">{customer.mobile ?? '—'}</TableCell>
               <TableCell className="hidden truncate sm:table-cell">{customer.email ?? '—'}</TableCell>
-              <TableCell className="hidden truncate text-muted-foreground md:table-cell">
+              <TableCell className="hidden truncate text-muted-foreground lg:table-cell">
                 {customer.address ?? '—'}
               </TableCell>
+              <TableCell className="hidden text-right md:table-cell">
+                {customer.outstanding_amount > 0 ? (
+                  <span className={customer.overdue_amount > 0 ? 'font-medium text-destructive' : 'font-medium'}>
+                    {customer.outstanding_amount.toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {customer.is_credit_enabled ? (
+                  customer.overdue_amount > 0 ? (
+                    <Badge variant="outline" className="bg-destructive/10 text-destructive">
+                      Overdue
+                    </Badge>
+                  ) : customer.outstanding_amount > 0 ? (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      Outstanding
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      Settled
+                    </Badge>
+                  )
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="hidden text-muted-foreground lg:table-cell">
+                {customer.last_payment_date ? new Date(customer.last_payment_date).toLocaleDateString() : '—'}
+              </TableCell>
               {canEdit && (
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1">
                     <CustomerFormDialog
                       customer={customer}

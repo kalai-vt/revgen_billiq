@@ -13,6 +13,7 @@ import {
   UploadCloud,
   Undo2,
   ScrollText,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import type { PlanId, UserRole } from '@/features/auth/api';
@@ -47,6 +48,7 @@ export const NAV_ENTRIES: NavEntry[] = [
       { to: '/pos', label: 'Billing / POS', icon: ShoppingCart, roles: ['owner', 'manager', 'staff'] },
       { to: '/invoices', label: 'Invoices', icon: Receipt, roles: ['owner', 'manager', 'staff'] },
       { to: '/returns', label: 'Returns', icon: Undo2, roles: ['owner', 'manager', 'staff'] },
+      { to: '/outstanding', label: 'Outstanding', icon: Wallet, roles: ['owner', 'manager'] },
     ],
   },
   {

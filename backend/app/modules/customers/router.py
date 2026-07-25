@@ -34,11 +34,30 @@ def get_customers(
     page_size: int = Query(default=20, ge=1, le=100),
     sort_by: Literal["name", "mobile", "email"] = Query(default="name"),
     sort_dir: Literal["asc", "desc"] = Query(default="asc"),
+    has_outstanding: bool | None = Query(default=None),
+    has_overdue: bool | None = Query(default=None),
+    due_today: bool | None = Query(default=None),
+    due_this_week: bool | None = Query(default=None),
+    credit_enabled: bool | None = Query(default=None),
+    credit_limit_exceeded: bool | None = Query(default=None),
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     items, total = service.list_customers(
-        db, current_user.tenant_id, q=q, is_active=is_active, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
+        db,
+        current_user.tenant_id,
+        q=q,
+        is_active=is_active,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        has_outstanding=has_outstanding,
+        has_overdue=has_overdue,
+        due_today=due_today,
+        due_this_week=due_this_week,
+        credit_enabled=credit_enabled,
+        credit_limit_exceeded=credit_limit_exceeded,
     )
     return make_response(
         True,
@@ -96,7 +115,7 @@ def put_customer(
     customer = service.get_customer(db, current_user.tenant_id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    customer = service.update_customer(db, customer, payload)
+    customer = service.update_customer(db, customer, payload, current_user)
     return make_response(True, "Customer updated", CustomerOut.model_validate(customer).model_dump(mode="json"))
 
 
@@ -222,3 +241,17 @@ def get_customers_import_error_report(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="import_{import_id}_errors.csv"'},
     )
+
+
+# NOTE: this catch-all-single-segment route must stay LAST among GET /customers/* routes —
+# it would otherwise shadow the literal paths above (export, import-template, imports, ...).
+@router.get("/customers/{customer_id}")
+def get_customer_detail(
+    customer_id: str,
+    current_user: User = Depends(require_role("owner", "manager", "staff")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    customer = service.get_customer(db, current_user.tenant_id, customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return make_response(True, "Customer loaded", CustomerOut.model_validate(customer).model_dump(mode="json"))

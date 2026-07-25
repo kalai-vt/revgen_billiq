@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Printer, Undo2 } from 'lucide-react';
+import { Download, Printer, Undo2, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import * as posApi from '@/features/pos/api';
 import { InvoiceReceiptSummary } from '@/features/pos/components/InvoiceReceiptSummary';
 import { invoiceStatusBadgeClassName, invoiceStatusLabel } from '@/features/pos/lib/invoiceStatus';
+import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/payments/lib/paymentStatus';
+import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { ApiError } from '@/lib/api-client';
 
 interface ViewInvoiceDialogProps {
@@ -18,6 +21,8 @@ interface ViewInvoiceDialogProps {
 }
 
 export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onReturn }: ViewInvoiceDialogProps) {
+  const queryClient = useQueryClient();
+  const [receivePaymentOpen, setReceivePaymentOpen] = useState(false);
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoice', invoiceId],
     queryFn: () => posApi.getInvoice(invoiceId!),
@@ -57,11 +62,16 @@ export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onRet
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex flex-wrap items-center gap-2">
                 {invoice.invoice_number}
                 <Badge variant="outline" className={invoiceStatusBadgeClassName(invoice.status)}>
                   {invoiceStatusLabel(invoice.status)}
                 </Badge>
+                {invoice.status !== 'cancelled' && invoice.payment_status !== 'paid' && (
+                  <Badge variant="outline" className={paymentStatusBadgeClassName(invoice.payment_status, invoice.is_overdue)}>
+                    {paymentStatusLabel(invoice.payment_status, invoice.is_overdue)}
+                  </Badge>
+                )}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-0.5 text-sm text-muted-foreground">
@@ -92,12 +102,26 @@ export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onRet
                     Return
                   </Button>
                 )}
+                {invoice.customer_id && invoice.outstanding_amount > 0 && invoice.status !== 'cancelled' && (
+                  <Button variant="outline" onClick={() => setReceivePaymentOpen(true)}>
+                    <Wallet className="size-4" />
+                    Receive Payment
+                  </Button>
+                )}
               </div>
               <Button onClick={onClose}>Close</Button>
             </DialogFooter>
           </>
         )}
       </DialogContent>
+      {invoice?.customer_id && (
+        <ReceivePaymentDialog
+          open={receivePaymentOpen}
+          customerId={invoice.customer_id}
+          onClose={() => setReceivePaymentOpen(false)}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] })}
+        />
+      )}
     </Dialog>
   );
 }

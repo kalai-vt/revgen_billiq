@@ -8,6 +8,17 @@ export interface Customer {
   email: string | null;
   address: string | null;
   is_active: boolean;
+  is_credit_enabled: boolean;
+  credit_limit: number | null;
+  credit_days: number | null;
+  allow_credit_beyond_limit: boolean;
+  require_manager_approval: boolean;
+  auto_block_credit: boolean;
+  outstanding_amount: number;
+  overdue_amount: number;
+  due_invoices_count: number;
+  overdue_invoices_count: number;
+  last_payment_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +32,12 @@ export interface CustomerListParams {
   page_size: number;
   sort_by?: CustomerSortField;
   sort_dir?: 'asc' | 'desc';
+  has_outstanding?: boolean;
+  has_overdue?: boolean;
+  due_today?: boolean;
+  due_this_week?: boolean;
+  credit_enabled?: boolean;
+  credit_limit_exceeded?: boolean;
 }
 
 export interface CustomerListResult {
@@ -35,9 +52,15 @@ export interface CustomerPayload {
   mobile?: string | null;
   email?: string | null;
   address?: string | null;
+  is_credit_enabled?: boolean;
+  credit_limit?: number | null;
+  credit_days?: number | null;
+  allow_credit_beyond_limit?: boolean;
+  require_manager_approval?: boolean;
+  auto_block_credit?: boolean;
 }
 
-export function listCustomers(params: CustomerListParams): Promise<CustomerListResult> {
+function customerListSearch(params: CustomerListParams): URLSearchParams {
   const search = new URLSearchParams();
   if (params.q) search.set('q', params.q);
   if (params.is_active !== undefined) search.set('is_active', String(params.is_active));
@@ -45,7 +68,21 @@ export function listCustomers(params: CustomerListParams): Promise<CustomerListR
   search.set('page_size', String(params.page_size));
   if (params.sort_by) search.set('sort_by', params.sort_by);
   if (params.sort_dir) search.set('sort_dir', params.sort_dir);
-  return request(`/api/customers?${search.toString()}`);
+  if (params.has_outstanding !== undefined) search.set('has_outstanding', String(params.has_outstanding));
+  if (params.has_overdue !== undefined) search.set('has_overdue', String(params.has_overdue));
+  if (params.due_today !== undefined) search.set('due_today', String(params.due_today));
+  if (params.due_this_week !== undefined) search.set('due_this_week', String(params.due_this_week));
+  if (params.credit_enabled !== undefined) search.set('credit_enabled', String(params.credit_enabled));
+  if (params.credit_limit_exceeded !== undefined) search.set('credit_limit_exceeded', String(params.credit_limit_exceeded));
+  return search;
+}
+
+export function listCustomers(params: CustomerListParams): Promise<CustomerListResult> {
+  return request(`/api/customers?${customerListSearch(params).toString()}`);
+}
+
+export function getCustomer(id: string): Promise<Customer> {
+  return request(`/api/customers/${id}`);
 }
 
 export function createCustomer(payload: CustomerPayload): Promise<Customer> {

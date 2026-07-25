@@ -10,7 +10,7 @@ import { PaymentMethodSelector } from '@/features/pos/components/PaymentMethodSe
 import type { Customer } from '@/features/customers/api';
 import type { CartLine } from '@/features/pos/hooks/useCart';
 import type { CartTotals } from '@/features/pos/lib/calc';
-import type { DiscountType, PaymentMethod } from '@/features/pos/api';
+import type { DiscountType, PaymentMethod, PaymentType } from '@/features/pos/api';
 
 interface CartProps {
   lines: CartLine[];
@@ -25,8 +25,14 @@ interface CartProps {
   onTaxPercentageChange: (value: number) => void;
   paymentMethod: PaymentMethod;
   onPaymentMethodChange: (method: PaymentMethod) => void;
+  paymentType: PaymentType;
+  onPaymentTypeChange: (type: PaymentType) => void;
   amountTendered: number | null;
   onAmountTenderedChange: (value: number | null) => void;
+  paidNow: number | null;
+  onPaidNowChange: (value: number | null) => void;
+  dueDate: string;
+  onDueDateChange: (value: string) => void;
   customerName: string;
   onCustomerNameChange: (value: string) => void;
   customerPhone: string;
@@ -40,6 +46,7 @@ interface CartProps {
   allowDiscounts: boolean;
   enableCustomerSelection: boolean;
   customerId: string | null;
+  selectedCustomer: Customer | null;
   onCustomerSelect: (customer: Customer | null) => void;
 }
 
@@ -56,8 +63,14 @@ export function Cart({
   onTaxPercentageChange,
   paymentMethod,
   onPaymentMethodChange,
+  paymentType,
+  onPaymentTypeChange,
   amountTendered,
   onAmountTenderedChange,
+  paidNow,
+  onPaidNowChange,
+  dueDate,
+  onDueDateChange,
   customerName,
   onCustomerNameChange,
   customerPhone,
@@ -71,10 +84,14 @@ export function Cart({
   allowDiscounts,
   enableCustomerSelection,
   customerId,
+  selectedCustomer,
   onCustomerSelect,
 }: CartProps) {
+  const requiresCustomer = paymentType !== 'paid';
   const canCheckout =
-    lines.length > 0 && (paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total));
+    lines.length > 0 &&
+    (paymentType !== 'paid' || paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total)) &&
+    (!requiresCustomer || (!!customerId && !!dueDate));
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -99,21 +116,38 @@ export function Cart({
       </div>
 
       <div className="space-y-3 border-t pt-3">
-        {enableCustomerSelection && <CustomerPicker customerId={customerId} onSelect={onCustomerSelect} />}
-        <div className="grid grid-cols-2 gap-2">
+        {(enableCustomerSelection || requiresCustomer) && (
           <div className="space-y-1">
-            <Label htmlFor="customer-name" className="text-xs text-muted-foreground">
-              Customer name (optional)
-            </Label>
-            <Input id="customer-name" value={customerName} onChange={(e) => onCustomerNameChange(e.target.value)} />
+            <CustomerPicker customerId={customerId} onSelect={onCustomerSelect} />
+            {requiresCustomer && !customerId && (
+              <p className="text-xs text-destructive">A customer must be selected for a partial or credit sale.</p>
+            )}
+            {requiresCustomer && selectedCustomer && !selectedCustomer.is_credit_enabled && (
+              <p className="text-xs text-destructive">'{selectedCustomer.name}' is not enabled for credit sales — check Customer Settings.</p>
+            )}
+            {requiresCustomer && selectedCustomer?.is_credit_enabled && selectedCustomer.credit_limit != null && (
+              <p className="text-xs text-muted-foreground">
+                Current outstanding: {selectedCustomer.outstanding_amount.toFixed(2)} / limit {selectedCustomer.credit_limit.toFixed(2)}
+              </p>
+            )}
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="customer-phone" className="text-xs text-muted-foreground">
-              Phone (optional)
-            </Label>
-            <Input id="customer-phone" value={customerPhone} onChange={(e) => onCustomerPhoneChange(e.target.value)} />
+        )}
+        {!requiresCustomer && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="customer-name" className="text-xs text-muted-foreground">
+                Customer name (optional)
+              </Label>
+              <Input id="customer-name" value={customerName} onChange={(e) => onCustomerNameChange(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="customer-phone" className="text-xs text-muted-foreground">
+                Phone (optional)
+              </Label>
+              <Input id="customer-phone" value={customerPhone} onChange={(e) => onCustomerPhoneChange(e.target.value)} />
+            </div>
           </div>
-        </div>
+        )}
 
         {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
         <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
@@ -142,8 +176,14 @@ export function Cart({
         <PaymentMethodSelector
           method={paymentMethod}
           onMethodChange={onPaymentMethodChange}
+          paymentType={paymentType}
+          onPaymentTypeChange={onPaymentTypeChange}
           amountTendered={amountTendered}
           onAmountTenderedChange={onAmountTenderedChange}
+          paidNow={paidNow}
+          onPaidNowChange={onPaidNowChange}
+          dueDate={dueDate}
+          onDueDateChange={onDueDateChange}
           total={totals.total}
         />
 

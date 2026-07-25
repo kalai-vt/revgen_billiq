@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, String
+from sqlalchemy import Date, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -36,6 +36,11 @@ class Invoice(Base):
     payment_method: Mapped[str] = mapped_column(String(10), default="cash")
     amount_tendered: Mapped[float | None] = mapped_column(Float, nullable=True)
     change_due: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payment_status: Mapped[str] = mapped_column(String(20), default="paid", index=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    paid_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    outstanding_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    payment_terms: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 

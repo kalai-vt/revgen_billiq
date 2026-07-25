@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -23,6 +23,12 @@ class Customer(Base):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_credit_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    credit_limit: Mapped[float | None] = mapped_column(Float, nullable=True)
+    credit_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    allow_credit_beyond_limit: Mapped[bool] = mapped_column(Boolean, default=False)
+    require_manager_approval: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_block_credit: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
