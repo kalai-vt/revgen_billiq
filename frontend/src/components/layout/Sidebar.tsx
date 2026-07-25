@@ -64,8 +64,6 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
     });
   }
 
-  const showLegalName = tenant?.legal_name && tenant.legal_name !== tenant?.company_name;
-
   return (
     <div
       className={cn(
@@ -107,7 +105,6 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
                   {tenant.company_name}
                 </TooltipContent>
               </Tooltip>
-              {showLegalName && <p className="truncate text-xs text-muted-foreground">{tenant.legal_name}</p>}
             </div>
           )}
         </div>
