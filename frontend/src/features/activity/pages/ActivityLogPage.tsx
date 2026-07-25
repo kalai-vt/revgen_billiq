@@ -43,7 +43,7 @@ export function ActivityLogPage() {
   return (
     <ModulePage
       header={
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Activity Log</h1>
             <p className="text-sm text-muted-foreground">Every product, inventory, and invoice action across your team.</p>
@@ -69,9 +69,9 @@ export function ActivityLogPage() {
       <Table containerClassName="overflow-x-visible overflow-y-visible">
         <TableHeader>
           <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>User</TableHead>
-            <TableHead>Module</TableHead>
+            <TableHead className="hidden sm:table-cell">Date</TableHead>
+            <TableHead className="hidden sm:table-cell">User</TableHead>
+            <TableHead className="hidden md:table-cell">Module</TableHead>
             <TableHead>Action</TableHead>
             <TableHead>Description</TableHead>
           </TableRow>
@@ -94,15 +94,15 @@ export function ActivityLogPage() {
           )}
           {data?.items.map((entry) => (
             <TableRow key={entry.id}>
-              <TableCell className="text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</TableCell>
-              <TableCell>{entry.user_name}</TableCell>
-              <TableCell>
+              <TableCell className="hidden text-muted-foreground sm:table-cell">{new Date(entry.created_at).toLocaleString()}</TableCell>
+              <TableCell className="hidden sm:table-cell">{entry.user_name}</TableCell>
+              <TableCell className="hidden md:table-cell">
                 <Badge variant="outline" className="capitalize">
                   {entry.module}
                 </Badge>
               </TableCell>
               <TableCell className="capitalize">{entry.action.replace(/_/g, ' ')}</TableCell>
-              <TableCell className="text-muted-foreground">{entry.description}</TableCell>
+              <TableCell className="max-w-[200px] truncate text-muted-foreground sm:max-w-none sm:overflow-visible sm:whitespace-normal">{entry.description}</TableCell>
             </TableRow>
           ))}
         </TableBody>

@@ -46,12 +46,12 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
 
   return (
     <>
-      <Table containerClassName="overflow-x-visible overflow-y-visible" className="table-fixed">
+      <Table containerClassName="overflow-x-visible overflow-y-visible" className="sm:table-fixed">
         <colgroup>
           <col style={{ width: widths.name }} />
           <col style={{ width: widths.mobile }} />
-          <col style={{ width: widths.email }} />
-          <col style={{ width: widths.address }} />
+          <col className="hidden sm:table-column" style={{ width: widths.email }} />
+          <col className="hidden md:table-column" style={{ width: widths.address }} />
           {canEdit && <col style={{ width: 80 }} />}
         </colgroup>
         <TableHeader>
@@ -64,11 +64,11 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
               Mobile
               <ColumnResizeHandle onPointerDown={startResize('mobile')} />
             </SortableTableHead>
-            <SortableTableHead field="email" sortBy={sortBy} sortDir={sortDir} onSort={onSort}>
+            <SortableTableHead field="email" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden sm:table-cell">
               Email
               <ColumnResizeHandle onPointerDown={startResize('email')} />
             </SortableTableHead>
-            <TableHead className="relative">
+            <TableHead className="relative hidden md:table-cell">
               Address
               <ColumnResizeHandle onPointerDown={startResize('address')} />
             </TableHead>
@@ -93,10 +93,10 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
           )}
           {data?.items.map((customer) => (
             <TableRow key={customer.id}>
-              <TableCell className="truncate font-medium">{customer.name}</TableCell>
+              <TableCell className="max-w-[160px] truncate font-medium sm:max-w-none">{customer.name}</TableCell>
               <TableCell className="truncate">{customer.mobile ?? '—'}</TableCell>
-              <TableCell className="truncate">{customer.email ?? '—'}</TableCell>
-              <TableCell className="truncate text-muted-foreground">
+              <TableCell className="hidden truncate sm:table-cell">{customer.email ?? '—'}</TableCell>
+              <TableCell className="hidden truncate text-muted-foreground md:table-cell">
                 {customer.address ?? '—'}
               </TableCell>
               {canEdit && (

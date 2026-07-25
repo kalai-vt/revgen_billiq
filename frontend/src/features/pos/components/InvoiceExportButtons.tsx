@@ -46,18 +46,18 @@ export function InvoiceExportButtons({ q, dateFrom, dateTo, status, sortBy, sort
   }
 
   return (
-    <div className="flex gap-2">
-      <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" size="sm" onClick={() => handleExport('excel')} aria-label="Export Excel">
         <FileSpreadsheet className="size-4" />
-        Export Excel
+        <span className="hidden sm:inline">Export Excel</span>
       </Button>
-      <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}>
+      <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} aria-label="Export PDF">
         <FileText className="size-4" />
-        Export PDF
+        <span className="hidden sm:inline">Export PDF</span>
       </Button>
-      <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
+      <Button variant="outline" size="sm" onClick={() => handleExport('csv')} aria-label="Export CSV">
         <Sheet className="size-4" />
-        Export CSV
+        <span className="hidden sm:inline">Export CSV</span>
       </Button>
     </div>
   );

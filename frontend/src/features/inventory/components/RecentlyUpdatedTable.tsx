@@ -20,7 +20,7 @@ export function RecentlyUpdatedTable({ items }: RecentlyUpdatedTableProps) {
             <TableRow>
               <TableHead>Product</TableHead>
               <TableHead className="text-right">Current Stock</TableHead>
-              <TableHead>Last Updated</TableHead>
+              <TableHead className="hidden sm:table-cell">Last Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -33,9 +33,9 @@ export function RecentlyUpdatedTable({ items }: RecentlyUpdatedTableProps) {
             )}
             {items.map((item) => (
               <TableRow key={item.product_id}>
-                <TableCell className="font-medium">{item.product_name}</TableCell>
+                <TableCell className="max-w-[180px] truncate font-medium sm:max-w-none">{item.product_name}</TableCell>
                 <TableCell className="text-right">{item.quantity}</TableCell>
-                <TableCell className="text-muted-foreground">{new Date(item.updated_at).toLocaleString()}</TableCell>
+                <TableCell className="hidden text-muted-foreground sm:table-cell">{new Date(item.updated_at).toLocaleString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>

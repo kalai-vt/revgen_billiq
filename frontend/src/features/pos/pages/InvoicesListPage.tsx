@@ -134,7 +134,7 @@ export function InvoicesListPage() {
     <>
     <ModulePage
       header={
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Invoices</h1>
             <p className="text-sm text-muted-foreground">Browse and manage past sales.</p>
@@ -192,14 +192,14 @@ export function InvoicesListPage() {
         <TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="invoice" />
       }
     >
-      <Table containerClassName="overflow-x-visible overflow-y-visible" className="table-fixed">
+      <Table containerClassName="overflow-x-visible overflow-y-visible" className="sm:table-fixed">
         <colgroup>
           <col style={{ width: widths.invoiceNumber }} />
-          <col style={{ width: widths.customer }} />
-          <col style={{ width: widths.payment }} />
+          <col className="hidden sm:table-column" style={{ width: widths.customer }} />
+          <col className="hidden sm:table-column" style={{ width: widths.payment }} />
           <col style={{ width: widths.total }} />
           <col style={{ width: widths.status }} />
-          <col style={{ width: widths.date }} />
+          <col className="hidden sm:table-column" style={{ width: widths.date }} />
           <col style={{ width: 128 }} />
         </colgroup>
         <TableHeader>
@@ -208,11 +208,11 @@ export function InvoicesListPage() {
               Invoice #
               <ColumnResizeHandle onPointerDown={startResize('invoiceNumber')} />
             </SortableTableHead>
-            <TableHead className="relative">
+            <TableHead className="relative hidden sm:table-cell">
               Customer
               <ColumnResizeHandle onPointerDown={startResize('customer')} />
             </TableHead>
-            <TableHead className="relative">
+            <TableHead className="relative hidden sm:table-cell">
               Payment
               <ColumnResizeHandle onPointerDown={startResize('payment')} />
             </TableHead>
@@ -224,7 +224,7 @@ export function InvoicesListPage() {
               Status
               <ColumnResizeHandle onPointerDown={startResize('status')} />
             </TableHead>
-            <SortableTableHead field="created_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort}>
+            <SortableTableHead field="created_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="hidden sm:table-cell">
               Date
               <ColumnResizeHandle onPointerDown={startResize('date')} />
             </SortableTableHead>
@@ -250,15 +250,15 @@ export function InvoicesListPage() {
           {data?.items.map((invoice) => (
             <TableRow key={invoice.id}>
               <TableCell className="truncate font-medium">{invoice.invoice_number}</TableCell>
-              <TableCell className="truncate">{invoice.customer_name ?? '—'}</TableCell>
-              <TableCell className="truncate uppercase">{invoice.payment_method}</TableCell>
+              <TableCell className="hidden truncate sm:table-cell">{invoice.customer_name ?? '—'}</TableCell>
+              <TableCell className="hidden truncate uppercase sm:table-cell">{invoice.payment_method}</TableCell>
               <TableCell className="text-right">{invoice.total_amount.toFixed(2)}</TableCell>
               <TableCell className="truncate">
                 <Badge variant="outline" className={invoiceStatusBadgeClassName(invoice.status)}>
                   {invoiceStatusLabel(invoice.status)}
                 </Badge>
               </TableCell>
-              <TableCell className="truncate text-muted-foreground">{new Date(invoice.created_at).toLocaleString()}</TableCell>
+              <TableCell className="hidden truncate text-muted-foreground sm:table-cell">{new Date(invoice.created_at).toLocaleString()}</TableCell>
               <TableCell>
                 <div className="flex justify-end gap-1">
                   <Button

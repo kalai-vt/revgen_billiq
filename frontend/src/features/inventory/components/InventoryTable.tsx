@@ -31,16 +31,16 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
   const { widths, startResize } = useResizableColumns(INITIAL_WIDTHS);
 
   return (
-    <Table containerClassName="overflow-x-visible overflow-y-visible" className="table-fixed">
+    <Table containerClassName="overflow-x-visible overflow-y-visible" className="sm:table-fixed">
       <colgroup>
         <col style={{ width: widths.name }} />
-        <col style={{ width: widths.identifier }} />
-        <col style={{ width: widths.category }} />
+        <col className="hidden sm:table-column" style={{ width: widths.identifier }} />
+        <col className="hidden lg:table-column" style={{ width: widths.category }} />
         <col style={{ width: widths.quantity }} />
-        <col style={{ width: widths.cost }} />
-        <col style={{ width: widths.price }} />
-        <col style={{ width: widths.tax }} />
-        <col style={{ width: widths.updated }} />
+        <col className="hidden md:table-column" style={{ width: widths.cost }} />
+        <col className="hidden md:table-column" style={{ width: widths.price }} />
+        <col className="hidden lg:table-column" style={{ width: widths.tax }} />
+        <col className="hidden lg:table-column" style={{ width: widths.updated }} />
         {canAdjust && <col style={{ width: 64 }} />}
       </colgroup>
       <TableHeader>
@@ -49,11 +49,11 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
             Product
             <ColumnResizeHandle onPointerDown={startResize('name')} />
           </SortableTableHead>
-          <TableHead className="relative">
+          <TableHead className="relative hidden sm:table-cell">
             Identifier
             <ColumnResizeHandle onPointerDown={startResize('identifier')} />
           </TableHead>
-          <TableHead className="relative">
+          <TableHead className="relative hidden lg:table-cell">
             Category
             <ColumnResizeHandle onPointerDown={startResize('category')} />
           </TableHead>
@@ -61,19 +61,19 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
             Current Stock
             <ColumnResizeHandle onPointerDown={startResize('quantity')} />
           </SortableTableHead>
-          <SortableTableHead field="cost_price" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="text-right">
+          <SortableTableHead field="cost_price" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden text-right md:table-cell">
             Cost Price
             <ColumnResizeHandle onPointerDown={startResize('cost')} />
           </SortableTableHead>
-          <SortableTableHead field="selling_price" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="text-right">
+          <SortableTableHead field="selling_price" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden text-right md:table-cell">
             Selling Price
             <ColumnResizeHandle onPointerDown={startResize('price')} />
           </SortableTableHead>
-          <TableHead className="relative text-right">
+          <TableHead className="relative hidden text-right lg:table-cell">
             Tax %
             <ColumnResizeHandle onPointerDown={startResize('tax')} />
           </TableHead>
-          <SortableTableHead field="updated_at" sortBy={sortBy} sortDir={sortDir} onSort={onSort}>
+          <SortableTableHead field="updated_at" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden lg:table-cell">
             Last Updated
             <ColumnResizeHandle onPointerDown={startResize('updated')} />
           </SortableTableHead>
@@ -98,14 +98,14 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
         )}
         {data?.items.map((item) => (
           <TableRow key={item.product_id}>
-            <TableCell className="truncate font-medium">{item.product_name}</TableCell>
-            <TableCell className="truncate">
+            <TableCell className="max-w-[160px] truncate font-medium sm:max-w-none">{item.product_name}</TableCell>
+            <TableCell className="hidden truncate sm:table-cell">
               {item.identifier_value}
               <span className="ml-1.5 text-xs text-muted-foreground">
                 ({IDENTIFIER_TYPE_LABELS[item.identifier_type as IdentifierType]})
               </span>
             </TableCell>
-            <TableCell className="truncate">
+            <TableCell className="hidden truncate lg:table-cell">
               {item.category_name ? (
                 <Badge variant="outline">{item.category_name}</Badge>
               ) : (
@@ -125,10 +125,10 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
                 </Badge>
               )}
             </TableCell>
-            <TableCell className="text-right">{item.cost_price.toFixed(2)}</TableCell>
-            <TableCell className="text-right">{item.selling_price.toFixed(2)}</TableCell>
-            <TableCell className="text-right">{item.tax_rate_percent}%</TableCell>
-            <TableCell className="truncate text-muted-foreground">{new Date(item.updated_at).toLocaleDateString()}</TableCell>
+            <TableCell className="hidden text-right md:table-cell">{item.cost_price.toFixed(2)}</TableCell>
+            <TableCell className="hidden text-right md:table-cell">{item.selling_price.toFixed(2)}</TableCell>
+            <TableCell className="hidden text-right lg:table-cell">{item.tax_rate_percent}%</TableCell>
+            <TableCell className="hidden truncate text-muted-foreground lg:table-cell">{new Date(item.updated_at).toLocaleDateString()}</TableCell>
             {canAdjust && (
               <TableCell>
                 <StockAdjustDialog

@@ -49,7 +49,7 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
       <Table containerClassName="overflow-x-visible overflow-y-visible" className="table-fixed">
         <colgroup>
           <col style={{ width: widths.name }} />
-          <col style={{ width: widths.description }} />
+          <col className="hidden sm:table-column" style={{ width: widths.description }} />
           {canEdit && <col style={{ width: 80 }} />}
         </colgroup>
         <TableHeader>
@@ -58,7 +58,7 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
               Name
               <ColumnResizeHandle onPointerDown={startResize('name')} />
             </SortableTableHead>
-            <TableHead className="relative">
+            <TableHead className="relative hidden sm:table-cell">
               Description
               <ColumnResizeHandle onPointerDown={startResize('description')} />
             </TableHead>
@@ -84,7 +84,7 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
           {categories.map((category) => (
             <TableRow key={category.id}>
               <TableCell className="truncate font-medium">{category.name}</TableCell>
-              <TableCell className="truncate text-muted-foreground">{category.description ?? '—'}</TableCell>
+              <TableCell className="hidden truncate text-muted-foreground sm:table-cell">{category.description ?? '—'}</TableCell>
               {canEdit && (
                 <TableCell>
                   <div className="flex justify-end gap-1">

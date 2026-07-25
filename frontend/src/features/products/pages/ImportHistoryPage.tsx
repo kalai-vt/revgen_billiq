@@ -44,7 +44,7 @@ export function ImportHistoryPage() {
   return (
     <ModulePage
       header={
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Import History</h1>
             <p className="text-sm text-muted-foreground">Every bulk product import, with its outcome.</p>
@@ -61,11 +61,11 @@ export function ImportHistoryPage() {
       <Table containerClassName="overflow-x-visible overflow-y-visible">
         <TableHeader>
           <TableRow>
-            <TableHead>Import Date</TableHead>
+            <TableHead className="hidden md:table-cell">Import Date</TableHead>
             <TableHead>File Name</TableHead>
-            <TableHead className="text-right">Rows Imported</TableHead>
-            <TableHead className="text-right">Rows Failed</TableHead>
-            <TableHead>Imported By</TableHead>
+            <TableHead className="hidden text-right sm:table-cell">Rows Imported</TableHead>
+            <TableHead className="hidden text-right md:table-cell">Rows Failed</TableHead>
+            <TableHead className="hidden md:table-cell">Imported By</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-12" />
           </TableRow>
@@ -88,11 +88,11 @@ export function ImportHistoryPage() {
           )}
           {data?.items.map((entry) => (
             <TableRow key={entry.id}>
-              <TableCell className="text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</TableCell>
-              <TableCell className="font-medium">{entry.file_name}</TableCell>
-              <TableCell className="text-right">{entry.rows_imported}</TableCell>
-              <TableCell className="text-right">{entry.rows_failed}</TableCell>
-              <TableCell className="text-muted-foreground">{entry.imported_by_name}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{new Date(entry.created_at).toLocaleString()}</TableCell>
+              <TableCell className="truncate font-medium">{entry.file_name}</TableCell>
+              <TableCell className="hidden text-right sm:table-cell">{entry.rows_imported}</TableCell>
+              <TableCell className="hidden text-right md:table-cell">{entry.rows_failed}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{entry.imported_by_name}</TableCell>
               <TableCell>
                 <Badge variant={STATUS_VARIANT[entry.status] ?? 'outline'} className="capitalize">
                   {entry.status.replace(/_/g, ' ')}

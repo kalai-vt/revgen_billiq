@@ -48,7 +48,7 @@ export function ImportCustomersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Import Customers</h1>
           <p className="text-sm text-muted-foreground">

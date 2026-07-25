@@ -48,14 +48,14 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
 
   return (
     <>
-      <Table containerClassName="overflow-x-visible overflow-y-visible" className="table-fixed">
+      <Table containerClassName="overflow-x-visible overflow-y-visible" className="sm:table-fixed">
         <colgroup>
           <col style={{ width: widths.name }} />
-          <col style={{ width: widths.identifier }} />
-          <col style={{ width: widths.category }} />
-          <col style={{ width: widths.cost }} />
+          <col className="hidden sm:table-column" style={{ width: widths.identifier }} />
+          <col className="hidden md:table-column" style={{ width: widths.category }} />
+          <col className="hidden md:table-column" style={{ width: widths.cost }} />
           <col style={{ width: widths.price }} />
-          <col style={{ width: widths.tax }} />
+          <col className="hidden md:table-column" style={{ width: widths.tax }} />
           {canEdit && <col style={{ width: 80 }} />}
         </colgroup>
         <TableHeader>
@@ -64,15 +64,15 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
               Product
               <ColumnResizeHandle onPointerDown={startResize('name')} />
             </SortableTableHead>
-            <SortableTableHead field="identifier_value" sortBy={sortBy} sortDir={sortDir} onSort={onSort}>
+            <SortableTableHead field="identifier_value" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden sm:table-cell">
               Identifier
               <ColumnResizeHandle onPointerDown={startResize('identifier')} />
             </SortableTableHead>
-            <TableHead className="relative">
+            <TableHead className="relative hidden md:table-cell">
               Category
               <ColumnResizeHandle onPointerDown={startResize('category')} />
             </TableHead>
-            <SortableTableHead field="cost_price" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="text-right">
+            <SortableTableHead field="cost_price" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden text-right md:table-cell">
               Cost
               <ColumnResizeHandle onPointerDown={startResize('cost')} />
             </SortableTableHead>
@@ -80,7 +80,7 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
               Price
               <ColumnResizeHandle onPointerDown={startResize('price')} />
             </SortableTableHead>
-            <SortableTableHead field="tax_rate_percent" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="text-right">
+            <SortableTableHead field="tax_rate_percent" sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="hidden text-right md:table-cell">
               Tax %
               <ColumnResizeHandle onPointerDown={startResize('tax')} />
             </SortableTableHead>
@@ -105,28 +105,28 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
           )}
           {data?.items.map((product) => (
             <TableRow key={product.id}>
-              <TableCell className="truncate font-medium">
+              <TableCell className="max-w-[160px] truncate font-medium sm:max-w-none">
                 {product.name}
                 {product.barcode && (
                   <span className="ml-2 text-xs text-muted-foreground">#{product.barcode}</span>
                 )}
               </TableCell>
-              <TableCell className="truncate">
+              <TableCell className="hidden truncate sm:table-cell">
                 {product.identifier_value}
                 <span className="ml-1.5 text-xs text-muted-foreground">
                   ({IDENTIFIER_TYPE_LABELS[product.identifier_type]})
                 </span>
               </TableCell>
-              <TableCell className="truncate">
+              <TableCell className="hidden truncate md:table-cell">
                 {product.category_name ? (
                   <Badge variant="outline">{product.category_name}</Badge>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell className="text-right">{product.cost_price.toFixed(2)}</TableCell>
+              <TableCell className="hidden text-right md:table-cell">{product.cost_price.toFixed(2)}</TableCell>
               <TableCell className="text-right font-medium">{product.selling_price.toFixed(2)}</TableCell>
-              <TableCell className="text-right">{product.tax_rate_percent}%</TableCell>
+              <TableCell className="hidden text-right md:table-cell">{product.tax_rate_percent}%</TableCell>
               {canEdit && (
                 <TableCell>
                   <div className="flex justify-end gap-1">

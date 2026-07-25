@@ -34,14 +34,14 @@ export function StockHistoryPage() {
       <Table containerClassName="overflow-x-visible overflow-y-visible">
         <TableHeader>
           <TableRow>
-            <TableHead>Date</TableHead>
+            <TableHead className="hidden md:table-cell">Date</TableHead>
             <TableHead>Product</TableHead>
-            <TableHead className="text-right">Previous Stock</TableHead>
-            <TableHead className="text-right">Added</TableHead>
-            <TableHead className="text-right">Removed</TableHead>
+            <TableHead className="hidden text-right md:table-cell">Previous Stock</TableHead>
+            <TableHead className="hidden text-right sm:table-cell">Added</TableHead>
+            <TableHead className="hidden text-right sm:table-cell">Removed</TableHead>
             <TableHead className="text-right">Current Stock</TableHead>
-            <TableHead>Reason</TableHead>
-            <TableHead>Updated By</TableHead>
+            <TableHead className="hidden md:table-cell">Reason</TableHead>
+            <TableHead className="hidden md:table-cell">Updated By</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -62,15 +62,15 @@ export function StockHistoryPage() {
           )}
           {data?.items.map((entry) => (
             <TableRow key={entry.id}>
-              <TableCell className="text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{new Date(entry.created_at).toLocaleString()}</TableCell>
               <TableCell className="font-medium">{entry.product_name}</TableCell>
-              <TableCell className="text-right">{entry.previous_stock}</TableCell>
-              <TableCell className="text-right text-green-600 dark:text-green-500">
+              <TableCell className="hidden text-right md:table-cell">{entry.previous_stock}</TableCell>
+              <TableCell className="hidden text-right text-green-600 sm:table-cell dark:text-green-500">
                 {entry.added > 0 ? `+${entry.added}` : '—'}
               </TableCell>
-              <TableCell className="text-right text-destructive">{entry.removed > 0 ? `-${entry.removed}` : '—'}</TableCell>
+              <TableCell className="hidden text-right text-destructive sm:table-cell">{entry.removed > 0 ? `-${entry.removed}` : '—'}</TableCell>
               <TableCell className="text-right font-medium">{entry.current_stock}</TableCell>
-              <TableCell>
+              <TableCell className="hidden md:table-cell">
                 <div className="flex items-center gap-1.5">
                   <span>{reasonLabel(entry.reason)}</span>
                   {entry.source !== 'manual' && (
@@ -80,7 +80,7 @@ export function StockHistoryPage() {
                   )}
                 </div>
               </TableCell>
-              <TableCell className="text-muted-foreground">{entry.created_by_name}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{entry.created_by_name}</TableCell>
             </TableRow>
           ))}
         </TableBody>

@@ -16,9 +16,9 @@ export function TeamMemberTable() {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
+          <TableHead className="hidden sm:table-cell">Email</TableHead>
           <TableHead>Role</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead className="hidden sm:table-cell">Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -27,11 +27,11 @@ export function TeamMemberTable() {
             <TableCell className="font-medium">
               {member.first_name} {member.last_name}
             </TableCell>
-            <TableCell>{member.email}</TableCell>
+            <TableCell className="hidden sm:table-cell">{member.email}</TableCell>
             <TableCell className="capitalize">
               <Badge variant="secondary">{member.role}</Badge>
             </TableCell>
-            <TableCell className="capitalize">{member.status}</TableCell>
+            <TableCell className="hidden capitalize sm:table-cell">{member.status}</TableCell>
           </TableRow>
         ))}
       </TableBody>

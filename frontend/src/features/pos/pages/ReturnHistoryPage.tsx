@@ -32,11 +32,11 @@ export function ReturnHistoryPage() {
       <Table containerClassName="overflow-x-visible overflow-y-visible">
         <TableHeader>
           <TableRow>
-            <TableHead>Date</TableHead>
+            <TableHead className="hidden sm:table-cell">Date</TableHead>
             <TableHead>Return #</TableHead>
-            <TableHead>Invoice #</TableHead>
-            <TableHead>Items</TableHead>
-            <TableHead>Reason</TableHead>
+            <TableHead className="hidden sm:table-cell">Invoice #</TableHead>
+            <TableHead className="hidden md:table-cell">Items</TableHead>
+            <TableHead className="hidden md:table-cell">Reason</TableHead>
             <TableHead className="text-right">Refund Amount</TableHead>
           </TableRow>
         </TableHeader>
@@ -58,13 +58,13 @@ export function ReturnHistoryPage() {
           )}
           {data?.items.map((ret) => (
             <TableRow key={ret.id}>
-              <TableCell className="text-muted-foreground">{new Date(ret.created_at).toLocaleString()}</TableCell>
+              <TableCell className="hidden text-muted-foreground sm:table-cell">{new Date(ret.created_at).toLocaleString()}</TableCell>
               <TableCell className="font-medium">{ret.return_number}</TableCell>
-              <TableCell>{ret.invoice_number}</TableCell>
-              <TableCell className="text-muted-foreground">
+              <TableCell className="hidden sm:table-cell">{ret.invoice_number}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">
                 {ret.items.map((item) => `${item.product_name} ×${item.quantity_returned}`).join(', ')}
               </TableCell>
-              <TableCell className="text-muted-foreground">{ret.reason ?? '—'}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{ret.reason ?? '—'}</TableCell>
               <TableCell className="text-right font-medium">{ret.refund_amount.toFixed(2)}</TableCell>
             </TableRow>
           ))}

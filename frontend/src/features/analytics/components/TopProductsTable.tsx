@@ -19,7 +19,7 @@ export function TopProductsTable({ data }: TopProductsTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Product</TableHead>
-              <TableHead>Identifier</TableHead>
+              <TableHead className="hidden sm:table-cell">Identifier</TableHead>
               <TableHead className="text-right">Qty Sold</TableHead>
               <TableHead className="text-right">Revenue</TableHead>
             </TableRow>
@@ -35,7 +35,7 @@ export function TopProductsTable({ data }: TopProductsTableProps) {
             {data.map((product) => (
               <TableRow key={product.product_id}>
                 <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell>{product.identifier_value}</TableCell>
+                <TableCell className="hidden sm:table-cell">{product.identifier_value}</TableCell>
                 <TableCell className="text-right">{product.qty_sold}</TableCell>
                 <TableCell className="text-right">{product.revenue.toFixed(2)}</TableCell>
               </TableRow>
