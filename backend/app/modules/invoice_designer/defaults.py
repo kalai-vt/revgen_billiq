@@ -73,6 +73,18 @@ def _builtin_tax_invoice() -> InvoiceTemplateConfig:
     return config
 
 
+def _builtin_invoice_no_tax() -> InvoiceTemplateConfig:
+    # Same as the tax invoice but with GST/GSTIN hidden by default — for businesses that bill
+    # without tax (e.g. unregistered/composition-scheme sellers).
+    config = default_template_config()
+    config.branding.show_gstin = False
+    config.tax_summary.fields.subtotal = True
+    config.tax_summary.fields.discount = True
+    config.tax_summary.fields.grand_total = True
+    config.invoice_info.fields.payment_method = True
+    return config
+
+
 def _builtin_receipt() -> InvoiceTemplateConfig:
     config = default_template_config()
     config.paper.size = "80mm"
@@ -106,6 +118,7 @@ def _builtin_delivery_challan() -> InvoiceTemplateConfig:
 
 _BUILTIN_NAMES: dict[str, str] = {
     "tax_invoice": "Standard Tax Invoice",
+    "invoice": "Standard Invoice (Without Tax)",
     "estimate": "Standard Estimate",
     "quotation": "Standard Quotation",
     "proforma": "Standard Proforma Invoice",
@@ -117,6 +130,7 @@ _BUILTIN_NAMES: dict[str, str] = {
 
 _BUILTIN_FACTORIES = {
     "tax_invoice": _builtin_tax_invoice,
+    "invoice": _builtin_invoice_no_tax,
     "estimate": _builtin_estimate,
     "quotation": _builtin_estimate,
     "proforma": _builtin_estimate,

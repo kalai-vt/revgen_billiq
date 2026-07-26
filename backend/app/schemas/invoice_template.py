@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.invoice_template import DOCUMENT_TYPES
 
 DocumentType = Literal[
-    "tax_invoice", "estimate", "quotation", "proforma",
+    "tax_invoice", "invoice", "estimate", "quotation", "proforma",
     "delivery_challan", "credit_note", "debit_note", "receipt",
 ]
 HeaderLayout = Literal["logo-left", "logo-center", "logo-right", "banner", "minimal", "modern-card"]

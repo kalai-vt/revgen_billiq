@@ -32,34 +32,38 @@ export function ItemTablePanel({ config, onChange }: PanelProps) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-2 text-xs text-muted-foreground">Drag to reorder columns. Toggle visibility, alignment, and width.</p>
+        <p className="mb-2 text-xs text-muted-foreground">Drag to reorder columns, then set visibility, alignment, and width for each.</p>
         <DraggableList
           items={columns.map((c) => ({ ...c, key: c.key }))}
           onReorder={reorder}
           renderItem={(col) => (
-            <div className="flex flex-wrap items-center gap-2">
-              <Checkbox
-                checked={col.visible}
-                onCheckedChange={(v) => updateColumn(col.key, { visible: v === true })}
-                aria-label={`Show ${ITEM_COLUMN_LABELS[col.key]}`}
-              />
-              <span className="min-w-28 text-sm">{ITEM_COLUMN_LABELS[col.key]}</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex min-w-36 flex-1 items-center gap-2">
+                <Checkbox
+                  checked={col.visible}
+                  onCheckedChange={(v) => updateColumn(col.key, { visible: v === true })}
+                  aria-label={`Show ${ITEM_COLUMN_LABELS[col.key]}`}
+                />
+                <span className="truncate text-sm">{ITEM_COLUMN_LABELS[col.key]}</span>
+              </label>
               <Select value={col.align} onValueChange={(v) => updateColumn(col.key, { align: v as ColumnAlign })}>
-                <SelectTrigger size="sm" className="w-24"><SelectValue /></SelectTrigger>
+                <SelectTrigger size="sm" className="w-24 shrink-0"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="left">Left</SelectItem>
                   <SelectItem value="center">Center</SelectItem>
                   <SelectItem value="right">Right</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="number"
-                placeholder="Auto"
-                className="w-20"
-                value={col.width ?? ''}
-                onChange={(e) => updateColumn(col.key, { width: e.target.value ? Number(e.target.value) : null })}
-              />
-              <span className="text-[11px] text-muted-foreground">% width</span>
+              <div className="relative w-20 shrink-0">
+                <Input
+                  type="number"
+                  placeholder="Auto"
+                  className="pr-6"
+                  value={col.width ?? ''}
+                  onChange={(e) => updateColumn(col.key, { width: e.target.value ? Number(e.target.value) : null })}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[11px] text-muted-foreground">%</span>
+              </div>
             </div>
           )}
         />

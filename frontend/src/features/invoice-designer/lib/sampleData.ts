@@ -65,6 +65,7 @@ const SAMPLE_SUBTOTAL = SAMPLE_ITEMS.reduce((sum, item) => sum + item.amount, 0)
 
 const SAMPLE_DOCUMENT_LABELS: Record<DocumentType, { number: string; label: string }> = {
   tax_invoice: { number: 'INV-000245', label: 'Tax Invoice' },
+  invoice: { number: 'INV-000112', label: 'Invoice' },
   estimate: { number: 'EST-000045', label: 'Estimate' },
   quotation: { number: 'QUO-000032', label: 'Quotation' },
   proforma: { number: 'PI-000018', label: 'Proforma Invoice' },

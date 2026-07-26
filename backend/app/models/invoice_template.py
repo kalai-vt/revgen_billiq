@@ -10,6 +10,7 @@ from app.core.db import Base
 
 DOCUMENT_TYPES = (
     "tax_invoice",
+    "invoice",
     "estimate",
     "quotation",
     "proforma",

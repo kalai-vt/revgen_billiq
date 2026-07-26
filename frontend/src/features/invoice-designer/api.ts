@@ -2,6 +2,7 @@ import { request } from '@/lib/api-client';
 
 export type DocumentType =
   | 'tax_invoice'
+  | 'invoice'
   | 'estimate'
   | 'quotation'
   | 'proforma'
@@ -12,6 +13,7 @@ export type DocumentType =
 
 export const DOCUMENT_TYPES: DocumentType[] = [
   'tax_invoice',
+  'invoice',
   'estimate',
   'quotation',
   'proforma',
@@ -21,8 +23,13 @@ export const DOCUMENT_TYPES: DocumentType[] = [
   'receipt',
 ];
 
+// Shown in the designer's document-type picker for now — the rest of DOCUMENT_TYPES already
+// work end-to-end (CRUD + rendering) and can be surfaced later without any backend changes.
+export const VISIBLE_DOCUMENT_TYPES: DocumentType[] = ['tax_invoice', 'invoice', 'quotation'];
+
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   tax_invoice: 'Tax Invoice',
+  invoice: 'Invoice (Without Tax)',
   estimate: 'Estimate',
   quotation: 'Quotation',
   proforma: 'Proforma Invoice',

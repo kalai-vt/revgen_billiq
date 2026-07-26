@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as settingsApi from '@/features/settings/api';
 import * as invoiceDesignerApi from '@/features/invoice-designer/api';
-import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, type DocumentType, type InvoiceTemplate, type InvoiceTemplateConfig } from '@/features/invoice-designer/api';
+import { VISIBLE_DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, type DocumentType, type InvoiceTemplate, type InvoiceTemplateConfig } from '@/features/invoice-designer/api';
 import { BrandingPanel } from '@/features/invoice-designer/components/panels/BrandingPanel';
 import { HeaderLayoutPanel } from '@/features/invoice-designer/components/panels/HeaderLayoutPanel';
 import { InvoiceInfoPanel } from '@/features/invoice-designer/components/panels/InvoiceInfoPanel';
@@ -185,14 +185,14 @@ export function InvoiceDesignerPage() {
         <p className="text-sm text-muted-foreground">Customize branding, layout, fields, and paper size — no code required.</p>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[220px_1fr_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[200px_1.3fr_1fr]">
         <aside className="min-h-0 space-y-3 overflow-y-auto rounded-xl border p-3">
           <div className="space-y-1.5">
             <Label>Document type</Label>
             <Select value={documentType} onValueChange={(v) => setDocumentType(v as DocumentType)}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {DOCUMENT_TYPES.map((type) => (
+                {VISIBLE_DOCUMENT_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>{DOCUMENT_TYPE_LABELS[type]}</SelectItem>
                 ))}
               </SelectContent>
@@ -257,14 +257,20 @@ export function InvoiceDesignerPage() {
                 </div>
               </div>
 
-              <Tabs defaultValue="branding">
-                <TabsList className="flex-wrap">
+              {/* Vertical section nav: with 10 sections, a horizontal tab bar wraps onto
+                  multiple rows but the tab list's height stays fixed to one row, so wrapped
+                  rows visually overlap the panel content below. A vertical list has no such
+                  height constraint — it simply grows, so this layout can never overlap. */}
+              <Tabs defaultValue="branding" orientation="vertical" className="items-start">
+                <TabsList className="h-fit w-40 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-0">
                   {CONFIG_TABS.map((tab) => (
-                    <TabsTrigger key={tab.id} value={tab.id}>{tab.label}</TabsTrigger>
+                    <TabsTrigger key={tab.id} value={tab.id} className="px-2.5 py-1.5 text-left">
+                      {tab.label}
+                    </TabsTrigger>
                   ))}
                 </TabsList>
                 {CONFIG_TABS.map(({ id, Panel }) => (
-                  <TabsContent key={id} value={id} className="pt-4">
+                  <TabsContent key={id} value={id} className="min-w-0 flex-1 border-l pl-5">
                     <fieldset disabled={selected.is_builtin} className="disabled:opacity-60">
                       <Panel config={draftConfig} onChange={(updater) => setDraftConfig((prev) => (prev ? updater(prev) : prev))} />
                     </fieldset>
@@ -280,13 +286,17 @@ export function InvoiceDesignerPage() {
         </section>
 
         <section className="min-h-0 space-y-3 overflow-y-auto rounded-xl border bg-muted/30 p-4">
-          <Tabs value={previewMode} onValueChange={(v) => setPreviewMode(v as PreviewMode)}>
-            <TabsList variant="line" className="flex-wrap">
-              {PREVIEW_MODES.map((m) => (
-                <TabsTrigger key={m.value} value={m.value}>{m.label}</TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Live preview</p>
+            <Select value={previewMode} onValueChange={(v) => setPreviewMode(v as PreviewMode)}>
+              <SelectTrigger size="sm" className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PREVIEW_MODES.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="overflow-x-auto pb-4">
             {draftConfig && (
               <TemplatePreview
