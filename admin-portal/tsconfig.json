@@ -18,7 +18,15 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      "@base-ui/react/*": ["node_modules/@base-ui/react/*"],
+      "react/jsx-runtime": ["node_modules/@types/react/jsx-runtime"],
+      "react": ["node_modules/@types/react"],
+      "react-dom": ["node_modules/@types/react-dom"],
+      "class-variance-authority": ["node_modules/class-variance-authority"],
+      "lucide-react": ["node_modules/lucide-react"],
+      "next-themes": ["node_modules/next-themes"],
+      "sonner": ["node_modules/sonner"]
     }
   },
   "include": ["src", "../shared"],
