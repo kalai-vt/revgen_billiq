@@ -33,6 +33,19 @@ export interface Settings {
   allow_negative_stock: boolean;
   default_low_stock_threshold: number;
   default_payment_method: DefaultPaymentMethod;
+  tagline: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  website: string | null;
+  pan_number: string | null;
+  fssai_number: string | null;
+  drug_license_number: string | null;
+  msme_udyam_number: string | null;
+  social_links: Record<string, string> | null;
+  feedback_url: string | null;
 }
 
 export interface SettingsUpdatePayload {
@@ -59,6 +72,19 @@ export interface SettingsUpdatePayload {
   allow_negative_stock?: boolean;
   default_low_stock_threshold?: number;
   default_payment_method?: DefaultPaymentMethod;
+  tagline?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  website?: string | null;
+  pan_number?: string | null;
+  fssai_number?: string | null;
+  drug_license_number?: string | null;
+  msme_udyam_number?: string | null;
+  social_links?: Record<string, string> | null;
+  feedback_url?: string | null;
 }
 
 export interface ProductConfig {
@@ -96,6 +122,19 @@ export function getBusinessPreferences(): Promise<BusinessPreferences> {
 
 export interface Branding {
   logo_url: string | null;
+  tagline: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  website: string | null;
+  pan_number: string | null;
+  fssai_number: string | null;
+  drug_license_number: string | null;
+  msme_udyam_number: string | null;
+  social_links: Record<string, string> | null;
+  feedback_url: string | null;
 }
 
 export function getBranding(): Promise<Branding> {

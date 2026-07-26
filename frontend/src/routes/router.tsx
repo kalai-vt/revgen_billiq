@@ -62,6 +62,9 @@ const DashboardPage = lazy(() => import('@/features/analytics/pages/DashboardPag
 const AnalyticsPage = lazy(() => import('@/features/analytics/pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const PricingPage = lazy(() => import('@/features/plans/pages/PricingPage').then((m) => ({ default: m.PricingPage })));
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const InvoiceDesignerPage = lazy(() =>
+  import('@/features/invoice-designer/pages/InvoiceDesignerPage').then((m) => ({ default: m.InvoiceDesignerPage })),
+);
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -117,6 +120,10 @@ export const router = createBrowserRouter([
           { path: '/invoices', element: <InvoicesListPage /> },
           { path: '/returns', element: <ReturnHistoryPage /> },
           { path: '/settings', element: <SettingsPage /> },
+          {
+            element: <ProtectedRoute roles={['owner']} />,
+            children: [{ path: '/settings/invoice-designer', element: <InvoiceDesignerPage /> }],
+          },
         ],
       },
     ],

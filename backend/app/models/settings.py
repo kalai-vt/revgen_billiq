@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -45,6 +45,21 @@ class Settings(Base):
     allow_negative_stock: Mapped[bool] = mapped_column(Boolean, default=True)
     default_low_stock_threshold: Mapped[float] = mapped_column(Float, default=5.0)
     default_payment_method: Mapped[str] = mapped_column(String(10), default="cash")
+
+    # Business profile (branding) — Invoice Designer
+    tagline: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    address_line1: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address_line2: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pincode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pan_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    fssai_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    drug_license_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    msme_udyam_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    social_links: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    feedback_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -99,6 +100,7 @@ export function SettingsPage() {
     { id: 'billing', label: 'Billing Settings', visible: isOwner },
     { id: 'product-config', label: 'Product Configuration', visible: isOwner },
     { id: 'invoice-settings', label: 'Invoice Settings', visible: isOwner },
+    { id: 'invoice-designer', label: 'Invoice Designer', visible: isOwner },
     { id: 'business-preferences', label: 'Business Preferences', visible: isOwner },
     { id: 'team', label: 'Team', visible: isOwner || isManager },
   ].filter((s) => s.visible);
@@ -295,6 +297,21 @@ export function SettingsPage() {
               <CardContent>
                 <BusinessPreferencesForm />
               </CardContent>
+            </Card>
+          )}
+
+          {isOwner && (
+            <Card id="invoice-designer" className="scroll-mt-4">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Invoice Designer</CardTitle>
+                  <CardDescription>
+                    Customize invoice branding, layout, fields, and paper size across Tax Invoice, Estimate, Credit
+                    Note, and other document types — with a live preview.
+                  </CardDescription>
+                </div>
+                <Button size="sm" nativeButton={false} render={<Link to="/settings/invoice-designer">Open Invoice Designer</Link>} />
+              </CardHeader>
             </Card>
           )}
 

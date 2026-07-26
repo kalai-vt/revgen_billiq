@@ -39,6 +39,19 @@ class SettingsOut(BaseModel):
     allow_negative_stock: bool
     default_low_stock_threshold: float
     default_payment_method: DefaultPaymentMethod
+    tagline: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    website: str | None = None
+    pan_number: str | None = None
+    fssai_number: str | None = None
+    drug_license_number: str | None = None
+    msme_udyam_number: str | None = None
+    social_links: dict[str, str] | None = None
+    feedback_url: str | None = None
 
 
 class SettingsUpdate(BaseModel):
@@ -65,6 +78,19 @@ class SettingsUpdate(BaseModel):
     allow_negative_stock: bool | None = None
     default_low_stock_threshold: float | None = Field(default=None, ge=0)
     default_payment_method: DefaultPaymentMethod | None = None
+    tagline: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    website: str | None = None
+    pan_number: str | None = None
+    fssai_number: str | None = None
+    drug_license_number: str | None = None
+    msme_udyam_number: str | None = None
+    social_links: dict[str, str] | None = None
+    feedback_url: str | None = None
 
 
 class ProductConfigOut(BaseModel):
@@ -79,6 +105,19 @@ class BrandingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     logo_url: str | None = None
+    tagline: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    website: str | None = None
+    pan_number: str | None = None
+    fssai_number: str | None = None
+    drug_license_number: str | None = None
+    msme_udyam_number: str | None = None
+    social_links: dict[str, str] | None = None
+    feedback_url: str | None = None
 
 
 class BusinessPreferencesOut(BaseModel):

@@ -14,6 +14,7 @@ from app.models.held_bill import HeldBill
 from app.models.activity_log import ActivityLog
 from app.models.notification import Notification
 from app.models.payment import CustomerLedgerAdjustment, Payment, PaymentAllocation
+from app.models.invoice_template import InvoiceTemplate
 
 __all__ = [
     "Tenant",
@@ -46,4 +47,5 @@ __all__ = [
     "Payment",
     "PaymentAllocation",
     "CustomerLedgerAdjustment",
+    "InvoiceTemplate",
 ]

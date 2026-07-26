@@ -89,7 +89,7 @@ def test_staff_can_read_branding_but_not_upload_logo(client: TestClient) -> None
 
     branding = client.get("/api/settings/branding", headers=staff_headers)
     assert branding.status_code == 200
-    assert branding.json()["data"] == {"logo_url": None}
+    assert branding.json()["data"]["logo_url"] is None
 
     upload = client.post(
         "/api/settings/logo", files={"file": ("logo.png", io.BytesIO(b"x"), "image/png")}, headers=staff_headers
