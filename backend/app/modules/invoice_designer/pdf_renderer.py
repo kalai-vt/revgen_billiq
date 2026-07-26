@@ -369,5 +369,18 @@ def render_document_pdf(data: DocumentData, tenant: Tenant, settings: Settings |
         story.append(Spacer(1, 6 * mm))
         story.append(Paragraph(xml_escape(settings.receipt_footer), styles["Normal"]))
 
+    # --- Signature ---
+    sig = config.signature
+    if sig.show_authorized_signature or sig.show_customer_signature:
+        story.append(Spacer(1, 10 * mm))
+        sig_row = []
+        if sig.show_authorized_signature:
+            sig_row.append(Paragraph("_______________________<br/>Authorized Signature", styles["Normal"]))
+        if sig.show_customer_signature:
+            sig_row.append(Paragraph("_______________________<br/>Customer Signature", styles["Normal"]))
+        sig_table = Table([sig_row])
+        sig_table.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("FONTSIZE", (0, 0), (-1, -1), 9)]))
+        story.append(sig_table)
+
     doc.build(story)
     return buffer.getvalue()

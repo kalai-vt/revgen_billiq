@@ -157,6 +157,11 @@ class ThemeConfig(BaseModel):
     icon_style: IconStyle = "outline"
 
 
+class SignatureConfig(BaseModel):
+    show_authorized_signature: bool = False
+    show_customer_signature: bool = False
+
+
 class MarginMm(BaseModel):
     top: float = 18
     right: float = 18
@@ -185,6 +190,7 @@ class InvoiceTemplateConfig(BaseModel):
     tax_summary: TaxSummaryConfig = Field(default_factory=TaxSummaryConfig)
     footer: FooterConfig = Field(default_factory=FooterConfig)
     qr_barcode: QrBarcodeConfig = Field(default_factory=QrBarcodeConfig)
+    signature: SignatureConfig = Field(default_factory=SignatureConfig)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
 

@@ -69,6 +69,12 @@ const FONT_SIZE_PX: Record<InvoiceTemplateConfig['theme']['font_size'], number> 
   sm: 11, md: 12.5, lg: 14,
 };
 
+const LOGO_SIZE_PX: Record<InvoiceTemplateConfig['paper']['logo_size_preset'], { width: number; height: number }> = {
+  sm: { width: 64, height: 40 },
+  md: { width: 88, height: 56 },
+  lg: { width: 112, height: 72 },
+};
+
 function addressLine(branding: BrandingValues): string | null {
   const parts = [branding.address_line1, branding.address_line2, [branding.city, branding.state].filter(Boolean).join(', '), branding.pincode]
     .filter((part) => part && part.trim().length > 0);
@@ -108,11 +114,19 @@ function BarcodePlaceholder() {
 export function TemplatePreview({ config, branding, mode, data }: TemplatePreviewProps) {
   const width = MODE_WIDTH_PX[mode];
   const isThermal = mode === '80mm' || mode === '58mm';
+  // Below this width there's no room for a real two-column header — every professional invoice
+  // tool (Zoho, Shopify, Tally) stacks business/invoice info into one column on receipts and
+  // narrow screens instead. Everywhere else, the two blocks stay side by side via CSS grid
+  // (not flexbox+wrap), so a growing left column can never push the right column down a line —
+  // grid columns don't reflow onto each other the way wrapped flex items do.
+  const stacked = isThermal || mode === 'mobile';
   const theme = config.theme;
   const paper = config.paper;
   const address = addressLine(branding);
   const visibleColumns = [...config.item_table.columns].filter((c) => c.visible).sort((a, b) => a.order - b.order);
   const footerSections = [...config.footer.sections].filter((s) => s.enabled).sort((a, b) => a.order - b.order);
+  const hasInvoiceInfo = Object.values(config.invoice_info.fields).some(Boolean);
+  const signature = config.signature;
 
   const paddingPx = isThermal ? 10 : mode === 'mobile' ? 14 : Math.min(48, Math.max(12, paper.margin_mm.top * 3.0));
   const fontScale = isThermal ? paper.font_scale_percent / 100 : 1;
@@ -141,24 +155,32 @@ export function TemplatePreview({ config, branding, mode, data }: TemplatePrevie
         </p>
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className={cn(!stacked && 'grid grid-cols-[minmax(55%,1fr)_minmax(0,44%)] items-start gap-4', stacked && 'flex flex-col gap-3')}>
         <HeaderBlock config={config} branding={branding} theme={theme} address={address} />
 
-        {Object.values(config.invoice_info.fields).some(Boolean) && (
-          <div className="shrink-0 text-right text-xs">
-            <p className="font-semibold tracking-wide" style={{ color: theme.primary_color }}>{data.documentLabel.toUpperCase()}</p>
-            <div className="mt-1 grid grid-cols-[auto_auto] gap-x-2 gap-y-0.5 text-muted-foreground">
-              {config.invoice_info.fields.invoice_number && <><span>Invoice No.</span><span>: {data.number}</span></>}
-              {config.invoice_info.fields.date && <><span>Invoice Date</span><span>: {data.date}</span></>}
-              {config.invoice_info.fields.time && <><span>Invoice Time</span><span>: {data.time}</span></>}
-              {config.invoice_info.fields.due_date && data.dueDate && <><span>Due Date</span><span>: {data.dueDate}</span></>}
-              {config.invoice_info.fields.cashier && data.cashier && <><span>Cashier</span><span>: {data.cashier}</span></>}
-              {config.invoice_info.fields.counter && data.counter && <><span>Counter</span><span>: {data.counter}</span></>}
-              {config.invoice_info.fields.order_number && data.orderNumber && <><span>Order No.</span><span>: {data.orderNumber}</span></>}
-              {config.invoice_info.fields.customer_id && data.customerId && <><span>Customer ID</span><span>: {data.customerId}</span></>}
-              {config.invoice_info.fields.payment_method && data.paymentMethod && <><span>Payment</span><span>: {data.paymentMethod}</span></>}
-              {config.invoice_info.fields.payment_status && data.paymentStatus && <><span>Payment Status</span><span>: {data.paymentStatus}</span></>}
-              {config.invoice_info.fields.invoice_status && data.invoiceStatus && <><span>Invoice Status</span><span>: {data.invoiceStatus}</span></>}
+        {hasInvoiceInfo && (
+          <div className={cn('min-w-0', stacked ? 'text-left' : 'text-right')}>
+            <p
+              className="text-base font-bold tracking-wide"
+              style={{ color: theme.primary_color }}
+            >
+              {data.documentLabel.toUpperCase()}
+            </p>
+            {/* One label:value per line (rather than a 2-column sub-grid) keeps this block's
+                footprint compact no matter how many fields are enabled, so it can never eat
+                into the business-info column's share of the header row. */}
+            <div className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+              {config.invoice_info.fields.invoice_number && <p>Invoice No.: <span className="font-medium text-foreground">{data.number}</span></p>}
+              {config.invoice_info.fields.date && <p>Invoice Date: <span className="font-medium text-foreground">{data.date}</span></p>}
+              {config.invoice_info.fields.time && <p>Invoice Time: <span className="font-medium text-foreground">{data.time}</span></p>}
+              {config.invoice_info.fields.due_date && data.dueDate && <p>Due Date: <span className="font-medium text-foreground">{data.dueDate}</span></p>}
+              {config.invoice_info.fields.cashier && data.cashier && <p>Cashier: <span className="font-medium text-foreground">{data.cashier}</span></p>}
+              {config.invoice_info.fields.counter && data.counter && <p>Counter: <span className="font-medium text-foreground">{data.counter}</span></p>}
+              {config.invoice_info.fields.order_number && data.orderNumber && <p>Order No.: <span className="font-medium text-foreground">{data.orderNumber}</span></p>}
+              {config.invoice_info.fields.customer_id && data.customerId && <p>Customer ID: <span className="font-medium text-foreground">{data.customerId}</span></p>}
+              {config.invoice_info.fields.payment_method && data.paymentMethod && <p>Payment: <span className="font-medium text-foreground">{data.paymentMethod}</span></p>}
+              {config.invoice_info.fields.payment_status && data.paymentStatus && <p>Payment Status: <span className="font-medium text-foreground">{data.paymentStatus}</span></p>}
+              {config.invoice_info.fields.invoice_status && data.invoiceStatus && <p>Invoice Status: <span className="font-medium text-foreground">{data.invoiceStatus}</span></p>}
             </div>
           </div>
         )}
@@ -226,44 +248,105 @@ export function TemplatePreview({ config, branding, mode, data }: TemplatePrevie
         </tbody>
       </table>
 
-      <div className="mt-3 ml-auto max-w-xs space-y-1 text-xs">
-        {config.tax_summary.fields.subtotal && <TotalRow label="Subtotal" value={data.totals.subtotal ?? 0} />}
-        {config.tax_summary.fields.discount && <TotalRow label="Discount" value={data.totals.discount ?? 0} />}
-        {config.tax_summary.fields.cgst && <TotalRow label="CGST" value={data.totals.cgst ?? 0} />}
-        {config.tax_summary.fields.sgst && <TotalRow label="SGST" value={data.totals.sgst ?? 0} />}
-        {config.tax_summary.fields.igst && <TotalRow label="IGST" value={data.totals.igst ?? 0} />}
-        {config.tax_summary.fields.cess && <TotalRow label="CESS" value={data.totals.cess ?? 0} />}
-        {config.tax_summary.fields.shipping && <TotalRow label="Shipping" value={data.totals.shipping ?? 0} />}
-        {config.tax_summary.fields.packing && <TotalRow label="Packing" value={data.totals.packing ?? 0} />}
-        {config.tax_summary.fields.round_off && <TotalRow label="Round Off" value={data.totals.round_off ?? 0} />}
-        {config.tax_summary.fields.grand_total && (
-          <TotalRow label="Grand Total" value={data.totals.grand_total ?? 0} bold color={theme.primary_color} />
-        )}
-        {config.tax_summary.fields.paid && <TotalRow label="Paid" value={data.totals.paid ?? 0} />}
-        {config.tax_summary.fields.outstanding && <TotalRow label="Outstanding" value={data.totals.outstanding ?? 0} />}
-        {config.tax_summary.fields.balance && <TotalRow label="Balance" value={data.totals.balance ?? 0} />}
-        {config.tax_summary.fields.amount_in_words && data.totals.amount_in_words && (
-          <p className="pt-1 text-[10px] italic text-muted-foreground">{data.totals.amount_in_words}</p>
+      <div className={cn('mt-4 flex gap-6', stacked ? 'flex-col' : 'flex-wrap items-start justify-end')}>
+        <div className={cn('space-y-1 text-xs', stacked ? 'w-full' : 'min-w-36')}>
+          {config.tax_summary.fields.subtotal && <TotalRow label="Subtotal" value={data.totals.subtotal ?? 0} />}
+          {config.tax_summary.fields.discount && <TotalRow label="Discount" value={data.totals.discount ?? 0} />}
+          {config.tax_summary.fields.cgst && <TotalRow label="CGST" value={data.totals.cgst ?? 0} />}
+          {config.tax_summary.fields.sgst && <TotalRow label="SGST" value={data.totals.sgst ?? 0} />}
+          {config.tax_summary.fields.igst && <TotalRow label="IGST" value={data.totals.igst ?? 0} />}
+          {config.tax_summary.fields.cess && <TotalRow label="CESS" value={data.totals.cess ?? 0} />}
+          {config.tax_summary.fields.shipping && <TotalRow label="Shipping" value={data.totals.shipping ?? 0} />}
+          {config.tax_summary.fields.packing && <TotalRow label="Packing" value={data.totals.packing ?? 0} />}
+          {config.tax_summary.fields.round_off && <TotalRow label="Round Off" value={data.totals.round_off ?? 0} />}
+          {config.tax_summary.fields.amount_in_words && data.totals.amount_in_words && (
+            <p className="max-w-56 pt-1.5 text-[10px] italic text-muted-foreground">{data.totals.amount_in_words}</p>
+          )}
+        </div>
+
+        {(config.tax_summary.fields.grand_total || config.tax_summary.fields.paid || config.tax_summary.fields.outstanding || config.tax_summary.fields.balance) && (
+          <div className={cn('space-y-1.5', stacked ? 'w-full' : 'w-44 shrink-0')}>
+            {config.tax_summary.fields.grand_total && (
+              <div
+                className="flex items-center justify-between rounded-md px-3 py-2 text-sm font-bold text-white"
+                style={{ background: theme.primary_color }}
+              >
+                <span>Grand Total</span>
+                <span>{(data.totals.grand_total ?? 0).toFixed(2)}</span>
+              </div>
+            )}
+            {config.tax_summary.fields.paid && (
+              <div className="flex justify-between px-1 text-xs font-medium" style={{ color: theme.primary_color }}>
+                <span>Paid{data.paymentMethod ? ` (${data.paymentMethod})` : ''}</span>
+                <span>{(data.totals.paid ?? 0).toFixed(2)}</span>
+              </div>
+            )}
+            {config.tax_summary.fields.outstanding && (
+              <TotalRow label="Outstanding" value={data.totals.outstanding ?? 0} />
+            )}
+            {config.tax_summary.fields.balance && (
+              <div className="flex justify-between px-1 text-xs font-medium" style={{ color: theme.primary_color }}>
+                <span>Balance</span>
+                <span>{(data.totals.balance ?? 0).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {(config.qr_barcode.invoice_qr || config.qr_barcode.payment_qr || config.qr_barcode.business_qr ||
-        config.qr_barcode.website_qr || config.qr_barcode.feedback_qr || config.qr_barcode.barcode) && (
-        <div className="mt-4 flex flex-wrap justify-center gap-4 border-t pt-3">
-          {config.qr_barcode.invoice_qr && <QrPlaceholder label="Invoice QR" />}
-          {config.qr_barcode.payment_qr && <QrPlaceholder label="Pay via UPI" />}
-          {config.qr_barcode.business_qr && <QrPlaceholder label="Business Card" />}
-          {config.qr_barcode.website_qr && <QrPlaceholder label="Website" />}
-          {config.qr_barcode.feedback_qr && <QrPlaceholder label="Feedback" />}
-          {config.qr_barcode.barcode && <BarcodePlaceholder />}
-        </div>
-      )}
+      {(() => {
+        const shortFooter = footerSections.filter((s) => s.key === 'thank_you' || s.key === 'business_notes');
+        const policyFooter = footerSections.filter((s) => s.key !== 'thank_you' && s.key !== 'business_notes');
+        return (
+          <>
+            {shortFooter.length > 0 && (
+              <div className="mt-4 space-y-0.5 border-t pt-3 text-center">
+                {shortFooter.map((section) => (
+                  <p key={section.key} className="text-sm font-semibold" style={{ color: theme.primary_color }}>
+                    {section.text}
+                  </p>
+                ))}
+              </div>
+            )}
+            {policyFooter.length > 0 && (
+              <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[10px] text-muted-foreground">
+                {policyFooter.map((section) => (
+                  <li key={section.key}>{section.text}</li>
+                ))}
+              </ul>
+            )}
+          </>
+        );
+      })()}
 
-      {footerSections.length > 0 && (
-        <div className="mt-4 space-y-1.5 border-t pt-3 text-center text-[11px] text-muted-foreground">
-          {footerSections.map((section) => (
-            <p key={section.key}>{section.text}</p>
-          ))}
+      {(config.qr_barcode.invoice_qr || config.qr_barcode.payment_qr || config.qr_barcode.business_qr ||
+        config.qr_barcode.website_qr || config.qr_barcode.feedback_qr || config.qr_barcode.barcode ||
+        signature.show_authorized_signature || signature.show_customer_signature) && (
+        <div className={cn('mt-4 flex gap-4 border-t pt-3', stacked ? 'flex-col items-center' : 'flex-wrap items-end justify-between')}>
+          <div className="flex flex-wrap justify-center gap-4">
+            {config.qr_barcode.invoice_qr && <QrPlaceholder label="Invoice QR" />}
+            {config.qr_barcode.payment_qr && <QrPlaceholder label="Pay via UPI" />}
+            {config.qr_barcode.business_qr && <QrPlaceholder label="Business Card" />}
+            {config.qr_barcode.website_qr && <QrPlaceholder label="Website" />}
+            {config.qr_barcode.feedback_qr && <QrPlaceholder label="Feedback" />}
+            {config.qr_barcode.barcode && <BarcodePlaceholder />}
+          </div>
+          {(signature.show_authorized_signature || signature.show_customer_signature) && (
+            <div className="flex gap-8">
+              {signature.show_authorized_signature && (
+                <div className="text-center text-[10px] text-muted-foreground">
+                  <div className="mb-1.5 h-8 w-28 border-b" />
+                  Authorized Signature
+                </div>
+              )}
+              {signature.show_customer_signature && (
+                <div className="text-center text-[10px] text-muted-foreground">
+                  <div className="mb-1.5 h-8 w-28 border-b" />
+                  Customer Signature
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -279,9 +362,9 @@ function itemColumnLabel(key: string): string {
   return labels[key] ?? key;
 }
 
-function TotalRow({ label, value, bold, color }: { label: string; value: number; bold?: boolean; color?: string }) {
+function TotalRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className={cn('flex justify-between', bold && 'text-sm font-semibold')} style={bold ? { color } : undefined}>
+    <div className="flex justify-between">
       <span>{label}</span>
       <span>{value.toFixed(2)}</span>
     </div>
@@ -299,28 +382,41 @@ function HeaderBlock({
   theme: InvoiceTemplateConfig['theme'];
   address: string | null;
 }) {
-  const { branding: b, header } = config;
+  const { branding: b, header, paper } = config;
   const heightPad = header.height_preset === 'compact' ? 6 : header.height_preset === 'tall' ? 20 : 12;
+  const logoSize = LOGO_SIZE_PX[paper.logo_size_preset];
 
   const logo = b.show_logo && branding.logo_url ? (
-    <img src={branding.logo_url} alt="" className="h-12 w-auto object-contain" />
+    <img
+      src={branding.logo_url}
+      alt=""
+      className="shrink-0 object-contain"
+      style={{ maxWidth: logoSize.width, maxHeight: logoSize.height, width: 'auto', height: 'auto' }}
+    />
   ) : b.show_logo ? (
-    <div className="flex h-12 w-12 items-center justify-center rounded border text-[9px] text-muted-foreground">LOGO</div>
+    <div
+      className="flex shrink-0 items-center justify-center rounded border text-[9px] text-muted-foreground"
+      style={{ width: logoSize.width, height: logoSize.height }}
+    >
+      LOGO
+    </div>
   ) : null;
 
   const identity = (
-    <div className={header.layout === 'logo-center' ? 'text-center' : header.layout === 'logo-right' ? 'text-right' : 'text-left'}>
+    <div className={cn('min-w-0', header.layout === 'logo-center' ? 'text-center' : header.layout === 'logo-right' ? 'text-right' : 'text-left')}>
       {b.show_business_name && (
-        <p className="text-lg font-bold" style={{ color: theme.primary_color }}>{branding.company_name || 'Your Business Name'}</p>
+        <p className="text-xl leading-tight font-extrabold tracking-tight" style={{ color: theme.primary_color }}>
+          {branding.company_name || 'Your Business Name'}
+        </p>
       )}
-      {b.show_tagline && branding.tagline && <p className="text-xs italic text-muted-foreground">{branding.tagline}</p>}
-      {b.show_address && address && <p className="text-xs text-muted-foreground">{address}</p>}
-      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+      {b.show_tagline && branding.tagline && <p className="break-words text-xs italic text-muted-foreground">{branding.tagline}</p>}
+      {b.show_address && address && <p className="mt-0.5 break-words text-xs text-muted-foreground">{address}</p>}
+      <div className="mt-0.5 flex flex-wrap gap-x-3 break-words text-xs text-muted-foreground">
         {b.show_phone && branding.phone && <span>{branding.phone}</span>}
         {b.show_email && branding.email && <span>{branding.email}</span>}
         {b.show_website && branding.website && <span>{branding.website}</span>}
       </div>
-      <div className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-muted-foreground">
+      <div className="mt-0.5 flex flex-wrap gap-x-3 break-words text-[10px] text-muted-foreground">
         {b.show_gstin && branding.gst_number && <span>GSTIN: {branding.gst_number}</span>}
         {b.show_pan && branding.pan_number && <span>PAN: {branding.pan_number}</span>}
         {b.show_fssai && branding.fssai_number && <span>FSSAI: {branding.fssai_number}</span>}
@@ -328,7 +424,7 @@ function HeaderBlock({
         {b.show_msme_udyam && branding.msme_udyam_number && <span>MSME: {branding.msme_udyam_number}</span>}
       </div>
       {b.show_social_links && branding.social_links && b.social_links_to_show.length > 0 && (
-        <div className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-muted-foreground">
+        <div className="mt-0.5 flex flex-wrap gap-x-3 break-words text-[10px] text-muted-foreground">
           {b.social_links_to_show.map((platform) =>
             branding.social_links?.[platform] ? <span key={platform}>{platform}: {branding.social_links[platform]}</span> : null,
           )}
@@ -346,7 +442,7 @@ function HeaderBlock({
 
   if (header.layout === 'banner') {
     return (
-      <div className="text-center" style={{ ...containerStyle, background: header.background_color ?? `${theme.primary_color}11` }}>
+      <div className="min-w-0 text-center" style={{ ...containerStyle, background: header.background_color ?? `${theme.primary_color}11` }}>
         <div className="flex flex-col items-center gap-1.5">
           {logo}
           {identity}
@@ -357,8 +453,8 @@ function HeaderBlock({
 
   if (header.layout === 'modern-card') {
     return (
-      <div className="shadow-sm" style={{ ...containerStyle, borderRadius: Math.max(header.border_radius, 10) }}>
-        <div className="flex items-center gap-3">
+      <div className="min-w-0 shadow-sm" style={{ ...containerStyle, borderRadius: Math.max(header.border_radius, 10) }}>
+        <div className="flex min-w-0 items-center gap-3">
           {logo}
           {identity}
         </div>
@@ -367,14 +463,14 @@ function HeaderBlock({
   }
 
   if (header.layout === 'minimal') {
-    return <div style={{ padding: heightPad }}>{identity}</div>;
+    return <div className="min-w-0" style={{ padding: heightPad }}>{identity}</div>;
   }
 
   const flexDirection = header.layout === 'logo-right' ? 'row-reverse' : header.layout === 'logo-center' ? 'column' : 'row';
 
   return (
-    <div style={containerStyle}>
-      <div className={cn('flex items-center gap-3', header.layout === 'logo-center' && 'flex-col items-center')} style={{ flexDirection }}>
+    <div className="min-w-0" style={containerStyle}>
+      <div className={cn('flex min-w-0 items-center gap-3', header.layout === 'logo-center' && 'flex-col items-center')} style={{ flexDirection }}>
         {logo}
         {identity}
       </div>

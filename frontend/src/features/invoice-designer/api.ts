@@ -207,6 +207,11 @@ export interface QrBarcodeConfig {
   barcode: boolean;
 }
 
+export interface SignatureConfig {
+  show_authorized_signature: boolean;
+  show_customer_signature: boolean;
+}
+
 export interface ThemeConfig {
   primary_color: string;
   secondary_color: string;
@@ -248,6 +253,7 @@ export interface InvoiceTemplateConfig {
   tax_summary: TaxSummaryConfig;
   footer: FooterConfig;
   qr_barcode: QrBarcodeConfig;
+  signature: SignatureConfig;
   theme: ThemeConfig;
   paper: PaperConfig;
 }

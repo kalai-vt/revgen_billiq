@@ -2,6 +2,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FOOTER_SECTION_LABELS } from '@/features/invoice-designer/api';
 import type { FooterSection } from '@/features/invoice-designer/api';
 import { DraggableList } from '@/features/invoice-designer/components/DraggableList';
+import { FieldToggle } from '@/features/invoice-designer/components/FieldToggle';
 import type { PanelProps } from '@/features/invoice-designer/components/panels/types';
 import { cn } from '@/lib/utils';
 
@@ -55,6 +56,24 @@ export function FooterPanel({ config, onChange }: PanelProps) {
           </div>
         )}
       />
+
+      <div className="mt-4 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">Signature</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <FieldToggle
+            id="signature-authorized"
+            label="Authorized Signature"
+            checked={config.signature.show_authorized_signature}
+            onChange={(v) => onChange((cfg) => ({ ...cfg, signature: { ...cfg.signature, show_authorized_signature: v } }))}
+          />
+          <FieldToggle
+            id="signature-customer"
+            label="Customer Signature"
+            checked={config.signature.show_customer_signature}
+            onChange={(v) => onChange((cfg) => ({ ...cfg, signature: { ...cfg.signature, show_customer_signature: v } }))}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -185,7 +185,7 @@ export function InvoiceDesignerPage() {
         <p className="text-sm text-muted-foreground">Customize branding, layout, fields, and paper size — no code required.</p>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[200px_1.3fr_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[200px_1fr_1.15fr]">
         <aside className="min-h-0 space-y-3 overflow-y-auto rounded-xl border p-3">
           <div className="space-y-1.5">
             <Label>Document type</Label>
