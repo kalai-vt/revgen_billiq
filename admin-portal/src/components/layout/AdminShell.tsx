@@ -2,6 +2,7 @@ import { Suspense, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { LogOut, Menu } from 'lucide-react';
 import { AdminBrandLogo } from '@/components/shared/AdminBrandLogo';
+import { AdminNotificationBell } from '@/components/layout/AdminNotificationBell';
 import { AdminSidebarNav } from '@/components/layout/AdminSidebarNav';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Avatar, AvatarFallback } from '@shared/components/ui/avatar';
@@ -102,7 +103,8 @@ export function AdminShell() {
               <Menu className="size-5" />
             </Button>
           </div>
-          <div className="text-sm font-medium text-muted-foreground">RevGenIQ Internal Admin Portal</div>
+          <div className="flex-1 text-sm font-medium text-muted-foreground">RevGenIQ Internal Admin Portal</div>
+          <AdminNotificationBell />
         </header>
 
         <main className="flex-1 overflow-y-auto overscroll-contain scroll-smooth p-4 md:p-6">

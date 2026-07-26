@@ -74,6 +74,46 @@ def verification_email(*, first_name: str, verify_url: str, expiry_hours: int) -
     return subject, html, text
 
 
+def admin_invite_email(*, first_name: str, invite_url: str, role: str, expiry_hours: int) -> tuple[str, str, str]:
+    subject = f"You've been invited to RevGenIQ Admin Portal"
+    html = _LAYOUT.format(
+        app_name="RevGenIQ Admin Portal",
+        heading="You're invited to RevGenIQ Admin Portal",
+        greeting=f"Hi {first_name},",
+        body=f"You've been added as a <strong>{role.replace('_', ' ').title()}</strong> on the "
+        "RevGenIQ internal Admin Portal. Click the button below to set your password and sign in.",
+        action_url=invite_url,
+        action_label="Set your password",
+        expiry_note=f"This invite link expires in {expiry_hours} hours.",
+        security_notice="",
+        support_email=settings.support_email,
+    )
+    text = (
+        f"Hi {first_name},\n\n"
+        f"You've been added as a {role.replace('_', ' ').title()} on the RevGenIQ internal Admin Portal.\n"
+        f"Set your password by visiting:\n{invite_url}\n\n"
+        f"This invite link expires in {expiry_hours} hours."
+    )
+    return subject, html, text
+
+
+def broadcast_announcement_email(*, first_name: str, subject_line: str, message: str) -> tuple[str, str, str]:
+    body_html = message.replace("\n", "<br />")
+    html = _LAYOUT.format(
+        app_name=_APP_NAME,
+        heading=subject_line,
+        greeting=f"Hi {first_name},",
+        body=body_html,
+        action_url=settings.app_url,
+        action_label="Go to RevGen BillIQ",
+        expiry_note="",
+        security_notice="",
+        support_email=settings.support_email,
+    )
+    text = f"Hi {first_name},\n\n{message}\n\n{settings.app_url}"
+    return subject_line, html, text
+
+
 def password_reset_email(*, first_name: str, reset_url: str, expiry_minutes: int) -> tuple[str, str, str]:
     subject = f"Reset your password for {_APP_NAME}"
     security_notice = (

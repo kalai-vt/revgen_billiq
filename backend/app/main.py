@@ -15,10 +15,20 @@ from app.core.config import settings
 from app.core.limits import FeatureNotAvailableError, LimitExceededError
 from app.core.responses import make_response
 from app.modules.activity.router import router as activity_router
+from app.modules.admin_audit.router import router as admin_audit_router
 from app.modules.admin_auth.router import router as admin_auth_router
 from app.modules.admin_customers.router import router as admin_customers_router
 from app.modules.admin_dashboard.router import router as admin_dashboard_router
+from app.modules.admin_communications.router import router as admin_communications_router
 from app.modules.admin_features.router import router as admin_features_router
+from app.modules.admin_notifications.router import router as admin_notifications_router
+from app.modules.admin_payments.router import router as admin_payments_router
+from app.modules.admin_reports.router import router as admin_reports_router
+from app.modules.admin_staff.router import router as admin_staff_router
+from app.modules.admin_subscriptions.router import router as admin_subscriptions_router
+from app.modules.admin_support.router import router as admin_support_router
+from app.modules.admin_system.router import router as admin_system_router
+from app.modules.admin_usage.router import router as admin_usage_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.auth.router import router as auth_router
 from app.modules.billing_plans.router import router as billing_plans_router
@@ -86,6 +96,16 @@ app.include_router(admin_auth_router)
 app.include_router(admin_dashboard_router)
 app.include_router(admin_customers_router)
 app.include_router(admin_features_router)
+app.include_router(admin_staff_router)
+app.include_router(admin_audit_router)
+app.include_router(admin_subscriptions_router)
+app.include_router(admin_payments_router)
+app.include_router(admin_usage_router)
+app.include_router(admin_notifications_router)
+app.include_router(admin_reports_router)
+app.include_router(admin_communications_router)
+app.include_router(admin_support_router)
+app.include_router(admin_system_router)
 app.include_router(billing_plans_router)
 app.include_router(categories_router)
 app.include_router(catalog_router)

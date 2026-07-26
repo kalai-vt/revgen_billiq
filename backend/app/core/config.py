@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     app_url: str = "http://localhost:5173"
+    admin_portal_url: str = "http://localhost:5174"
     email_provider: str = "console"
     smtp_host: str = ""
     smtp_port: int = 587

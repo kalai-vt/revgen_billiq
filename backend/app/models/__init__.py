@@ -16,6 +16,8 @@ from app.models.notification import Notification
 from app.models.payment import CustomerLedgerAdjustment, Payment, PaymentAllocation
 from app.models.invoice_template import InvoiceTemplate
 from app.models.feature_flag import TenantFeatureFlag
+from app.models.subscription_event import SubscriptionEvent
+from app.models.support_ticket import SupportTicket, SupportTicketMessage
 
 __all__ = [
     "Tenant",
@@ -50,4 +52,7 @@ __all__ = [
     "CustomerLedgerAdjustment",
     "InvoiceTemplate",
     "TenantFeatureFlag",
+    "SubscriptionEvent",
+    "SupportTicket",
+    "SupportTicketMessage",
 ]

@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, KeyRound, PauseCircle, PlayCircle, ToggleLeft } from 'lucide-react';
+import { ArrowLeft, CreditCard, KeyRound, LifeBuoy, PauseCircle, PlayCircle, ToggleLeft } from 'lucide-react';
 import { Badge } from '@shared/components/ui/badge';
 import { Button } from '@shared/components/ui/button';
 import { Card, CardContent, CardHeader } from '@shared/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@shared/components/ui/dialog';
+import { Label } from '@shared/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/components/ui/select';
 import { Skeleton } from '@shared/components/ui/skeleton';
 import {
   activateCustomer,
@@ -14,7 +16,11 @@ import {
   resetCustomerPassword,
   suspendCustomer,
 } from '@/services/customersApi';
+import { getSubscription, updateSubscription } from '@/services/subscriptionsApi';
 import { ApiError } from '@/lib/api-client';
+
+const PLAN_OPTIONS = ['basic', 'explore', 'advance'];
+const STATUS_OPTIONS = ['trialing', 'active', 'past_due', 'cancelled'];
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
@@ -51,9 +57,37 @@ export function CustomerProfilePage() {
     enabled: !!tenantId,
   });
 
+  const { data: subscription } = useQuery({
+    queryKey: ['admin-subscription', tenantId],
+    queryFn: () => getSubscription(tenantId!),
+    enabled: !!tenantId,
+  });
+
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false);
+  const [draftPlan, setDraftPlan] = useState('basic');
+  const [draftStatus, setDraftStatus] = useState('active');
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['admin-customer', tenantId] });
     queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-subscription', tenantId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-subscriptions'] });
+  }
+
+  const subscriptionMutation = useMutation({
+    mutationFn: () => updateSubscription(tenantId!, { plan: draftPlan, subscription_status: draftStatus }),
+    onSuccess: () => {
+      toast.success('Subscription updated');
+      setSubscriptionOpen(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Something went wrong'),
+  });
+
+  function openSubscriptionDialog() {
+    setDraftPlan(subscription?.plan ?? 'basic');
+    setDraftStatus(subscription?.subscription_status ?? 'active');
+    setSubscriptionOpen(true);
   }
 
   const suspendMutation = useMutation({
@@ -109,9 +143,17 @@ export function CustomerProfilePage() {
           <p className="text-sm text-muted-foreground">{customer.legal_name}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={openSubscriptionDialog}>
+            <CreditCard className="mr-1.5 size-4" />
+            Manage subscription
+          </Button>
           <Button variant="outline" size="sm" onClick={() => navigate(`/customers/${tenantId}/features`)}>
             <ToggleLeft className="mr-1.5 size-4" />
             Manage features
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/support')}>
+            <LifeBuoy className="mr-1.5 size-4" />
+            Support tickets
           </Button>
           <Button variant="outline" size="sm" onClick={() => resetPasswordMutation.mutate()} disabled={resetPasswordMutation.isPending}>
             <KeyRound className="mr-1.5 size-4" />
@@ -175,6 +217,80 @@ export function CustomerProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {subscription && (
+        <Card>
+          <CardHeader>
+            <p className="text-sm font-medium">Subscription history</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {subscription.history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No plan changes recorded yet.</p>
+            ) : (
+              subscription.history.slice(0, 5).map((event) => (
+                <div key={event.id} className="flex items-center justify-between text-sm">
+                  <span className="capitalize">
+                    {event.event_type.replace('_', ' ')}
+                    {event.to_plan && event.event_type !== 'cancelled' && event.event_type !== 'reactivated' ? ` → ${event.to_plan}` : ''}
+                    {event.note ? ` — ${event.note}` : ''}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(event.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · {event.changed_by}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={subscriptionOpen} onOpenChange={setSubscriptionOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Manage subscription</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Plan</Label>
+              <Select value={draftPlan} onValueChange={(value) => value && setDraftPlan(value)}>
+                <SelectTrigger className="w-full capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAN_OPTIONS.map((p) => (
+                    <SelectItem key={p} value={p} className="capitalize">
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={draftStatus} onValueChange={(value) => value && setDraftStatus(value)}>
+                <SelectTrigger className="w-full capitalize">
+                  <SelectValue>{(value: string) => value?.replace('_', ' ')}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize">
+                      {s.replace('_', ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubscriptionOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => subscriptionMutation.mutate()} disabled={subscriptionMutation.isPending}>
+              Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmAction !== null} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <DialogContent className="sm:max-w-sm">

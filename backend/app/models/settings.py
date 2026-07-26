@@ -24,6 +24,8 @@ class Settings(Base):
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     theme: Mapped[str] = mapped_column(String(16), default="light")
     plan: Mapped[str] = mapped_column(String(20), default="basic")
+    subscription_status: Mapped[str] = mapped_column(String(20), default="active")
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     allow_manager_price_override: Mapped[bool] = mapped_column(Boolean, default=False)
     primary_search_field: Mapped[str] = mapped_column(String(20), default="identifier_value")
     default_identifier_type: Mapped[str] = mapped_column(String(20), default="pid")

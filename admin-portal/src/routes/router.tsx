@@ -2,9 +2,9 @@ import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
-import { ComingSoonPage } from '@/pages/ComingSoonPage';
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const AcceptInvitePage = lazy(() => import('@/pages/auth/AcceptInvitePage').then((m) => ({ default: m.AcceptInvitePage })));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 const CustomerProfilePage = lazy(() =>
@@ -13,9 +13,23 @@ const CustomerProfilePage = lazy(() =>
 const FeatureManagementPage = lazy(() =>
   import('@/pages/features/FeatureManagementPage').then((m) => ({ default: m.FeatureManagementPage })),
 );
+const SubscriptionsPage = lazy(() => import('@/pages/subscriptions/SubscriptionsPage').then((m) => ({ default: m.SubscriptionsPage })));
+const PaymentsPage = lazy(() => import('@/pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })));
+const UsageAnalyticsPage = lazy(() => import('@/pages/UsageAnalyticsPage').then((m) => ({ default: m.UsageAnalyticsPage })));
+const CommunicationsPage = lazy(() => import('@/pages/CommunicationsPage').then((m) => ({ default: m.CommunicationsPage })));
+const SupportPage = lazy(() => import('@/pages/support/SupportPage').then((m) => ({ default: m.SupportPage })));
+const SupportTicketDetailPage = lazy(() =>
+  import('@/pages/support/SupportTicketDetailPage').then((m) => ({ default: m.SupportTicketDetailPage })),
+);
+const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
+const SystemMonitoringPage = lazy(() => import('@/pages/SystemMonitoringPage').then((m) => ({ default: m.SystemMonitoringPage })));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  { path: '/accept-invite', element: <AcceptInvitePage /> },
   {
     element: <ProtectedRoute />,
     children: [
@@ -27,17 +41,17 @@ export const router = createBrowserRouter([
           { path: '/customers', element: <CustomersPage /> },
           { path: '/customers/:tenantId', element: <CustomerProfilePage /> },
           { path: '/customers/:tenantId/features', element: <FeatureManagementPage /> },
-          { path: '/features', element: <ComingSoonPage title="Feature Management" /> },
-          { path: '/subscriptions', element: <ComingSoonPage title="Subscriptions" /> },
-          { path: '/payments', element: <ComingSoonPage title="Payments" /> },
-          { path: '/usage-analytics', element: <ComingSoonPage title="Usage Analytics" /> },
-          { path: '/communications', element: <ComingSoonPage title="Communications" /> },
-          { path: '/support', element: <ComingSoonPage title="Support" /> },
-          { path: '/reports', element: <ComingSoonPage title="Reports" /> },
-          { path: '/notifications', element: <ComingSoonPage title="Notifications" /> },
-          { path: '/audit-logs', element: <ComingSoonPage title="Audit Logs" /> },
-          { path: '/system-monitoring', element: <ComingSoonPage title="System Monitoring" /> },
-          { path: '/settings', element: <ComingSoonPage title="Settings" /> },
+          { path: '/subscriptions', element: <SubscriptionsPage /> },
+          { path: '/payments', element: <PaymentsPage /> },
+          { path: '/usage-analytics', element: <UsageAnalyticsPage /> },
+          { path: '/communications', element: <CommunicationsPage /> },
+          { path: '/support', element: <SupportPage /> },
+          { path: '/support/:ticketId', element: <SupportTicketDetailPage /> },
+          { path: '/reports', element: <ReportsPage /> },
+          { path: '/notifications', element: <NotificationsPage /> },
+          { path: '/audit-logs', element: <AuditLogsPage /> },
+          { path: '/system-monitoring', element: <SystemMonitoringPage /> },
+          { path: '/settings', element: <SettingsPage /> },
         ],
       },
     ],

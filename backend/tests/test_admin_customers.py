@@ -99,6 +99,33 @@ def test_suspend_and_activate_customer_writes_audit_log(
     assert "tenant.activate" in logged_actions
 
 
+def test_suspending_tenant_blocks_billing_app_access(client: TestClient, admin_db_session: Session) -> None:
+    """Suspension must actually block the tenant from RevGen BillIQ, not just flip a cosmetic
+    status flag — both fresh logins and requests using an already-issued access token."""
+    headers = _admin_headers(client, admin_db_session)
+    owner = _register_tenant(client)
+    tenant_id = owner["tenant"]["id"]
+    tenant_headers = {"Authorization": f"Bearer {owner['access_token']}"}
+
+    # Before suspension, the tenant's existing token works normally.
+    assert client.get("/api/settings", headers=tenant_headers).status_code == 200
+
+    client.post(f"/api/admin/customers/{tenant_id}/suspend", headers=headers)
+
+    # The already-issued access token is rejected immediately (mid-session enforcement).
+    blocked = client.get("/api/settings", headers=tenant_headers)
+    assert blocked.status_code == 403
+
+    # A fresh login attempt is also rejected.
+    login = client.post("/api/auth/login", json={"email": "owner@acme.test", "password": "StrongPass!123"})
+    assert login.status_code == 403
+
+    # Reactivating restores access.
+    client.post(f"/api/admin/customers/{tenant_id}/activate", headers=headers)
+    relogin = client.post("/api/auth/login", json={"email": "owner@acme.test", "password": "StrongPass!123"})
+    assert relogin.status_code == 200
+
+
 def test_suspend_requires_operations_or_super_admin_role(client: TestClient, admin_db_session: Session) -> None:
     headers = _admin_headers(client, admin_db_session, role="support")
     owner = _register_tenant(client)

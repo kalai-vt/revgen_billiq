@@ -11,6 +11,7 @@ from app.core.responses import make_response
 from app.models_admin.admin_user import AdminUser
 from app.modules.admin_auth import service
 from app.modules.admin_auth.service import AdminAuthError
+from app.modules.admin_staff.service import AdminStaffError, accept_invite, change_own_password
 from app.schemas.admin_auth import (
     AdminAuthResult,
     AdminLoginRequest,
@@ -18,6 +19,7 @@ from app.schemas.admin_auth import (
     AdminRefreshRequest,
     AdminUserOut,
 )
+from app.schemas.admin_staff import AcceptInviteRequest, ChangeOwnPasswordRequest
 
 router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
 
@@ -60,3 +62,25 @@ def post_admin_logout(payload: AdminLogoutRequest, db: Session = Depends(get_adm
 @router.get("/me")
 def get_admin_me(current_admin: AdminUser = Depends(get_current_admin_user)) -> dict[str, Any]:
     return make_response(True, "Current admin loaded", AdminUserOut.model_validate(current_admin).model_dump(mode="json"))
+
+
+@router.post("/accept-invite")
+def post_accept_invite(payload: AcceptInviteRequest, db: Session = Depends(get_admin_db)) -> dict[str, Any]:
+    try:
+        accept_invite(db, payload.token, payload.password)
+    except AdminStaffError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return make_response(True, "Password set successfully — you can now sign in")
+
+
+@router.post("/change-password")
+def post_change_password(
+    payload: ChangeOwnPasswordRequest,
+    db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin_user),
+) -> dict[str, Any]:
+    try:
+        change_own_password(db, current_admin, payload.current_password, payload.new_password)
+    except AdminStaffError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return make_response(True, "Password changed successfully")

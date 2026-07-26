@@ -51,7 +51,7 @@ export function CustomersPage() {
         </div>
         <Select value={status} onValueChange={(value) => setStatus(value ?? 'all')}>
           <SelectTrigger className="w-full sm:w-48">
-            <SelectValue />
+            <SelectValue>{(value: string) => STATUS_OPTIONS.find((opt) => opt.value === value)?.label ?? value}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map((opt) => (

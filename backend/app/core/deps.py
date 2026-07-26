@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.security import decode_access_token
 from app.core.timeutils import as_aware_utc
+from app.models.tenant import Tenant
 from app.models.user import User
 
 
@@ -25,6 +26,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, payload["sub"])
     if not user or user.status != "active":
         raise HTTPException(status_code=401, detail="User not found")
+
+    # A tenant suspended by RevGenIQ staff must lose access immediately, even mid-session —
+    # not just be blocked from a fresh login — so this is checked on every request, not only
+    # in the login flow.
+    tenant = db.get(Tenant, user.tenant_id)
+    if not tenant or tenant.status != "active":
+        raise HTTPException(status_code=403, detail="This account has been suspended. Please contact support.")
 
     if user.session_invalidated_at is not None and payload.get("iat") is not None:
         issued_at = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)

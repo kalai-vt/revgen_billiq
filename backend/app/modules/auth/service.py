@@ -310,6 +310,10 @@ def authenticate(db: Session, email: str, password: str) -> User:
     if user.status != "active":
         raise AuthError(401, "Account is not active")
 
+    tenant = db.get(Tenant, user.tenant_id)
+    if not tenant or tenant.status != "active":
+        raise AuthError(403, "This account has been suspended. Please contact support.")
+
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)
     user.failed_attempts = 0
@@ -345,6 +349,10 @@ def rotate_refresh_token(db: Session, refresh_token: str) -> tuple[User, str, st
     user = db.get(User, record.user_id)
     if not user or user.status != "active":
         raise AuthError(401, "User not found")
+
+    tenant = db.get(Tenant, user.tenant_id)
+    if not tenant or tenant.status != "active":
+        raise AuthError(403, "This account has been suspended. Please contact support.")
 
     record.revoked = True
     db.add(record)
