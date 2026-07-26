@@ -10,7 +10,7 @@ RevGen BillIQ is a cloud-native, multi-tenant SaaS billing and POS platform desi
 
 ## Repository structure
 - backend/ - FastAPI services, SQLAlchemy models, and Alembic migrations
-- frontend/ - React app covering dashboards, POS, and admin workflows
+- billing-app/ - customer-facing React app covering dashboards, POS, and billing workflows
 
 ## Quick start
 ### Backend
@@ -22,9 +22,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-### Frontend
+### Billing app
 ```bash
-cd frontend
+cd billing-app
 npm install
 npm run dev
 ```
