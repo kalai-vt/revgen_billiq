@@ -6,6 +6,7 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET = "dev-secret-change-me"
+DEFAULT_ADMIN_JWT_SECRET = "dev-admin-secret-change-me"
 
 
 class Settings(BaseSettings):
@@ -15,6 +16,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./app.db"
     jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
+    # RevGenIQ Admin Portal: a separate database and a separate JWT secret from the tenant-facing
+    # Billing app, so a leak of one credential store can't be used to forge tokens for the other.
+    admin_database_url: str = "sqlite:///./admin.db"
+    admin_jwt_secret: str = DEFAULT_ADMIN_JWT_SECRET
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
     remember_me_refresh_token_expire_days: int = 30
@@ -51,12 +56,26 @@ class Settings(BaseSettings):
                     "when REVGENIQ_ENVIRONMENT=production. Generate one with: "
                     'python -c "import secrets; print(secrets.token_hex(32))"'
                 )
-        elif self.jwt_secret == DEFAULT_JWT_SECRET:
-            warnings.warn(
-                "Using the default REVGENIQ_JWT_SECRET. This is only safe for local development — "
-                "set REVGENIQ_JWT_SECRET to a real secret before deploying anywhere reachable.",
-                stacklevel=2,
-            )
+            if self.admin_jwt_secret == DEFAULT_ADMIN_JWT_SECRET or len(self.admin_jwt_secret) < 32:
+                raise ValueError(
+                    "REVGENIQ_ADMIN_JWT_SECRET must be set to a strong, unique value (32+ characters) "
+                    "when REVGENIQ_ENVIRONMENT=production. Generate one with: "
+                    'python -c "import secrets; print(secrets.token_hex(32))"'
+                )
+        else:
+            if self.jwt_secret == DEFAULT_JWT_SECRET:
+                warnings.warn(
+                    "Using the default REVGENIQ_JWT_SECRET. This is only safe for local development — "
+                    "set REVGENIQ_JWT_SECRET to a real secret before deploying anywhere reachable.",
+                    stacklevel=2,
+                )
+            if self.admin_jwt_secret == DEFAULT_ADMIN_JWT_SECRET:
+                warnings.warn(
+                    "Using the default REVGENIQ_ADMIN_JWT_SECRET. This is only safe for local "
+                    "development — set REVGENIQ_ADMIN_JWT_SECRET to a real secret before deploying "
+                    "anywhere reachable.",
+                    stacklevel=2,
+                )
         return self
 
 

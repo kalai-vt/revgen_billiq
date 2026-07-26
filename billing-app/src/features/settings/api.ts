@@ -146,3 +146,11 @@ export function uploadLogo(file: File): Promise<Settings> {
   formData.append('file', file);
   return request('/api/settings/logo', { method: 'POST', body: formData });
 }
+
+/** Per-module toggles set by RevGenIQ Admin Portal staff (e.g. suspending access to a module
+ * without suspending the whole tenant). Absent keys default to enabled. */
+export type FeatureFlags = Record<string, boolean>;
+
+export function getFeatureFlags(): Promise<FeatureFlags> {
+  return request('/api/feature-flags');
+}

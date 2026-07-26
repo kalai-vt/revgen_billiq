@@ -9,6 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import models  # noqa: F401  (registers all models on Base.metadata)
+from app import models_admin  # noqa: F401  (registers all models on AdminBase.metadata)
+from app.core import admin_db as admin_db_module
 from app.core import db as db_module
 from app.core.email import factory as email_factory
 from app.core.email.protocol import EmailMessage
@@ -87,6 +89,14 @@ def db_session(tmp_path) -> Generator[Session, None, None]:
     testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     db_module.Base.metadata.create_all(bind=engine)
 
+    # A second, genuinely separate SQLite file mirrors the production setup (a separate Postgres
+    # database for the Admin Portal) closely enough to catch cross-database mistakes — e.g. an
+    # admin query accidentally assuming it can join against a billing-DB table.
+    admin_db_path = tmp_path / "test_admin.db"
+    admin_engine = create_engine(f"sqlite:///{admin_db_path}", connect_args={"check_same_thread": False})
+    admin_testing_session_local = sessionmaker(bind=admin_engine, autoflush=False, autocommit=False)
+    admin_db_module.AdminBase.metadata.create_all(bind=admin_engine)
+
     def override_get_db() -> Generator[Session, None, None]:
         session = testing_session_local()
         try:
@@ -94,14 +104,33 @@ def db_session(tmp_path) -> Generator[Session, None, None]:
         finally:
             session.close()
 
+    def override_get_admin_db() -> Generator[Session, None, None]:
+        session = admin_testing_session_local()
+        try:
+            yield session
+        finally:
+            session.close()
+
     app.dependency_overrides[db_module.get_db] = override_get_db
+    app.dependency_overrides[admin_db_module.get_admin_db] = override_get_admin_db
 
     yield testing_session_local()
 
     app.dependency_overrides.clear()
     engine.dispose()
+    admin_engine.dispose()
 
 
 @pytest.fixture()
 def client(db_session: Session) -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture()
+def admin_db_session(db_session: Session) -> Generator[Session, None, None]:
+    """Direct access to the admin database session for seeding AdminUser rows in tests — there's
+    no public admin self-registration endpoint, so tests create admin accounts directly."""
+    override = app.dependency_overrides[admin_db_module.get_admin_db]
+    session = next(override())
+    yield session
+    session.close()

@@ -15,6 +15,10 @@ from app.core.config import settings
 from app.core.limits import FeatureNotAvailableError, LimitExceededError
 from app.core.responses import make_response
 from app.modules.activity.router import router as activity_router
+from app.modules.admin_auth.router import router as admin_auth_router
+from app.modules.admin_customers.router import router as admin_customers_router
+from app.modules.admin_dashboard.router import router as admin_dashboard_router
+from app.modules.admin_features.router import router as admin_features_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.auth.router import router as auth_router
 from app.modules.billing_plans.router import router as billing_plans_router
@@ -78,6 +82,10 @@ async def feature_not_available_handler(_: Request, exc: FeatureNotAvailableErro
 
 
 app.include_router(auth_router)
+app.include_router(admin_auth_router)
+app.include_router(admin_dashboard_router)
+app.include_router(admin_customers_router)
+app.include_router(admin_features_router)
 app.include_router(billing_plans_router)
 app.include_router(categories_router)
 app.include_router(catalog_router)

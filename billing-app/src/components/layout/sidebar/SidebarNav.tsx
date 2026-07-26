@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { getFeatureFlags } from '@/features/settings/api';
 import { cn } from '@/lib/utils';
 import { NAV_ENTRIES, isGroup, isLeafVisible, type NavGroup, type NavLeaf } from '@/components/layout/sidebar/nav-config';
 import { EXPANDED_GROUPS_KEY, loadExpandedGroups } from '@/components/layout/sidebar/sidebarStorage';
@@ -129,6 +131,11 @@ function ModuleGroup({
 
 export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpand }: SidebarNavProps) {
   const { user, plan } = useAuth();
+  const { data: featureFlags } = useQuery({
+    queryKey: ['feature-flags'],
+    queryFn: getFeatureFlags,
+    staleTime: 60_000,
+  });
 
   // Deliberately NOT auto-expanded from the active route and NOT restored across a fresh
   // login — every module starts collapsed after sign-in. Within a session, manually expanding
@@ -148,11 +155,11 @@ export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpa
 
   const entries = NAV_ENTRIES.map((entry) => {
     if (isGroup(entry)) {
-      const children = entry.children.filter((leaf) => isLeafVisible(leaf, user?.role, plan));
+      const children = entry.children.filter((leaf) => isLeafVisible(leaf, user?.role, plan, featureFlags));
       if (children.length === 0) return null;
       return { entry, children };
     }
-    if (!isLeafVisible(entry, user?.role, plan)) return null;
+    if (!isLeafVisible(entry, user?.role, plan, featureFlags)) return null;
     return { entry, children: null };
   }).filter((x): x is NonNullable<typeof x> => x !== null);
 

@@ -25,6 +25,9 @@ export interface NavLeaf {
   icon: LucideIcon;
   roles: UserRole[];
   feature?: keyof PlanFeatures;
+  /** Module key the RevGenIQ Admin Portal can toggle off per-tenant (Feature Management).
+   * Absent means the leaf is always visible regardless of admin-controlled flags. */
+  moduleKey?: string;
 }
 
 export interface NavGroup {
@@ -45,10 +48,10 @@ export const NAV_ENTRIES: NavEntry[] = [
     label: 'Sales',
     icon: ShoppingCart,
     children: [
-      { to: '/pos', label: 'Billing / POS', icon: ShoppingCart, roles: ['owner', 'manager', 'staff'] },
-      { to: '/invoices', label: 'Invoices', icon: Receipt, roles: ['owner', 'manager', 'staff'] },
-      { to: '/returns', label: 'Returns', icon: Undo2, roles: ['owner', 'manager', 'staff'] },
-      { to: '/outstanding', label: 'Outstanding', icon: Wallet, roles: ['owner', 'manager'] },
+      { to: '/pos', label: 'Billing / POS', icon: ShoppingCart, roles: ['owner', 'manager', 'staff'], moduleKey: 'pos_billing' },
+      { to: '/invoices', label: 'Invoices', icon: Receipt, roles: ['owner', 'manager', 'staff'], moduleKey: 'pos_billing' },
+      { to: '/returns', label: 'Returns', icon: Undo2, roles: ['owner', 'manager', 'staff'], moduleKey: 'returns' },
+      { to: '/outstanding', label: 'Outstanding', icon: Wallet, roles: ['owner', 'manager'], moduleKey: 'payments_credit' },
     ],
   },
   {
@@ -63,21 +66,34 @@ export const NAV_ENTRIES: NavEntry[] = [
     label: 'Inventory',
     icon: Boxes,
     children: [
-      { to: '/inventory', label: 'Overview', icon: LayoutDashboard, roles: ['owner', 'manager', 'staff'] },
-      { to: '/inventory/products', label: 'Inventory List', icon: Boxes, roles: ['owner', 'manager', 'staff'] },
-      { to: '/inventory/history', label: 'Stock History', icon: History, roles: ['owner', 'manager', 'staff'] },
-      { to: '/inventory/import', label: 'Import Inventory', icon: UploadCloud, roles: ['owner', 'manager'] },
-      { to: '/inventory/import-history', label: 'Import History', icon: ClipboardList, roles: ['owner', 'manager'] },
+      { to: '/inventory', label: 'Overview', icon: LayoutDashboard, roles: ['owner', 'manager', 'staff'], moduleKey: 'inventory' },
+      { to: '/inventory/products', label: 'Inventory List', icon: Boxes, roles: ['owner', 'manager', 'staff'], moduleKey: 'inventory' },
+      { to: '/inventory/history', label: 'Stock History', icon: History, roles: ['owner', 'manager', 'staff'], moduleKey: 'inventory' },
+      { to: '/inventory/import', label: 'Import Inventory', icon: UploadCloud, roles: ['owner', 'manager'], moduleKey: 'inventory' },
+      { to: '/inventory/import-history', label: 'Import History', icon: ClipboardList, roles: ['owner', 'manager'], moduleKey: 'inventory' },
     ],
   },
-  { to: '/customers', label: 'Customers', icon: Users, roles: ['owner', 'manager', 'staff'] },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['owner', 'manager'], feature: 'advanced_analytics' },
+  { to: '/customers', label: 'Customers', icon: Users, roles: ['owner', 'manager', 'staff'], moduleKey: 'customers' },
+  {
+    to: '/analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    roles: ['owner', 'manager'],
+    feature: 'advanced_analytics',
+    moduleKey: 'reports_analytics',
+  },
   { to: '/activity-log', label: 'Activity Log', icon: ScrollText, roles: ['owner', 'manager'] },
   { to: '/settings', label: 'Settings', icon: UserCircle, roles: ['owner', 'manager', 'staff'] },
 ];
 
-export function isLeafVisible(leaf: NavLeaf, role: UserRole | undefined, plan: PlanId | null): boolean {
+export function isLeafVisible(
+  leaf: NavLeaf,
+  role: UserRole | undefined,
+  plan: PlanId | null,
+  featureFlags?: Record<string, boolean>,
+): boolean {
   if (role && !leaf.roles.includes(role)) return false;
   if (leaf.feature && !hasFeature(plan, leaf.feature)) return false;
+  if (leaf.moduleKey && featureFlags?.[leaf.moduleKey] === false) return false;
   return true;
 }
