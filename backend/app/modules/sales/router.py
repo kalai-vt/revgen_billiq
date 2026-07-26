@@ -140,7 +140,7 @@ def get_invoice_pdf(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     settings = db.query(Settings).filter(Settings.tenant_id == current_user.tenant_id).first()
-    pdf_bytes = render_invoice_pdf(invoice, tenant, settings)
+    pdf_bytes = render_invoice_pdf(invoice, tenant, settings, db)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -283,7 +283,7 @@ def get_return_pdf(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     settings = db.query(Settings).filter(Settings.tenant_id == current_user.tenant_id).first()
-    pdf_bytes = render_return_pdf(ret, invoice, tenant, settings)
+    pdf_bytes = render_return_pdf(ret, invoice, tenant, settings, db)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

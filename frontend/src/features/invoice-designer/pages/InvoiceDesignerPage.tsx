@@ -21,6 +21,7 @@ import { QrBarcodePanel } from '@/features/invoice-designer/components/panels/Qr
 import { ThemePanel } from '@/features/invoice-designer/components/panels/ThemePanel';
 import { PaperSizePanel } from '@/features/invoice-designer/components/panels/PaperSizePanel';
 import { TemplatePreview, PREVIEW_MODES, type PreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
+import { buildSamplePreviewData } from '@/features/invoice-designer/lib/sampleData';
 import { ApiError } from '@/lib/api-client';
 
 const CONFIG_TABS: { id: string; label: string; Panel: (props: { config: InvoiceTemplateConfig; onChange: (updater: (c: InvoiceTemplateConfig) => InvoiceTemplateConfig) => void }) => JSX.Element }[] = [
@@ -288,7 +289,12 @@ export function InvoiceDesignerPage() {
           </Tabs>
           <div className="overflow-x-auto pb-4">
             {draftConfig && (
-              <TemplatePreview config={draftConfig} documentType={documentType} branding={branding} mode={previewMode} />
+              <TemplatePreview
+                config={draftConfig}
+                branding={branding}
+                mode={previewMode}
+                data={buildSamplePreviewData(documentType)}
+              />
             )}
           </div>
         </section>

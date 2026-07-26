@@ -2,86 +2,67 @@ import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as posApi from '@/features/pos/api';
-import { RETURN_REASON_LABELS } from '@/features/pos/api';
-import type { ReturnReason } from '@/features/pos/api';
-import { returnStatusLabel } from '@/features/pos/lib/returnStatus';
+import * as settingsApi from '@/features/settings/api';
+import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
+import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
+import { returnToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
 
 export function ReturnPrintPage() {
   const { id } = useParams<{ id: string }>();
+  const { tenant } = useAuth();
   const { data: ret, isLoading } = useQuery({
     queryKey: ['return', id],
     queryFn: () => posApi.getReturn(id!),
     enabled: !!id,
   });
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
+  const { template, isLoading: isTemplateLoading } = useTemplateForDocument('credit_note');
 
   useEffect(() => {
-    if (ret) {
+    if (ret && template) {
       const timer = setTimeout(() => window.print(), 300);
       return () => clearTimeout(timer);
     }
-  }, [ret]);
+  }, [ret, template]);
 
-  if (isLoading || !ret) {
+  if (isLoading || isTemplateLoading || !ret || !template || !settings) {
     return <div className="p-8 text-sm text-muted-foreground">Loading return…</div>;
   }
 
+  const branding: BrandingValues = {
+    company_name: tenant?.company_name ?? '',
+    phone: tenant?.phone ?? null,
+    email: tenant?.email ?? null,
+    logo_url: settings.logo_url,
+    gst_number: settings.gst_number,
+    tagline: settings.tagline,
+    address_line1: settings.address_line1,
+    address_line2: settings.address_line2,
+    city: settings.city,
+    state: settings.state,
+    pincode: settings.pincode,
+    website: settings.website,
+    pan_number: settings.pan_number,
+    fssai_number: settings.fssai_number,
+    drug_license_number: settings.drug_license_number,
+    msme_udyam_number: settings.msme_udyam_number,
+    social_links: settings.social_links,
+    feedback_url: settings.feedback_url,
+  };
+
   return (
-    <div className="mx-auto max-w-xl p-8 text-sm">
+    <div className="mx-auto max-w-2xl p-8">
       <div className="mb-4 flex justify-end print:hidden">
         <Button onClick={() => window.print()}>Print</Button>
       </div>
-      <h1 className="text-xl font-semibold">Return Receipt {ret.return_number}</h1>
-      <p className="text-muted-foreground">Against Invoice {ret.invoice_number}</p>
-      <p className="text-muted-foreground">{new Date(ret.created_at).toLocaleString()}</p>
-      {ret.customer_name && <p className="mt-2">Customer: {ret.customer_name}</p>}
-      <p>Status: {returnStatusLabel(ret.status)}</p>
-
-      <table className="mt-4 w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b">
-            <th className="py-1">Item</th>
-            <th className="py-1 text-right">Qty</th>
-            <th className="py-1">Reason</th>
-            <th className="py-1 text-right">Refund</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ret.items.map((item) => (
-            <tr key={item.id} className="border-b">
-              <td className="py-1">{item.product_name}</td>
-              <td className="py-1 text-right">{item.quantity_returned}</td>
-              <td className="py-1">{RETURN_REASON_LABELS[item.reason as ReturnReason] ?? item.reason}</td>
-              <td className="py-1 text-right">{item.line_refund_amount.toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="mt-4 space-y-1">
-        <div className="flex justify-between">
-          <span>Subtotal</span>
-          <span>{ret.subtotal_amount.toFixed(2)}</span>
-        </div>
-        {ret.discount_adjustment > 0 && (
-          <div className="flex justify-between">
-            <span>Discount adjustment</span>
-            <span>-{ret.discount_adjustment.toFixed(2)}</span>
-          </div>
-        )}
-        <div className="flex justify-between">
-          <span>Tax adjustment</span>
-          <span>{ret.tax_adjustment.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-base font-semibold">
-          <span>Grand Refund</span>
-          <span>{ret.refund_amount.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>Refund method</span>
-          <span className="uppercase">{ret.refund_method}</span>
-        </div>
-      </div>
+      <TemplatePreview
+        config={template.config}
+        branding={branding}
+        mode={paperSizeToPreviewMode(template.config.paper.size)}
+        data={returnToPreviewData(ret, settings.date_format, settings.decimal_precision)}
+      />
     </div>
   );
 }

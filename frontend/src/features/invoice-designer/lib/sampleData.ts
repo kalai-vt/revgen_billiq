@@ -1,6 +1,6 @@
-import type { DocumentType, ItemColumnKey } from '@/features/invoice-designer/api';
+import type { DocumentType, ItemColumnKey, PreviewData } from '@/features/invoice-designer/api';
 
-export interface SampleItem {
+interface SampleItem {
   product: string;
   sku: string;
   barcode: string;
@@ -18,7 +18,7 @@ export interface SampleItem {
   amount: number;
 }
 
-export const SAMPLE_ITEMS: SampleItem[] = [
+const SAMPLE_ITEMS: SampleItem[] = [
   {
     product: 'Basmati Rice 1kg', sku: 'RIC-001', barcode: '8901030875021', hsn_sac: '100630',
     batch: 'B2201', expiry: '12/2026', serial: '', description: 'Premium basmati rice',
@@ -41,47 +41,29 @@ export const SAMPLE_ITEMS: SampleItem[] = [
   },
 ];
 
-export function sampleItemValue(item: SampleItem, key: ItemColumnKey): string {
-  switch (key) {
-    case 'product': return item.product;
-    case 'sku': return item.sku;
-    case 'barcode': return item.barcode;
-    case 'hsn_sac': return item.hsn_sac;
-    case 'batch': return item.batch;
-    case 'expiry': return item.expiry;
-    case 'serial': return item.serial || '-';
-    case 'description': return item.description;
-    case 'qty': return String(item.qty);
-    case 'unit': return item.unit;
-    case 'mrp': return item.mrp.toFixed(2);
-    case 'selling_price': return item.selling_price.toFixed(2);
-    case 'discount': return item.discount.toFixed(2);
-    case 'tax': return item.tax.toFixed(2);
-    case 'amount': return item.amount.toFixed(2);
-    default: return '';
-  }
+function sampleItemValues(item: SampleItem): Partial<Record<ItemColumnKey, string>> {
+  return {
+    product: item.product,
+    sku: item.sku,
+    barcode: item.barcode,
+    hsn_sac: item.hsn_sac,
+    batch: item.batch,
+    expiry: item.expiry,
+    serial: item.serial || '-',
+    description: item.description,
+    qty: String(item.qty),
+    unit: item.unit,
+    mrp: item.mrp.toFixed(2),
+    selling_price: item.selling_price.toFixed(2),
+    discount: item.discount.toFixed(2),
+    tax: item.tax.toFixed(2),
+    amount: item.amount.toFixed(2),
+  };
 }
 
-const subtotal = SAMPLE_ITEMS.reduce((sum, item) => sum + item.amount, 0);
+const SAMPLE_SUBTOTAL = SAMPLE_ITEMS.reduce((sum, item) => sum + item.amount, 0);
 
-export const SAMPLE_TOTALS = {
-  subtotal,
-  discount: 0,
-  cgst: 0,
-  sgst: 0,
-  igst: 0,
-  cess: 0,
-  round_off: 0,
-  shipping: 0,
-  packing: 0,
-  grand_total: subtotal,
-  paid: subtotal,
-  outstanding: 0,
-  balance: 0,
-  amount_in_words: 'Rupees Four Hundred and Forty Only',
-};
-
-export const SAMPLE_INVOICE_INFO: Record<DocumentType, { number: string; label: string }> = {
+const SAMPLE_DOCUMENT_LABELS: Record<DocumentType, { number: string; label: string }> = {
   tax_invoice: { number: 'INV-000245', label: 'Tax Invoice' },
   estimate: { number: 'EST-000045', label: 'Estimate' },
   quotation: { number: 'QUO-000032', label: 'Quotation' },
@@ -92,26 +74,47 @@ export const SAMPLE_INVOICE_INFO: Record<DocumentType, { number: string; label: 
   receipt: { number: 'RCP-000318', label: 'Receipt' },
 };
 
-export const SAMPLE_CUSTOMER = {
-  name: 'Priya Sharma',
-  mobile: '+91 98765 43210',
-  email: 'priya.sharma@example.com',
-  address: '12, Gandhi Street, Coimbatore, Tamil Nadu - 641001',
-  gstin: '33AAAAA0000A1Z5',
-  loyalty_number: 'LOY-8821',
-  membership: 'Gold',
-  company_name: 'Sharma Traders',
-};
-
-export const SAMPLE_META = {
-  date: '26/07/2026',
-  time: '12:03 PM',
-  due_date: '02/08/2026',
-  cashier: 'Karthik',
-  counter: '01',
-  order_number: 'ORD-1042',
-  customer_id: 'CUST-118',
-  payment_method: 'UPI',
-  payment_status: 'Paid',
-  invoice_status: 'Completed',
-};
+export function buildSamplePreviewData(documentType: DocumentType): PreviewData {
+  const info = SAMPLE_DOCUMENT_LABELS[documentType] ?? SAMPLE_DOCUMENT_LABELS.tax_invoice;
+  return {
+    documentLabel: info.label,
+    number: info.number,
+    date: '26/07/2026',
+    time: '12:03 PM',
+    dueDate: '02/08/2026',
+    cashier: 'Karthik',
+    counter: '01',
+    orderNumber: 'ORD-1042',
+    customerId: 'CUST-118',
+    paymentMethod: 'UPI',
+    paymentStatus: 'Paid',
+    invoiceStatus: 'Completed',
+    customer: {
+      name: 'Priya Sharma',
+      mobile: '+91 98765 43210',
+      email: 'priya.sharma@example.com',
+      address: '12, Gandhi Street, Coimbatore, Tamil Nadu - 641001',
+      gstin: '33AAAAA0000A1Z5',
+      loyalty_number: 'LOY-8821',
+      membership: 'Gold',
+      company_name: 'Sharma Traders',
+    },
+    items: SAMPLE_ITEMS.map((item) => ({ values: sampleItemValues(item) })),
+    totals: {
+      subtotal: SAMPLE_SUBTOTAL,
+      discount: 0,
+      cgst: 0,
+      sgst: 0,
+      igst: 0,
+      cess: 0,
+      round_off: 0,
+      shipping: 0,
+      packing: 0,
+      grand_total: SAMPLE_SUBTOTAL,
+      paid: SAMPLE_SUBTOTAL,
+      outstanding: 0,
+      balance: 0,
+      amount_in_words: 'Rupees Four Hundred and Forty Only',
+    },
+  };
+}

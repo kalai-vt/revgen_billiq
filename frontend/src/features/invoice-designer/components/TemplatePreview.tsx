@@ -1,13 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { DocumentType, InvoiceTemplateConfig } from '@/features/invoice-designer/api';
-import {
-  SAMPLE_CUSTOMER,
-  SAMPLE_INVOICE_INFO,
-  SAMPLE_ITEMS,
-  SAMPLE_META,
-  SAMPLE_TOTALS,
-  sampleItemValue,
-} from '@/features/invoice-designer/lib/sampleData';
+import type { InvoiceTemplateConfig, PreviewData } from '@/features/invoice-designer/api';
 import { cn } from '@/lib/utils';
 
 export type PreviewMode = 'desktop' | 'a4' | 'a5' | '80mm' | '58mm' | 'mobile' | 'pdf';
@@ -21,6 +13,13 @@ export const PREVIEW_MODES: { value: PreviewMode; label: string }[] = [
   { value: 'mobile', label: 'Mobile' },
   { value: 'pdf', label: 'PDF' },
 ];
+
+/** Maps a template's configured paper size to the closest preview mode, so print pages/receipts
+ * render at the size the tenant actually chose instead of a fixed default. */
+export function paperSizeToPreviewMode(size: InvoiceTemplateConfig['paper']['size']): PreviewMode {
+  if (size === '58mm' || size === '80mm' || size === 'A5') return size === 'A5' ? 'a5' : size;
+  return 'a4';
+}
 
 const MODE_WIDTH_PX: Record<PreviewMode, number | null> = {
   desktop: null,
@@ -55,9 +54,9 @@ export interface BrandingValues {
 
 interface TemplatePreviewProps {
   config: InvoiceTemplateConfig;
-  documentType: DocumentType;
   branding: BrandingValues;
   mode: PreviewMode;
+  data: PreviewData;
 }
 
 const FONT_FAMILY_CSS: Record<InvoiceTemplateConfig['theme']['font_family'], string> = {
@@ -106,13 +105,12 @@ function BarcodePlaceholder() {
   );
 }
 
-export function TemplatePreview({ config, documentType, branding, mode }: TemplatePreviewProps) {
+export function TemplatePreview({ config, branding, mode, data }: TemplatePreviewProps) {
   const width = MODE_WIDTH_PX[mode];
   const isThermal = mode === '80mm' || mode === '58mm';
   const theme = config.theme;
   const paper = config.paper;
   const address = addressLine(branding);
-  const info = SAMPLE_INVOICE_INFO[documentType] ?? SAMPLE_INVOICE_INFO.tax_invoice;
   const visibleColumns = [...config.item_table.columns].filter((c) => c.visible).sort((a, b) => a.order - b.order);
   const footerSections = [...config.footer.sections].filter((s) => s.enabled).sort((a, b) => a.order - b.order);
 
@@ -148,19 +146,19 @@ export function TemplatePreview({ config, documentType, branding, mode }: Templa
 
         {Object.values(config.invoice_info.fields).some(Boolean) && (
           <div className="shrink-0 text-right text-xs">
-            <p className="font-semibold tracking-wide" style={{ color: theme.primary_color }}>{info.label.toUpperCase()}</p>
+            <p className="font-semibold tracking-wide" style={{ color: theme.primary_color }}>{data.documentLabel.toUpperCase()}</p>
             <div className="mt-1 grid grid-cols-[auto_auto] gap-x-2 gap-y-0.5 text-muted-foreground">
-              {config.invoice_info.fields.invoice_number && <><span>Invoice No.</span><span>: {info.number}</span></>}
-              {config.invoice_info.fields.date && <><span>Invoice Date</span><span>: {SAMPLE_META.date}</span></>}
-              {config.invoice_info.fields.time && <><span>Invoice Time</span><span>: {SAMPLE_META.time}</span></>}
-              {config.invoice_info.fields.due_date && <><span>Due Date</span><span>: {SAMPLE_META.due_date}</span></>}
-              {config.invoice_info.fields.cashier && <><span>Cashier</span><span>: {SAMPLE_META.cashier}</span></>}
-              {config.invoice_info.fields.counter && <><span>Counter</span><span>: {SAMPLE_META.counter}</span></>}
-              {config.invoice_info.fields.order_number && <><span>Order No.</span><span>: {SAMPLE_META.order_number}</span></>}
-              {config.invoice_info.fields.customer_id && <><span>Customer ID</span><span>: {SAMPLE_META.customer_id}</span></>}
-              {config.invoice_info.fields.payment_method && <><span>Payment</span><span>: {SAMPLE_META.payment_method}</span></>}
-              {config.invoice_info.fields.payment_status && <><span>Payment Status</span><span>: {SAMPLE_META.payment_status}</span></>}
-              {config.invoice_info.fields.invoice_status && <><span>Invoice Status</span><span>: {SAMPLE_META.invoice_status}</span></>}
+              {config.invoice_info.fields.invoice_number && <><span>Invoice No.</span><span>: {data.number}</span></>}
+              {config.invoice_info.fields.date && <><span>Invoice Date</span><span>: {data.date}</span></>}
+              {config.invoice_info.fields.time && <><span>Invoice Time</span><span>: {data.time}</span></>}
+              {config.invoice_info.fields.due_date && data.dueDate && <><span>Due Date</span><span>: {data.dueDate}</span></>}
+              {config.invoice_info.fields.cashier && data.cashier && <><span>Cashier</span><span>: {data.cashier}</span></>}
+              {config.invoice_info.fields.counter && data.counter && <><span>Counter</span><span>: {data.counter}</span></>}
+              {config.invoice_info.fields.order_number && data.orderNumber && <><span>Order No.</span><span>: {data.orderNumber}</span></>}
+              {config.invoice_info.fields.customer_id && data.customerId && <><span>Customer ID</span><span>: {data.customerId}</span></>}
+              {config.invoice_info.fields.payment_method && data.paymentMethod && <><span>Payment</span><span>: {data.paymentMethod}</span></>}
+              {config.invoice_info.fields.payment_status && data.paymentStatus && <><span>Payment Status</span><span>: {data.paymentStatus}</span></>}
+              {config.invoice_info.fields.invoice_status && data.invoiceStatus && <><span>Invoice Status</span><span>: {data.invoiceStatus}</span></>}
             </div>
           </div>
         )}
@@ -173,14 +171,14 @@ export function TemplatePreview({ config, documentType, branding, mode }: Templa
         >
           <p className="font-medium text-foreground">Bill To</p>
           <div className="mt-0.5 flex flex-wrap gap-x-4">
-            {config.customer_details.fields.name && <span>{SAMPLE_CUSTOMER.name}</span>}
-            {config.customer_details.fields.company_name && <span>{SAMPLE_CUSTOMER.company_name}</span>}
-            {config.customer_details.fields.mobile && <span>Mobile: {SAMPLE_CUSTOMER.mobile}</span>}
-            {config.customer_details.fields.email && <span>{SAMPLE_CUSTOMER.email}</span>}
-            {config.customer_details.fields.address && <span>{SAMPLE_CUSTOMER.address}</span>}
-            {config.customer_details.fields.gstin && <span>GSTIN: {SAMPLE_CUSTOMER.gstin}</span>}
-            {config.customer_details.fields.loyalty_number && <span>Loyalty: {SAMPLE_CUSTOMER.loyalty_number}</span>}
-            {config.customer_details.fields.membership && <span>Membership: {SAMPLE_CUSTOMER.membership}</span>}
+            {config.customer_details.fields.name && data.customer.name && <span>{data.customer.name}</span>}
+            {config.customer_details.fields.company_name && data.customer.company_name && <span>{data.customer.company_name}</span>}
+            {config.customer_details.fields.mobile && data.customer.mobile && <span>Mobile: {data.customer.mobile}</span>}
+            {config.customer_details.fields.email && data.customer.email && <span>{data.customer.email}</span>}
+            {config.customer_details.fields.address && data.customer.address && <span>{data.customer.address}</span>}
+            {config.customer_details.fields.gstin && data.customer.gstin && <span>GSTIN: {data.customer.gstin}</span>}
+            {config.customer_details.fields.loyalty_number && data.customer.loyalty_number && <span>Loyalty: {data.customer.loyalty_number}</span>}
+            {config.customer_details.fields.membership && data.customer.membership && <span>Membership: {data.customer.membership}</span>}
           </div>
         </div>
       )}
@@ -204,7 +202,7 @@ export function TemplatePreview({ config, documentType, branding, mode }: Templa
           </tr>
         </thead>
         <tbody>
-          {SAMPLE_ITEMS.map((item, idx) => (
+          {data.items.map((item, idx) => (
             <tr
               key={idx}
               style={{
@@ -220,7 +218,7 @@ export function TemplatePreview({ config, documentType, branding, mode }: Templa
                     borderBottom: config.item_table.show_borders ? '1px solid #e5e7eb' : undefined,
                   }}
                 >
-                  {col.key === 'row_number' ? idx + 1 : sampleItemValue(item, col.key)}
+                  {col.key === 'row_number' ? idx + 1 : (item.values[col.key] ?? '')}
                 </td>
               ))}
             </tr>
@@ -229,23 +227,23 @@ export function TemplatePreview({ config, documentType, branding, mode }: Templa
       </table>
 
       <div className="mt-3 ml-auto max-w-xs space-y-1 text-xs">
-        {config.tax_summary.fields.subtotal && <TotalRow label="Subtotal" value={SAMPLE_TOTALS.subtotal} />}
-        {config.tax_summary.fields.discount && <TotalRow label="Discount" value={SAMPLE_TOTALS.discount} />}
-        {config.tax_summary.fields.cgst && <TotalRow label="CGST" value={SAMPLE_TOTALS.cgst} />}
-        {config.tax_summary.fields.sgst && <TotalRow label="SGST" value={SAMPLE_TOTALS.sgst} />}
-        {config.tax_summary.fields.igst && <TotalRow label="IGST" value={SAMPLE_TOTALS.igst} />}
-        {config.tax_summary.fields.cess && <TotalRow label="CESS" value={SAMPLE_TOTALS.cess} />}
-        {config.tax_summary.fields.shipping && <TotalRow label="Shipping" value={SAMPLE_TOTALS.shipping} />}
-        {config.tax_summary.fields.packing && <TotalRow label="Packing" value={SAMPLE_TOTALS.packing} />}
-        {config.tax_summary.fields.round_off && <TotalRow label="Round Off" value={SAMPLE_TOTALS.round_off} />}
+        {config.tax_summary.fields.subtotal && <TotalRow label="Subtotal" value={data.totals.subtotal ?? 0} />}
+        {config.tax_summary.fields.discount && <TotalRow label="Discount" value={data.totals.discount ?? 0} />}
+        {config.tax_summary.fields.cgst && <TotalRow label="CGST" value={data.totals.cgst ?? 0} />}
+        {config.tax_summary.fields.sgst && <TotalRow label="SGST" value={data.totals.sgst ?? 0} />}
+        {config.tax_summary.fields.igst && <TotalRow label="IGST" value={data.totals.igst ?? 0} />}
+        {config.tax_summary.fields.cess && <TotalRow label="CESS" value={data.totals.cess ?? 0} />}
+        {config.tax_summary.fields.shipping && <TotalRow label="Shipping" value={data.totals.shipping ?? 0} />}
+        {config.tax_summary.fields.packing && <TotalRow label="Packing" value={data.totals.packing ?? 0} />}
+        {config.tax_summary.fields.round_off && <TotalRow label="Round Off" value={data.totals.round_off ?? 0} />}
         {config.tax_summary.fields.grand_total && (
-          <TotalRow label="Grand Total" value={SAMPLE_TOTALS.grand_total} bold color={theme.primary_color} />
+          <TotalRow label="Grand Total" value={data.totals.grand_total ?? 0} bold color={theme.primary_color} />
         )}
-        {config.tax_summary.fields.paid && <TotalRow label="Paid" value={SAMPLE_TOTALS.paid} />}
-        {config.tax_summary.fields.outstanding && <TotalRow label="Outstanding" value={SAMPLE_TOTALS.outstanding} />}
-        {config.tax_summary.fields.balance && <TotalRow label="Balance" value={SAMPLE_TOTALS.balance} />}
-        {config.tax_summary.fields.amount_in_words && (
-          <p className="pt-1 text-[10px] italic text-muted-foreground">{SAMPLE_TOTALS.amount_in_words}</p>
+        {config.tax_summary.fields.paid && <TotalRow label="Paid" value={data.totals.paid ?? 0} />}
+        {config.tax_summary.fields.outstanding && <TotalRow label="Outstanding" value={data.totals.outstanding ?? 0} />}
+        {config.tax_summary.fields.balance && <TotalRow label="Balance" value={data.totals.balance ?? 0} />}
+        {config.tax_summary.fields.amount_in_words && data.totals.amount_in_words && (
+          <p className="pt-1 text-[10px] italic text-muted-foreground">{data.totals.amount_in_words}</p>
         )}
       </div>
 

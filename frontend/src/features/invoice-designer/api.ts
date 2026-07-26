@@ -255,6 +255,59 @@ export interface InvoiceTemplate {
   config: InvoiceTemplateConfig;
 }
 
+export interface PreviewCustomer {
+  name?: string | null;
+  mobile?: string | null;
+  email?: string | null;
+  address?: string | null;
+  gstin?: string | null;
+  loyalty_number?: string | null;
+  membership?: string | null;
+  company_name?: string | null;
+}
+
+export interface PreviewTotals {
+  subtotal?: number;
+  discount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  cess?: number;
+  round_off?: number;
+  shipping?: number;
+  packing?: number;
+  grand_total?: number;
+  paid?: number;
+  outstanding?: number;
+  balance?: number;
+  amount_in_words?: string;
+}
+
+export interface PreviewItem {
+  values: Partial<Record<ItemColumnKey, string>>;
+}
+
+// The normalized shape `TemplatePreview` renders from — either built from sample data (for the
+// designer's own live preview) or mapped from a real Invoice/Return (for print pages/receipts),
+// so there's exactly one rendering path regardless of the data source.
+export interface PreviewData {
+  documentLabel: string;
+  number: string;
+  date: string;
+  time: string;
+  dueDate?: string | null;
+  cashier?: string | null;
+  counter?: string | null;
+  orderNumber?: string | null;
+  customerId?: string | null;
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
+  invoiceStatus?: string | null;
+  customer: PreviewCustomer;
+  items: PreviewItem[];
+  totals: PreviewTotals;
+}
+
 export function listTemplates(documentType?: DocumentType): Promise<InvoiceTemplate[]> {
   const query = documentType ? `?document_type=${documentType}` : '';
   return request(`/api/invoice-templates${query}`);
