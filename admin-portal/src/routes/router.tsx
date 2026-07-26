@@ -27,6 +27,9 @@ const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage').then((m) => ({ 
 const SystemMonitoringPage = lazy(() => import('@/pages/SystemMonitoringPage').then((m) => ({ default: m.SystemMonitoringPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
+// Served under /admin/* in production (see root vercel.json) but at "/" in local dev.
+const basename = import.meta.env.PROD ? '/admin' : '/';
+
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/accept-invite', element: <AcceptInvitePage /> },
@@ -57,4 +60,4 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
-]);
+], { basename });

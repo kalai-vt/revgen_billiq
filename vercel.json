@@ -10,6 +10,16 @@
         }
       ]
     },
+    "admin-portal": {
+      "root": "admin-portal",
+      "framework": "vite",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
+    },
     "backend": {
       "root": "backend",
       "entrypoint": "app.main:app"
@@ -21,6 +31,13 @@
       "destination": {
         "type": "service",
         "service": "backend"
+      }
+    },
+    {
+      "source": "/admin(/.*)?",
+      "destination": {
+        "type": "service",
+        "service": "admin-portal"
       }
     },
     {

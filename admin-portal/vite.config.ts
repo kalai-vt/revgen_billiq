@@ -3,7 +3,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // Served under /admin/* in production (see root vercel.json); local dev keeps serving at "/"
+  // so the existing http://localhost:5174 workflow is unaffected.
+  base: command === 'build' ? '/admin/' : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -35,4 +38,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
