@@ -17,6 +17,13 @@ if config.config_file_name is not None:
 target_metadata = AdminBase.metadata
 
 
+# Distinct from the billing chain's `alembic_version` table — the admin database is normally
+# a separate Postgres instance, but nothing stops an operator from pointing both connection
+# strings at the same instance (e.g. to consolidate infra), and both chains would otherwise
+# fight over the same tracking table if they shared a schema.
+ADMIN_VERSION_TABLE = "alembic_version_admin"
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -24,6 +31,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table=ADMIN_VERSION_TABLE,
     )
 
     with context.begin_transaction():
@@ -39,7 +47,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata, version_table=ADMIN_VERSION_TABLE
         )
 
         with context.begin_transaction():
