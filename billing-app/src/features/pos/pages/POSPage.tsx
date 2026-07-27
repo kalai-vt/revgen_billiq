@@ -15,6 +15,7 @@ import { useKeyboardShortcuts } from '@/features/pos/hooks/useKeyboardShortcuts'
 import { computeTotals } from '@/features/pos/lib/calc';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
+import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import type { Customer } from '@/features/customers/api';
 import type { DiscountType, HeldBill, Invoice, PaymentMethod, PaymentType } from '@/features/pos/api';
 import { ApiError } from '@/lib/api-client';
@@ -22,6 +23,7 @@ import { ApiError } from '@/lib/api-client';
 export function POSPage() {
   const cart = useCart();
   const { canOverridePrice } = useAuth();
+  const outstandingEnabled = useFeatureFlag('payments_credit');
   const { data: preferences } = useQuery({
     queryKey: ['business-preferences'],
     queryFn: settingsApi.getBusinessPreferences,
@@ -56,6 +58,14 @@ export function POSPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preferences]);
+
+  // Outstanding module gates Partial/Credit sales entirely — if it's off (or gets turned off
+  // mid-sale), always fall back to a fully-paid checkout.
+  useEffect(() => {
+    if (!outstandingEnabled && paymentType !== 'paid') {
+      setPaymentType('paid');
+    }
+  }, [outstandingEnabled, paymentType]);
 
   function handleCustomerSelect(customer: Customer | null) {
     setCustomerId(customer?.id ?? null);
@@ -162,17 +172,18 @@ export function POSPage() {
     }
   }
 
+  const requiresCustomer = outstandingEnabled && paymentType !== 'paid';
   const canCheckout =
     cart.lines.length > 0 &&
     !createInvoice.isPending &&
     !completedInvoice &&
     !heldBillsOpen &&
     (paymentType !== 'paid' || paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total)) &&
-    (paymentType === 'paid' || (!!customerId && !!dueDate));
+    (!requiresCustomer || (!!customerId && !!dueDate));
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
   return (
-    <div className="grid h-[calc(100vh-6rem)] grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
+    <div className="grid grid-cols-1 gap-4 lg:h-[calc(100vh-6rem)] lg:grid-cols-[28%_1fr]">
       <Card className="min-h-0 p-4">
         <div className="mb-3 flex justify-end">
           <Button variant="outline" size="sm" onClick={() => setHeldBillsOpen(true)}>
@@ -188,6 +199,7 @@ export function POSPage() {
           onQuantityChange={cart.setQuantity}
           onPriceChange={cart.setPrice}
           onRemove={cart.removeLine}
+          onClear={cart.clear}
           canOverridePrice={canOverridePrice}
           discountType={discountType}
           discountValue={discountValue}
@@ -198,6 +210,7 @@ export function POSPage() {
           onPaymentMethodChange={setPaymentMethod}
           paymentType={paymentType}
           onPaymentTypeChange={setPaymentType}
+          outstandingEnabled={outstandingEnabled}
           amountTendered={amountTendered}
           onAmountTenderedChange={setAmountTendered}
           paidNow={paidNow}

@@ -16,6 +16,9 @@ interface PaymentMethodSelectorProps {
   dueDate: string;
   onDueDateChange: (value: string) => void;
   total: number;
+  /** Hides the Paid in Full / Partially Paid / Pay Later tabs — used when the tenant's
+   * Outstanding module is disabled, so every sale is always paid in full immediately. */
+  showPaymentType?: boolean;
 }
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
@@ -36,21 +39,24 @@ export function PaymentMethodSelector({
   dueDate,
   onDueDateChange,
   total,
+  showPaymentType = true,
 }: PaymentMethodSelectorProps) {
   const change = paymentType === 'paid' && method === 'cash' && amountTendered !== null ? amountTendered - total : null;
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
 
   return (
     <div className="space-y-2">
-      <Tabs value={paymentType} onValueChange={(value) => onPaymentTypeChange(value as PaymentType)}>
-        <TabsList className="grid w-full grid-cols-3">
-          {(Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[]).map((type) => (
-            <TabsTrigger key={type} value={type}>
-              {PAYMENT_TYPE_LABELS[type]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {showPaymentType && (
+        <Tabs value={paymentType} onValueChange={(value) => onPaymentTypeChange(value as PaymentType)}>
+          <TabsList className="grid w-full grid-cols-3">
+            {(Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[]).map((type) => (
+              <TabsTrigger key={type} value={type}>
+                {PAYMENT_TYPE_LABELS[type]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
 
       <Tabs value={method} onValueChange={(value) => onMethodChange(value as PaymentMethod)}>
         <TabsList className="grid w-full grid-cols-3">
