@@ -4,6 +4,7 @@ from app.models_admin.audit_log import AdminAuditLog
 from app.models_admin.invite_token import AdminInviteToken
 from app.models_admin.notification import AdminNotification, AdminNotificationRead
 from app.models_admin.communication import AdminCommunication
+from app.models_admin.feature_template import FeatureTemplate
 
 __all__ = [
     "ADMIN_ROLES",
@@ -14,4 +15,5 @@ __all__ = [
     "AdminNotification",
     "AdminNotificationRead",
     "AdminCommunication",
+    "FeatureTemplate",
 ]

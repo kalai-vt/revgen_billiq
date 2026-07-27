@@ -26,6 +26,7 @@ class Settings(Base):
     plan: Mapped[str] = mapped_column(String(20), default="basic")
     subscription_status: Mapped[str] = mapped_column(String(20), default="active")
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    app_version: Mapped[str] = mapped_column(String(20), default="1.0.0")
     allow_manager_price_override: Mapped[bool] = mapped_column(Boolean, default=False)
     primary_search_field: Mapped[str] = mapped_column(String(20), default="identifier_value")
     default_identifier_type: Mapped[str] = mapped_column(String(20), default="pid")

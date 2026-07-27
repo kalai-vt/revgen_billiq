@@ -25,6 +25,7 @@ class Tenant(Base):
     country: Mapped[str] = mapped_column(String(2), default="IN")
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
     language: Mapped[str] = mapped_column(String(8), default="en")
+    industry: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

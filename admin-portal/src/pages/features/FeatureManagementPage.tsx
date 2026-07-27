@@ -1,88 +1,110 @@
-import { useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Layers } from 'lucide-react';
 import { Button } from '@shared/components/ui/button';
-import { Card, CardContent } from '@shared/components/ui/card';
-import { Checkbox } from '@shared/components/ui/checkbox';
-import { Skeleton } from '@shared/components/ui/skeleton';
-import { Badge } from '@shared/components/ui/badge';
-import { getCustomer } from '@/services/customersApi';
-import { getFeatureFlags, updateFeatureFlag } from '@/services/featuresApi';
-import { ApiError } from '@/lib/api-client';
+import { Card } from '@shared/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shared/components/ui/tabs';
+import { getSummary, listFeatureCustomers, type CustomerFeatureFilters } from '@/services/featuresApi';
+import { SummaryCards } from './components/SummaryCards';
+import { CustomerListPanel } from './components/CustomerListPanel';
+import { CustomerDetailPanel } from './components/CustomerDetailPanel';
+import { BulkActionsDialog } from './components/BulkActionsDialog';
+import { TemplatesTab } from './components/TemplatesTab';
+import { AnalyticsTab } from './components/AnalyticsTab';
 
 export function FeatureManagementPage() {
-  const { tenantId } = useParams<{ tenantId: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const { tenantId: routeTenantId } = useParams<{ tenantId?: string }>();
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(routeTenantId ?? null);
+  const [filters, setFilters] = useState<CustomerFeatureFilters>({});
+  const [selectedForBulk, setSelectedForBulk] = useState<string[]>([]);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
 
-  const { data: customer } = useQuery({
-    queryKey: ['admin-customer', tenantId],
-    queryFn: () => getCustomer(tenantId!),
-    enabled: !!tenantId,
+  const { data: summary, isLoading: summaryLoading } = useQuery({
+    queryKey: ['admin-feature-summary'],
+    queryFn: getSummary,
   });
 
-  const { data: flags, isLoading } = useQuery({
-    queryKey: ['admin-features', tenantId],
-    queryFn: () => getFeatureFlags(tenantId!),
-    enabled: !!tenantId,
+  const { data: customers, isLoading: customersLoading } = useQuery({
+    queryKey: ['admin-feature-customers', filters],
+    queryFn: () => listFeatureCustomers(filters),
   });
 
-  const toggleMutation = useMutation({
-    mutationFn: ({ moduleKey, enabled }: { moduleKey: string; enabled: boolean }) =>
-      updateFeatureFlag(tenantId!, moduleKey, enabled),
-    onSuccess: () => {
-      toast.success('Feature updated — takes effect immediately, no deployment needed');
-      queryClient.invalidateQueries({ queryKey: ['admin-features', tenantId] });
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Something went wrong'),
-  });
+  const selectedCustomer = customers?.find((c) => c.tenant_id === selectedTenantId);
+
+  function toggleBulk(tenantId: string) {
+    setSelectedForBulk((prev) => (prev.includes(tenantId) ? prev.filter((id) => id !== tenantId) : [...prev, tenantId]));
+  }
 
   return (
-    <div className="space-y-4">
-      <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate(`/customers/${tenantId}`)}>
-        <ArrowLeft className="mr-1.5 size-4" />
-        Back to {customer?.company_name ?? 'customer'}
-      </Button>
-
+    <div className="flex h-full flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Feature Management</h1>
         <p className="text-sm text-muted-foreground">
-          Toggle modules for {customer?.company_name ?? 'this customer'}. Changes apply immediately.
+          Enable, disable and configure product modules per customer — changes apply immediately, no deployment needed.
         </p>
       </div>
 
-      {isLoading || !flags ? (
-        <div className="space-y-2">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full" />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="divide-y p-0">
-            {flags.map((flag) => (
-              <div key={flag.module_key} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={flag.enabled}
-                    disabled={!flag.available}
-                    onCheckedChange={(checked) =>
-                      toggleMutation.mutate({ moduleKey: flag.module_key, enabled: checked === true })
-                    }
-                  />
-                  <span className="text-sm font-medium">{flag.label}</span>
-                  {!flag.available && (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      Coming soon
-                    </Badge>
-                  )}
-                </div>
+      <SummaryCards data={summary} isLoading={summaryLoading} />
+
+      <Tabs defaultValue="customers" className="flex-1">
+        <TabsList>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="customers" className="mt-3">
+          {selectedForBulk.length > 0 && (
+            <Card className="mb-3 flex items-center justify-between px-4 py-2.5">
+              <span className="text-sm">
+                {selectedForBulk.length} customer{selectedForBulk.length === 1 ? '' : 's'} selected
+              </span>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedForBulk([])}>
+                  Clear
+                </Button>
+                <Button size="sm" onClick={() => setBulkDialogOpen(true)}>
+                  <Layers className="size-3.5" /> Bulk actions
+                </Button>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
+            <Card className="h-[calc(100vh-320px)] min-h-96 overflow-hidden p-3">
+              <CustomerListPanel
+                customers={customers}
+                isLoading={customersLoading}
+                filters={filters}
+                onFiltersChange={setFilters}
+                selectedTenantId={selectedTenantId}
+                onSelect={setSelectedTenantId}
+                selectedForBulk={selectedForBulk}
+                onToggleBulk={toggleBulk}
+              />
+            </Card>
+            <div className="h-[calc(100vh-320px)] min-h-96 overflow-hidden">
+              <CustomerDetailPanel tenantId={selectedTenantId} customer={selectedCustomer} />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="templates" className="mt-3">
+          <TemplatesTab />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="mt-3">
+          <AnalyticsTab />
+        </TabsContent>
+      </Tabs>
+
+      <BulkActionsDialog
+        tenantIds={selectedForBulk}
+        open={bulkDialogOpen}
+        onOpenChange={setBulkDialogOpen}
+        onDone={() => setSelectedForBulk([])}
+      />
     </div>
   );
 }

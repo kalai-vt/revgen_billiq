@@ -147,7 +147,7 @@ export function CustomerProfilePage() {
             <CreditCard className="mr-1.5 size-4" />
             Manage subscription
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate(`/customers/${tenantId}/features`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/features/${tenantId}`)}>
             <ToggleLeft className="mr-1.5 size-4" />
             Manage features
           </Button>
