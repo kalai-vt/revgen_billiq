@@ -63,6 +63,16 @@ class Settings(BaseSettings):
                     "when REVGENIQ_ENVIRONMENT=production. Generate one with: "
                     'python -c "import secrets; print(secrets.token_hex(32))"'
                 )
+            if self.email_provider == "console":
+                # The console provider only prints emails to stdout — nothing is actually
+                # delivered. This is the #1 cause of "verification/reset emails never arrive"
+                # reports in production.
+                warnings.warn(
+                    "REVGENIQ_EMAIL_PROVIDER is 'console' (the default) while REVGENIQ_ENVIRONMENT=production — "
+                    "verification and password-reset emails will NOT be delivered, only printed to logs. "
+                    "Set REVGENIQ_EMAIL_PROVIDER to 'resend' or 'smtp' with matching credentials.",
+                    stacklevel=2,
+                )
         else:
             if self.jwt_secret == DEFAULT_JWT_SECRET:
                 warnings.warn(

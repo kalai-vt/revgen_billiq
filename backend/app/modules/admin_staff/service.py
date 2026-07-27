@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.email.protocol import EmailSendError
 from app.core.email.service import send_admin_invite_email
 from app.core.security import generate_refresh_token, hash_password, hash_refresh_token, verify_password
 from app.core.timeutils import as_aware_utc, utc_now
@@ -11,6 +13,8 @@ from app.models_admin.admin_user import ADMIN_ROLES, AdminUser
 from app.models_admin.invite_token import AdminInviteToken
 
 INVITE_EXPIRY = timedelta(hours=72)
+
+logger = logging.getLogger(__name__)
 
 
 class AdminStaffError(Exception):
@@ -56,7 +60,13 @@ def invite_staff(
     admin_db.commit()
     admin_db.refresh(admin)
 
-    send_admin_invite_email(to=admin.email, first_name=admin.first_name, token=plaintext, role=admin.role)
+    try:
+        send_admin_invite_email(to=admin.email, first_name=admin.first_name, token=plaintext, role=admin.role)
+    except EmailSendError:
+        logger.exception("Failed to send admin invite email to %s", admin.email)
+        raise AdminStaffError(
+            502, f"{admin.first_name} was added, but the invite email couldn't be sent. Please try inviting them again."
+        ) from None
     return admin
 
 

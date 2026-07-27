@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.email.protocol import EmailSendError
 from app.core.email.service import send_broadcast_email
 from app.models.settings import Settings
 from app.models.tenant import Tenant
@@ -11,6 +13,8 @@ from app.models.user import User
 from app.models_admin.communication import AdminCommunication
 
 AUDIENCE_TYPES = ("all", "plan", "tenant")
+
+logger = logging.getLogger(__name__)
 
 
 class AdminCommunicationError(Exception):
@@ -50,8 +54,14 @@ def send_broadcast(
 ) -> dict[str, Any]:
     recipients = _resolve_recipients(db, audience_type=audience_type, plan=plan, tenant_id=tenant_id)
 
+    sent_count = 0
     for recipient in recipients:
-        send_broadcast_email(to=recipient.email, first_name=recipient.first_name, subject_line=subject, message=message)
+        try:
+            send_broadcast_email(to=recipient.email, first_name=recipient.first_name, subject_line=subject, message=message)
+            sent_count += 1
+        except EmailSendError:
+            # One bad address/provider hiccup shouldn't stop the rest of the broadcast from going out.
+            logger.exception("Failed to send broadcast email to %s", recipient.email)
 
     audience_filter = {"plan": plan} if plan else ({"tenant_id": tenant_id} if tenant_id else None)
     record = AdminCommunication(
@@ -61,7 +71,7 @@ def send_broadcast(
         message=message,
         audience_type=audience_type,
         audience_filter=audience_filter,
-        recipient_count=len(recipients),
+        recipient_count=sent_count,
     )
     admin_db.add(record)
     admin_db.commit()

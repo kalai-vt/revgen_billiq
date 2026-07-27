@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from sqlalchemy import func
@@ -22,6 +23,7 @@ from app.core.audit import (
 )
 from app.core.blob import upload_file
 from app.core.config import settings
+from app.core.email.protocol import EmailSendError
 from app.core.email.service import send_password_reset_email, send_verification_email
 from app.core.limits import assert_feature, assert_under_limit
 from app.core.timeutils import as_aware_utc, utc_now
@@ -48,6 +50,8 @@ RESEND_VERIFICATION_MAX_PER_HOUR = 3
 ALLOWED_AVATAR_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024
 PASSWORD_RESET_MAX_PER_HOUR = 5
+
+logger = logging.getLogger(__name__)
 
 
 class AuthError(Exception):
@@ -82,7 +86,15 @@ def _issue_and_send_verification(db: Session, user: User, *, resent: bool = Fals
         tenant_id=user.tenant_id,
     )
     db.commit()
-    send_verification_email(to=user.email, first_name=user.first_name, token=plaintext)
+    try:
+        send_verification_email(to=user.email, first_name=user.first_name, token=plaintext)
+    except EmailSendError:
+        logger.exception("Failed to send verification email to %s", user.email)
+        raise AuthError(
+            502,
+            "Your account was created, but we couldn't send the verification email right now. "
+            "Please use 'Resend verification email' in a moment.",
+        ) from None
 
 
 def register_tenant(db: Session, payload: RegisterRequest) -> tuple[Tenant, User]:
@@ -195,7 +207,13 @@ def request_password_reset(db: Session, email: str) -> None:
     )
     log_event(db, event_type=PASSWORD_RESET_REQUESTED, email=user.email, user_id=user.id, tenant_id=user.tenant_id)
     db.commit()
-    send_password_reset_email(to=user.email, first_name=user.first_name, token=plaintext)
+    try:
+        send_password_reset_email(to=user.email, first_name=user.first_name, token=plaintext)
+    except EmailSendError:
+        # Never raise here — the caller always returns the same generic response regardless of
+        # whether the email exists, was rate-limited, or genuinely failed to send (enumeration
+        # protection). The failure is still logged so delivery problems are visible in ops.
+        logger.exception("Failed to send password reset email to %s", user.email)
 
 
 def reset_password(db: Session, token: str, new_password: str) -> None:
