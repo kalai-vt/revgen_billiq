@@ -5,6 +5,10 @@
       "framework": "vite",
       "rewrites": [
         {
+          "source": "/billiq/assets/(.*)",
+          "destination": "/assets/$1"
+        },
+        {
           "source": "/(.*)",
           "destination": "/index.html"
         }
@@ -45,11 +49,18 @@
       }
     },
     {
-      "source": "/(.*)",
+      "source": "/billiq(/.*)?",
       "destination": {
         "type": "service",
         "service": "billing-app"
       }
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/billiq",
+      "permanent": false
     }
   ]
 }
