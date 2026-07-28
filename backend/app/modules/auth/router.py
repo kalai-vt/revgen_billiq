@@ -109,6 +109,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, Any
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     access_token, refresh_token = issue_tokens(db, user, remember_me=payload.remember_me)
+    # Include tenant/plan/can_override_price directly (same shape as GET /me) so the client
+    # doesn't need a second round-trip right after login just to render the shell.
+    tenant = get_tenant(db, user.tenant_id)
+    settings = db.query(Settings).filter(Settings.tenant_id == user.tenant_id).first()
     return make_response(
         True,
         "Login successful",
@@ -116,6 +120,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, Any
             "access_token": access_token,
             "refresh_token": refresh_token,
             "user": UserOut.model_validate(user).model_dump(mode="json"),
+            "tenant": TenantOut.model_validate(tenant).model_dump(mode="json") if tenant else None,
+            "plan": settings.plan if settings else "basic",
+            "can_override_price": _can_override_price(user, settings),
         },
     )
 
