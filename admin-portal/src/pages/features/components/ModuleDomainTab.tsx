@@ -31,7 +31,14 @@ export function ModuleDomainTab({ tenantId, items, isLoading, domain, onOpenConf
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>();
 
-  const domainItems = useMemo(() => (items ?? []).filter((i) => i.domain === domain), [items, domain]);
+  // "All Modules" (domain === 'general') is the full catalog, not just modules that weren't
+  // claimed by a specific tab — Customers/Templates/Analytics are focused convenience views
+  // carved out of the same list, not a partition, so a module like "Customers" (category=core,
+  // domain=customers) still needs to show up here too, not only under its dedicated tab.
+  const domainItems = useMemo(
+    () => (items ?? []).filter((i) => domain === 'general' || i.domain === domain),
+    [items, domain],
+  );
   const domainKeys = useMemo(() => domainItems.filter((i) => !i.always_on).map((i) => i.module_key), [domainItems]);
 
   const visibleItems = useMemo(() => {
