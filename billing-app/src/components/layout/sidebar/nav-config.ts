@@ -93,7 +93,16 @@ export function isLeafVisible(
   featureFlags?: Record<string, boolean>,
 ): boolean {
   if (role && !leaf.roles.includes(role)) return false;
-  if (leaf.feature && !hasFeature(plan, leaf.feature)) return false;
+  if (leaf.feature) {
+    // The Admin Portal's Feature Management page can enable some plan-tier features per-tenant
+    // (e.g. "advanced_analytics"), overriding the plan default — when we have a resolved flag
+    // for this exact key, it's authoritative. Keys with no matching admin module (e.g. a plan
+    // feature that isn't independently toggleable) aren't in this map, so they fall back to the
+    // static plan check.
+    const override = featureFlags?.[leaf.feature];
+    const enabled = override !== undefined ? override : hasFeature(plan, leaf.feature);
+    if (!enabled) return false;
+  }
   if (leaf.moduleKey && featureFlags?.[leaf.moduleKey] === false) return false;
   return true;
 }

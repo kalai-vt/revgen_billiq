@@ -2,11 +2,15 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { hasFeature } from '@/features/plans/lib/planConfig';
+import { useFeatureFlags } from '@/features/settings/hooks/useFeatureFlags';
 import { DashboardShell } from '@/features/analytics/components/DashboardShell';
 
 export function AnalyticsPage() {
   const { plan } = useAuth();
-  const canUseAdvanced = hasFeature(plan, 'advanced_analytics');
+  const { data: featureFlags } = useFeatureFlags();
+  // The Admin Portal can grant "Advanced Analytics" per-tenant regardless of plan — that
+  // resolved override (if present) wins over the static plan check, same as the sidebar's gate.
+  const canUseAdvanced = featureFlags?.advanced_analytics ?? hasFeature(plan, 'advanced_analytics');
 
   if (!canUseAdvanced) {
     return (
