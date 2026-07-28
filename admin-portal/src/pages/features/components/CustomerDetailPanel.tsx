@@ -11,7 +11,7 @@ import { EmptyState } from '@shared/components/ui/empty-state';
 import { Skeleton } from '@shared/components/ui/skeleton';
 import { ApiError } from '@/lib/api-client';
 import { getFeatureFlags, resetFeatures, type CustomerFeaturePanelItem, type FeatureCategory, type TenantFeatureItem } from '@/services/featuresApi';
-import { ModuleRow } from './ModuleRow';
+import { ModuleCard } from './ModuleCard';
 import { ModuleConfigDialog } from './ModuleConfigDialog';
 import { ScheduleDialog } from './ScheduleDialog';
 import { HistoryDialog } from './HistoryDialog';
@@ -148,17 +148,19 @@ export function CustomerDetailPanel({ tenantId, customer }: CustomerDetailPanelP
                     </span>
                   </AccordionTrigger>
                   <AccordionPanel>
-                    {catItems.map((item) => (
-                      <ModuleRow
-                        key={item.module_key}
-                        tenantId={tenantId}
-                        item={item}
-                        allItems={items}
-                        onOpenConfig={setConfigItem}
-                        onOpenSchedule={setScheduleItem}
-                        onOpenHistory={setHistoryItem}
-                      />
-                    ))}
+                    <div className="grid grid-cols-1 gap-2 p-2 lg:grid-cols-2">
+                      {catItems.map((item) => (
+                        <ModuleCard
+                          key={item.module_key}
+                          tenantId={tenantId}
+                          item={item}
+                          allItems={items}
+                          onOpenConfig={setConfigItem}
+                          onOpenSchedule={setScheduleItem}
+                          onOpenHistory={setHistoryItem}
+                        />
+                      ))}
+                    </div>
                   </AccordionPanel>
                 </AccordionItem>
               );

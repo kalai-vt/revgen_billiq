@@ -20,14 +20,17 @@ from app.schemas.admin_features import (
     FeatureAnalyticsResponse,
     FeatureHistoryItem,
     FeatureImpactResponse,
+    FeatureResetRequest,
     FeatureScheduleCreateRequest,
     FeatureScheduleItem,
     FeatureSummaryResponse,
     FeatureTemplateCreateRequest,
     FeatureTemplateItem,
     FeatureUpdateRequest,
+    ScopedBulkUpdateRequest,
     TemplateAssignRequest,
     TenantFeatureItem,
+    TenantFeatureSummary,
 )
 
 router = APIRouter(tags=["admin-features"])
@@ -130,16 +133,47 @@ def update_feature(
 @router.post("/api/admin/customers/{tenant_id}/features/reset")
 def reset_features(
     tenant_id: str,
+    payload: FeatureResetRequest | None = None,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(require_admin_role(*WRITE_ROLES)),
+) -> dict[str, Any]:
+    module_keys = payload.module_keys if payload else None
+    try:
+        service.reset_to_plan_defaults(db, tenant_id, current_admin, module_keys=module_keys)
+    except AdminFeatureError as exc:
+        _raise(exc)
+    _log(admin_db, current_admin, "tenant.features_reset", tenant_id, {"module_keys": module_keys})
+    return make_response(True, "Reset to plan defaults")
+
+
+@router.get("/api/admin/customers/{tenant_id}/features/summary")
+def get_tenant_feature_summary(
+    tenant_id: str, db: Session = Depends(get_db), _current_admin: AdminUser = Depends(get_current_admin_user)
+) -> dict[str, Any]:
+    try:
+        data = service.get_tenant_feature_summary(db, tenant_id)
+    except AdminFeatureError as exc:
+        _raise(exc)
+    return make_response(True, "Summary loaded", TenantFeatureSummary.model_validate(data).model_dump(mode="json"))
+
+
+@router.post("/api/admin/customers/{tenant_id}/features/bulk-update")
+def bulk_update_tenant_modules(
+    tenant_id: str,
+    payload: ScopedBulkUpdateRequest,
     db: Session = Depends(get_db),
     admin_db: Session = Depends(get_admin_db),
     current_admin: AdminUser = Depends(require_admin_role(*WRITE_ROLES)),
 ) -> dict[str, Any]:
     try:
-        service.reset_to_plan_defaults(db, tenant_id, current_admin)
+        result = service.bulk_update_tenant_modules(
+            db, tenant_id, payload.module_keys, payload.status, current_admin, payload.reason, payload.force
+        )
     except AdminFeatureError as exc:
         _raise(exc)
-    _log(admin_db, current_admin, "tenant.features_reset", tenant_id)
-    return make_response(True, "Reset to plan defaults")
+    _log(admin_db, current_admin, "tenant.features_bulk_updated", tenant_id, {"status": payload.status, **result})
+    return make_response(True, f"Updated {len(result['updated'])} of {len(payload.module_keys)} modules", result)
 
 
 # ---------------------------------------------------------------------------

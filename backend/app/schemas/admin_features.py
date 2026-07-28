@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 Category = Literal["core", "business", "ai", "premium"]
+Domain = Literal["customers", "templates", "analytics", "general"]
 FlagStatus = Literal["enabled", "disabled", "suspended"]
 AccessLevel = Literal["full_access", "read_only"]
 
@@ -22,6 +23,7 @@ class TenantFeatureItem(BaseModel):
     label: str
     description: str
     category: Category
+    domain: Domain
     is_implemented: bool
     always_on: bool
     requires: list[str]
@@ -161,3 +163,24 @@ class FeatureAnalyticsResponse(BaseModel):
     ai_usage: list[dict[str, Any]]
     customers_by_plan: list[dict[str, Any]]
     customers_by_module_count: list[dict[str, Any]]
+
+
+class TenantFeatureSummary(BaseModel):
+    total_modules: int
+    enabled_count: int
+    disabled_count: int
+    suspended_count: int
+    custom_count: int
+    default_count: int
+    last_updated: datetime | None = None
+
+
+class ScopedBulkUpdateRequest(BaseModel):
+    module_keys: list[str]
+    status: FlagStatus
+    reason: str | None = None
+    force: bool = False
+
+
+class FeatureResetRequest(BaseModel):
+    module_keys: list[str] | None = None

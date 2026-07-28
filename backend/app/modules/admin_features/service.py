@@ -129,6 +129,7 @@ def _build_item(module: dict[str, Any], flag: TenantFeatureFlag | None, app_vers
         "label": module["label"],
         "description": module["description"],
         "category": module["category"],
+        "domain": module["domain"],
         "is_implemented": module["is_implemented"],
         "always_on": module["always_on"],
         "requires": module["requires"],
@@ -367,9 +368,58 @@ def bulk_update_feature(
     return {"updated": updated, "skipped": skipped}
 
 
-def reset_to_plan_defaults(db: Session, tenant_id: str, admin: AdminUser, reason: str | None = None) -> None:
+def bulk_update_tenant_modules(
+    db: Session,
+    tenant_id: str,
+    module_keys: list[str],
+    status: str,
+    admin: AdminUser,
+    reason: str | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Toggle many modules at once for a single tenant — the "Enable All"/"Disable All" actions
+    scoped to whatever module set the admin is currently looking at (e.g. one domain tab)."""
     _get_tenant(db, tenant_id)
-    flags = db.query(TenantFeatureFlag).filter(TenantFeatureFlag.tenant_id == tenant_id).all()
+    requested = set(module_keys)
+    updated: list[str] = []
+    skipped: list[dict[str, str]] = []
+    for key in topo_order():
+        if key not in requested or key not in FEATURE_BY_KEY:
+            continue
+        try:
+            update_tenant_feature(db, tenant_id, key, admin, status=status, reason=reason, force=force)
+            updated.append(key)
+        except AdminFeatureError as exc:
+            skipped.append({"module_key": key, "error": exc.message})
+    return {"updated": updated, "skipped": skipped}
+
+
+def get_tenant_feature_summary(db: Session, tenant_id: str) -> dict[str, Any]:
+    items = list_tenant_features(db, tenant_id)
+    enabled_count = sum(1 for i in items if i["status"] == "enabled")
+    disabled_count = sum(1 for i in items if i["status"] == "disabled")
+    suspended_count = sum(1 for i in items if i["status"] == "suspended")
+    custom_count = sum(1 for i in items if i["is_custom"])
+    updated_ats = [i["updated_at"] for i in items if i["updated_at"]]
+    return {
+        "total_modules": len(items),
+        "enabled_count": enabled_count,
+        "disabled_count": disabled_count,
+        "suspended_count": suspended_count,
+        "custom_count": custom_count,
+        "default_count": len(items) - custom_count,
+        "last_updated": max(updated_ats) if updated_ats else None,
+    }
+
+
+def reset_to_plan_defaults(
+    db: Session, tenant_id: str, admin: AdminUser, reason: str | None = None, module_keys: list[str] | None = None
+) -> None:
+    _get_tenant(db, tenant_id)
+    query = db.query(TenantFeatureFlag).filter(TenantFeatureFlag.tenant_id == tenant_id)
+    if module_keys is not None:
+        query = query.filter(TenantFeatureFlag.module_key.in_(module_keys))
+    flags = query.all()
     for flag in flags:
         db.add(
             TenantFeatureFlagHistory(

@@ -10,6 +10,7 @@ from typing import Literal, TypedDict
 
 Category = Literal["core", "business", "ai", "premium"]
 ConfigFieldType = Literal["number", "boolean", "text"]
+Domain = Literal["customers", "templates", "analytics", "general"]
 
 
 class ConfigField(TypedDict):
@@ -24,6 +25,7 @@ class FeatureModule(TypedDict):
     label: str
     description: str
     category: Category
+    domain: Domain
     is_implemented: bool
     always_on: bool
     requires: list[str]
@@ -37,6 +39,7 @@ def _m(
     description: str,
     category: Category,
     *,
+    domain: Domain = "general",
     is_implemented: bool = False,
     always_on: bool = False,
     requires: list[str] | None = None,
@@ -48,6 +51,7 @@ def _m(
         "label": label,
         "description": description,
         "category": category,
+        "domain": domain,
         "is_implemented": is_implemented,
         "always_on": always_on,
         "requires": requires or [],
@@ -65,7 +69,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
         {"key": "credit_sales", "label": "Credit sales", "type": "boolean", "default": True},
         {"key": "discount_approval", "label": "Require discount approval", "type": "boolean", "default": False},
     ]),
-    _m("customers", "Customers", "Retail customer directory and profiles.", "core", is_implemented=True, config_schema=[
+    _m("customers", "Customers", "Retail customer directory and profiles.", "core", domain="customers", is_implemented=True, config_schema=[
         {"key": "max_customers", "label": "Maximum customers", "type": "number", "default": 500},
         {"key": "credit_tracking", "label": "Credit tracking", "type": "boolean", "default": True},
         {"key": "loyalty", "label": "Loyalty tracking", "type": "boolean", "default": False},
@@ -90,7 +94,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
     ]),
     _m("settings", "Settings", "Tenant business settings and preferences.", "core", is_implemented=True, always_on=True),
     _m("payments_credit", "Outstanding", "Outstanding balances and credit collection.", "core", is_implemented=True, requires=["pos_billing"]),
-    _m("analytics", "Analytics", "Sales performance and business intelligence dashboards.", "core", is_implemented=True),
+    _m("analytics", "Analytics", "Sales performance and business intelligence dashboards.", "core", domain="analytics", is_implemented=True),
 
     # ---- Business Modules (roadmap) ----
     _m("purchase", "Purchase", "Purchase order management.", "business"),
@@ -98,7 +102,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("warehouse", "Warehouse", "Multi-warehouse stock management.", "business", requires=["inventory"]),
     _m("crm", "CRM", "Lead and pipeline management.", "business", requires=["customers"]),
     _m("marketing", "Marketing", "Campaigns and audience segmentation.", "business"),
-    _m("loyalty", "Loyalty", "Points and rewards programs.", "business", requires=["customers"]),
+    _m("loyalty", "Loyalty", "Points and rewards programs.", "business", domain="customers", requires=["customers"]),
     _m("expenses", "Expenses", "Business expense tracking.", "business"),
     _m("employees", "Employees", "Staff directory and roles.", "business"),
     _m("attendance", "Attendance", "Staff attendance tracking.", "business", requires=["employees"]),
@@ -115,7 +119,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("ai_chat_assistant", "AI Chat Assistant", "In-app support chatbot.", "ai"),
 
     # ---- Premium Features ----
-    _m("invoice_designer", "Invoice Designer", "Customizable invoice/receipt templates.", "premium", is_implemented=True, requires=["pos_billing"]),
+    _m("invoice_designer", "Invoice Designer", "Customizable invoice/receipt templates.", "premium", domain="templates", is_implemented=True, requires=["pos_billing"]),
     _m("whatsapp_integration", "WhatsApp Integration", "Send invoices via WhatsApp.", "premium"),
     _m("sms_integration", "SMS Integration", "Send notifications via SMS.", "premium"),
     _m("email_integration", "Email Integration", "Send invoices and receipts via email.", "premium"),
@@ -125,8 +129,34 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("api_access", "API Access", "Programmatic access via API keys.", "premium"),
     _m("custom_branding", "Custom Branding", "Upload a logo and brand the invoices.", "premium", is_implemented=True),
     _m("white_label", "White Label", "Remove RevGen BillIQ branding entirely.", "premium", requires=["custom_branding"]),
-    _m("advanced_analytics", "Advanced Analytics", "Deeper analytics and trend charts.", "premium", is_implemented=True, requires=["analytics"]),
-    _m("trend_comparison", "Trend Comparison", "Period-over-period performance comparison.", "premium", is_implemented=True, requires=["analytics"]),
+    _m("advanced_analytics", "Advanced Analytics", "Deeper analytics and trend charts.", "premium", domain="analytics", is_implemented=True, requires=["analytics"]),
+    _m("trend_comparison", "Trend Comparison", "Period-over-period performance comparison.", "premium", domain="analytics", is_implemented=True, requires=["analytics"]),
+
+    # ---- Customer sub-features (roadmap) ----
+    _m("customer_groups", "Customer Groups", "Create and manage customer groups.", "business", domain="customers", requires=["customers"]),
+    _m("customer_wallet", "Customer Wallet", "Store credit and prepaid wallet balances.", "business", domain="customers", requires=["customers"]),
+    _m("customer_credit_limit", "Customer Credit", "Manage per-customer credit limits.", "business", domain="customers", requires=["customers"]),
+    _m("customer_notes", "Customer Notes", "Add and manage customer notes.", "business", domain="customers", requires=["customers"]),
+    _m("customer_import", "Customer Import", "Import customers from CSV / Excel.", "business", domain="customers", requires=["customers"]),
+    _m("customer_export", "Customer Export", "Export customers to CSV / Excel.", "business", domain="customers", requires=["customers"]),
+    _m("customer_kyc", "Customer KYC", "Collect and manage KYC documents.", "business", domain="customers", requires=["customers"]),
+    _m("customer_blacklist", "Customer Blacklist", "Block and manage blacklisted customers.", "business", domain="customers", requires=["customers"]),
+
+    # ---- Document template types (roadmap) ----
+    _m("receipt_template", "Receipt Template", "Customizable receipt templates.", "premium", domain="templates", requires=["pos_billing"]),
+    _m("kitchen_token_template", "Kitchen Token Template", "Customizable kitchen token templates.", "premium", domain="templates", requires=["pos_billing"]),
+    _m("barcode_template", "Barcode Template", "Customizable barcode label templates.", "premium", domain="templates", requires=["pos_billing"]),
+    _m("email_template", "Email Template", "Customizable transactional email templates.", "premium", domain="templates", requires=["pos_billing"]),
+    _m("sms_template", "SMS Template", "Customizable SMS notification templates.", "premium", domain="templates", requires=["pos_billing"]),
+    _m("whatsapp_template", "WhatsApp Template", "Customizable WhatsApp message templates.", "premium", domain="templates", requires=["pos_billing"]),
+
+    # ---- Analytics sub-modules (roadmap) ----
+    _m("sales_analytics", "Sales Analytics", "Deep-dive sales performance analytics.", "premium", domain="analytics", requires=["analytics"]),
+    _m("customer_analytics", "Customer Analytics", "Customer behavior and segmentation analytics.", "premium", domain="analytics", requires=["analytics"]),
+    _m("inventory_analytics", "Inventory Analytics", "Stock movement and turnover analytics.", "premium", domain="analytics", requires=["analytics"]),
+    _m("tax_analytics", "Tax Analytics", "Tax collection and liability analytics.", "premium", domain="analytics", requires=["analytics"]),
+    _m("payment_analytics", "Payment Analytics", "Payment method and collection analytics.", "premium", domain="analytics", requires=["analytics"]),
+    _m("employee_analytics", "Employee Analytics", "Staff performance analytics.", "premium", domain="analytics", requires=["analytics"]),
 ]
 
 FEATURE_BY_KEY: dict[str, FeatureModule] = {m["key"]: m for m in FEATURE_CATALOG}

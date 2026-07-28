@@ -36,7 +36,7 @@ function RankedBarChart({ data }: { data: { label: string; count: number }[] }) 
   );
 }
 
-export function AnalyticsTab() {
+export function FleetAnalyticsTab() {
   const { data, isLoading } = useQuery({ queryKey: ['admin-feature-analytics'], queryFn: getAnalytics });
 
   if (isLoading || !data) {

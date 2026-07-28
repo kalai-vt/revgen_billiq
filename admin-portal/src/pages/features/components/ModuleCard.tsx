@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Clock, History, Settings2, ShieldAlert, MoreHorizontal, PauseCircle } from 'lucide-react';
 import { Badge } from '@shared/components/ui/badge';
+import { Card } from '@shared/components/ui/card';
 import { Switch } from '@shared/components/ui/switch';
 import {
   DropdownMenu,
@@ -21,7 +22,7 @@ import {
 } from '@/services/featuresApi';
 import { ConfirmImpactDialog } from './ConfirmImpactDialog';
 
-interface ModuleRowProps {
+interface ModuleCardProps {
   tenantId: string;
   item: TenantFeatureItem;
   allItems: TenantFeatureItem[];
@@ -35,7 +36,7 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function ModuleRow({ tenantId, item, allItems, onOpenConfig, onOpenSchedule, onOpenHistory }: ModuleRowProps) {
+export function ModuleCard({ tenantId, item, allItems, onOpenConfig, onOpenSchedule, onOpenHistory }: ModuleCardProps) {
   const queryClient = useQueryClient();
   const [pendingImpact, setPendingImpact] = useState<{ target: FlagStatus; impact: FeatureImpact } | null>(null);
   const [checkingImpact, setCheckingImpact] = useState(false);
@@ -45,6 +46,7 @@ export function ModuleRow({ tenantId, item, allItems, onOpenConfig, onOpenSchedu
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-features', tenantId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-feature-tenant-summary', tenantId] });
     queryClient.invalidateQueries({ queryKey: ['admin-feature-history', tenantId] });
     queryClient.invalidateQueries({ queryKey: ['admin-feature-customers'] });
     queryClient.invalidateQueries({ queryKey: ['admin-feature-summary'] });
@@ -101,18 +103,11 @@ export function ModuleRow({ tenantId, item, allItems, onOpenConfig, onOpenSchedu
     );
 
   return (
-    <div className="flex items-start justify-between gap-3 border-b px-3 py-3 last:border-b-0">
-      <div className="flex flex-1 items-start gap-3">
-        <Switch
-          checked={item.status === 'enabled'}
-          disabled={item.always_on || applyMutation.isPending || checkingImpact}
-          onCheckedChange={(checked) => handleStatusChange(checked ? 'enabled' : 'disabled')}
-          className="mt-0.5"
-        />
+    <Card className="flex flex-col gap-2 p-3.5">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm font-medium">{item.label}</span>
-            {statusBadge}
             {item.is_custom && (
               <Badge variant="outline" className="text-muted-foreground">
                 Custom
@@ -130,52 +125,60 @@ export function ModuleRow({ tenantId, item, allItems, onOpenConfig, onOpenSchedu
             )}
           </div>
           <p className="text-xs text-muted-foreground">{item.description}</p>
-          {item.requires.length > 0 && (
-            <p className={`flex items-center gap-1 text-xs ${missingRequirement ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
-              <ShieldAlert className="size-3" />
-              Requires: {item.requires.map((k) => byKey.get(k)?.label ?? k).join(', ')}
-            </p>
-          )}
-          {item.updated_by_admin_name && (
-            <p className="text-xs text-muted-foreground">
-              Last modified by {item.updated_by_admin_name}
-              {item.updated_at && ` on ${formatDate(item.updated_at)}`}
-              {item.reason && ` — "${item.reason}"`}
-            </p>
-          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {statusBadge}
+          <Switch
+            checked={item.status === 'enabled'}
+            disabled={item.always_on || applyMutation.isPending || checkingImpact}
+            onCheckedChange={(checked) => handleStatusChange(checked ? 'enabled' : 'disabled')}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              <span className="flex size-7 items-center justify-center rounded-md hover:bg-muted">
+                <MoreHorizontal className="size-4" />
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onOpenConfig(item)}>
+                <Settings2 className="size-4" /> Configure
+              </DropdownMenuItem>
+              {!item.always_on && item.status !== 'suspended' && (
+                <DropdownMenuItem onClick={() => handleStatusChange('suspended')}>
+                  <PauseCircle className="size-4" /> Suspend temporarily
+                </DropdownMenuItem>
+              )}
+              {item.status === 'suspended' && (
+                <DropdownMenuItem onClick={() => handleStatusChange('enabled')}>
+                  <PauseCircle className="size-4" /> Resume
+                </DropdownMenuItem>
+              )}
+              {!item.always_on && (
+                <DropdownMenuItem onClick={() => onOpenSchedule(item)}>
+                  <Clock className="size-4" /> Schedule change
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onOpenHistory(item)}>
+                <History className="size-4" /> View history
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger>
-          <span className="flex size-7 items-center justify-center rounded-md hover:bg-muted">
-            <MoreHorizontal className="size-4" />
-          </span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onOpenConfig(item)}>
-            <Settings2 className="size-4" /> Configure
-          </DropdownMenuItem>
-          {!item.always_on && item.status !== 'suspended' && (
-            <DropdownMenuItem onClick={() => handleStatusChange('suspended')}>
-              <PauseCircle className="size-4" /> Suspend temporarily
-            </DropdownMenuItem>
-          )}
-          {item.status === 'suspended' && (
-            <DropdownMenuItem onClick={() => handleStatusChange('enabled')}>
-              <PauseCircle className="size-4" /> Resume
-            </DropdownMenuItem>
-          )}
-          {!item.always_on && (
-            <DropdownMenuItem onClick={() => onOpenSchedule(item)}>
-              <Clock className="size-4" /> Schedule change
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => onOpenHistory(item)}>
-            <History className="size-4" /> View history
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {item.requires.length > 0 && (
+        <p className={`flex items-center gap-1 text-xs ${missingRequirement ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+          <ShieldAlert className="size-3" />
+          Requires: {item.requires.map((k) => byKey.get(k)?.label ?? k).join(', ')}
+        </p>
+      )}
+      {item.updated_by_admin_name && (
+        <p className="text-xs text-muted-foreground">
+          Modified by {item.updated_by_admin_name}
+          {item.updated_at && ` · ${formatDate(item.updated_at)}`}
+          {item.reason && ` — "${item.reason}"`}
+        </p>
+      )}
 
       {pendingImpact && (
         <ConfirmImpactDialog
@@ -189,6 +192,6 @@ export function ModuleRow({ tenantId, item, allItems, onOpenConfig, onOpenSchedu
           onConfirm={(reason) => applyMutation.mutate({ status: pendingImpact.target, reason: reason || undefined, force: true })}
         />
       )}
-    </div>
+    </Card>
   );
 }

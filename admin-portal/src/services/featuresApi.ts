@@ -11,11 +11,14 @@ export interface ConfigFieldSchema {
   default: unknown;
 }
 
+export type FeatureDomain = 'customers' | 'templates' | 'analytics' | 'general';
+
 export interface TenantFeatureItem {
   module_key: string;
   label: string;
   description: string;
   category: FeatureCategory;
+  domain: FeatureDomain;
   is_implemented: boolean;
   always_on: boolean;
   requires: string[];
@@ -133,6 +136,16 @@ export interface FeatureAnalytics {
   customers_by_module_count: { bucket: string; count: number }[];
 }
 
+export interface TenantFeatureSummary {
+  total_modules: number;
+  enabled_count: number;
+  disabled_count: number;
+  suspended_count: number;
+  custom_count: number;
+  default_count: number;
+  last_updated: string | null;
+}
+
 export interface CustomerFeatureFilters {
   search?: string;
   industry?: string;
@@ -183,8 +196,28 @@ export function updateFeatureFlag(tenantId: string, moduleKey: string, payload: 
   });
 }
 
-export function resetFeatures(tenantId: string): Promise<void> {
-  return request(`/api/admin/customers/${tenantId}/features/reset`, { method: 'POST' });
+export function resetFeatures(tenantId: string, moduleKeys?: string[]): Promise<void> {
+  return request(`/api/admin/customers/${tenantId}/features/reset`, {
+    method: 'POST',
+    body: moduleKeys ? JSON.stringify({ module_keys: moduleKeys }) : undefined,
+  });
+}
+
+export function getTenantFeatureSummary(tenantId: string): Promise<TenantFeatureSummary> {
+  return request(`/api/admin/customers/${tenantId}/features/summary`);
+}
+
+export function scopedBulkUpdate(
+  tenantId: string,
+  moduleKeys: string[],
+  status: FlagStatus,
+  reason?: string,
+  force = false,
+): Promise<BulkUpdateResult> {
+  return request(`/api/admin/customers/${tenantId}/features/bulk-update`, {
+    method: 'POST',
+    body: JSON.stringify({ module_keys: moduleKeys, status, reason, force }),
+  });
 }
 
 export function bulkUpdateFeature(

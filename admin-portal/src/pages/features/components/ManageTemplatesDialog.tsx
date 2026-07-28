@@ -111,9 +111,10 @@ function CreateTemplateDialog() {
   );
 }
 
-export function TemplatesTab() {
+export function ManageTemplatesDialog() {
+  const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { data: templates, isLoading } = useQuery({ queryKey: ['admin-feature-templates'], queryFn: listTemplates });
+  const { data: templates, isLoading } = useQuery({ queryKey: ['admin-feature-templates'], queryFn: listTemplates, enabled: open });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteTemplate(id),
@@ -125,52 +126,63 @@ export function TemplatesTab() {
   });
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          One-click module presets. Apply one to customers from the Customers tab's bulk actions.
-        </p>
-        <CreateTemplateDialog />
-      </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger>
+        <Button variant="outline" size="sm">
+          <Layers className="size-3.5" /> Manage bundle templates
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Bundle templates</DialogTitle>
+          <DialogDescription>
+            One-click module presets. Apply one to selected customers from the bulk actions dialog.
+          </DialogDescription>
+        </DialogHeader>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full" />
-          ))}
+        <div className="flex items-center justify-end">
+          <CreateTemplateDialog />
         </div>
-      ) : !templates || templates.length === 0 ? (
-        <EmptyState icon={Layers} title="No templates yet" description="Create one to speed up onboarding similar customers." />
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template) => {
-            const enabledCount = template.modules.filter((m) => m.status === 'enabled').length;
-            return (
-              <Card key={template.id}>
-                <CardHeader className="flex flex-row items-start justify-between gap-2 pb-0">
-                  <div>
-                    <p className="font-medium">{template.name}</p>
-                    {template.is_system && (
-                      <Badge variant="outline" className="mt-1 text-muted-foreground">
-                        System
-                      </Badge>
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 w-full" />
+            ))}
+          </div>
+        ) : !templates || templates.length === 0 ? (
+          <EmptyState icon={Layers} title="No templates yet" description="Create one to speed up onboarding similar customers." />
+        ) : (
+          <div className="grid max-h-96 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
+            {templates.map((template) => {
+              const enabledCount = template.modules.filter((m) => m.status === 'enabled').length;
+              return (
+                <Card key={template.id}>
+                  <CardHeader className="flex flex-row items-start justify-between gap-2 pb-0">
+                    <div>
+                      <p className="font-medium">{template.name}</p>
+                      {template.is_system && (
+                        <Badge variant="outline" className="mt-1 text-muted-foreground">
+                          System
+                        </Badge>
+                      )}
+                    </div>
+                    {!template.is_system && (
+                      <Button variant="ghost" size="icon-sm" onClick={() => deleteMutation.mutate(template.id)}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
                     )}
-                  </div>
-                  {!template.is_system && (
-                    <Button variant="ghost" size="icon-sm" onClick={() => deleteMutation.mutate(template.id)}>
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-1.5 text-sm">
-                  <p className="text-muted-foreground">{template.description ?? 'No description'}</p>
-                  <p className="text-xs text-muted-foreground">{enabledCount} modules enabled</p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-1.5 text-sm">
+                    <p className="text-muted-foreground">{template.description ?? 'No description'}</p>
+                    <p className="text-xs text-muted-foreground">{enabledCount} modules enabled</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
