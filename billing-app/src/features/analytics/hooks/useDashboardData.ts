@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
+import type { DateRange } from '@/lib/date-range';
 import * as analyticsApi from '@/features/analytics/api';
 
-export function useDashboardData(days: number, advanced = false) {
+export function useDashboardData(range: DateRange, advanced = false) {
   return useQuery({
-    queryKey: ['analytics-dashboard', days, advanced],
-    queryFn: () => analyticsApi.getDashboard(days, advanced),
+    queryKey: ['analytics-dashboard', range.from, range.to, advanced],
+    queryFn: () => analyticsApi.getDashboard(range.from, range.to, advanced, range.preset),
   });
 }

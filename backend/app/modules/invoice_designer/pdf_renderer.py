@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
 from reportlab.lib import colors
@@ -11,13 +10,11 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.core.formatting import format_amount
+from app.core.pdf_utils import logo_flowable
 from app.models.settings import Settings
 from app.models.tenant import Tenant
 from app.modules.invoice_designer.document_data import DocumentData
 from app.schemas.invoice_template import InvoiceTemplateConfig, PaperConfig
-
-LOGO_MAX_WIDTH = 40 * mm
-LOGO_MAX_HEIGHT = 20 * mm
 
 _ITEM_COLUMN_LABELS = {
     "row_number": "#", "product": "Item", "sku": "SKU", "barcode": "Barcode", "hsn_sac": "HSN/SAC",
@@ -37,45 +34,6 @@ _FOOTER_LABELS = {
     "thank_you": "", "return_policy": "Return Policy", "exchange_policy": "Exchange Policy",
     "warranty": "Warranty Information", "terms_conditions": "Terms & Conditions", "business_notes": "",
 }
-
-
-def _logo_flowable(logo_url: str, max_width: float = LOGO_MAX_WIDTH, max_height: float = LOGO_MAX_HEIGHT) -> Image | None:
-    """Resolve a logo URL (local `/uploads/...` path or a remote Blob URL) and size it to fit.
-
-    Best-effort: any missing file, unreadable image, or unsupported format (e.g. SVG, which
-    reportlab can't rasterize without an extra dependency) silently skips the logo rather than
-    breaking invoice PDF generation for the whole tenant.
-    """
-    try:
-        from PIL import Image as PILImage
-
-        clean_url = logo_url.split("?", 1)[0]
-        if clean_url.startswith("http://") or clean_url.startswith("https://"):
-            import httpx
-
-            response = httpx.get(clean_url, timeout=10.0)
-            response.raise_for_status()
-            source: str | io.BytesIO = io.BytesIO(response.content)
-        else:
-            local_path = Path(clean_url.lstrip("/"))
-            if not local_path.is_file():
-                return None
-            source = str(local_path)
-
-        with PILImage.open(source) as img:
-            img.load()
-            width_px, height_px = img.size
-        if isinstance(source, io.BytesIO):
-            source.seek(0)
-        aspect = height_px / width_px if width_px else 1
-        width = max_width
-        height = width * aspect
-        if height > max_height:
-            height = max_height
-            width = height / aspect
-        return Image(source, width=width, height=height)
-    except Exception:
-        return None
 
 
 def _qr_flowable(data: str, size: float = 22 * mm) -> Image | None:
@@ -161,7 +119,7 @@ def render_document_pdf(data: DocumentData, tenant: Tenant, settings: Settings |
     b = config.branding
     logo_size = {"sm": 12 * mm, "md": 20 * mm, "lg": 28 * mm}.get(config.paper.logo_size_preset, 20 * mm)
     if b.show_logo and settings and settings.logo_url:
-        logo = _logo_flowable(settings.logo_url, max_width=logo_size * 2, max_height=logo_size)
+        logo = logo_flowable(settings.logo_url, max_width=logo_size * 2, max_height=logo_size)
         if logo:
             story.append(logo)
             story.append(Spacer(1, 2 * mm))

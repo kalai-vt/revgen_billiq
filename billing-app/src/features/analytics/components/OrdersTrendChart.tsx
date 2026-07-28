@@ -2,24 +2,24 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { ChartCard } from '@/components/shared/ChartCard';
 import type { ExportFormat } from '@/components/shared/ExportDropdown';
 import { CHART_PRIMARY } from '@/features/analytics/lib/colors';
-import type { TopProduct } from '@/features/analytics/api';
+import type { TrendPoint } from '@/features/analytics/api';
 
-interface TopProductsChartProps {
-  data: TopProduct[];
+interface OrdersTrendChartProps {
+  data: TrendPoint[];
   isLoading: boolean;
   onExport: (format: ExportFormat) => void;
 }
 
-export function TopProductsChart({ data, isLoading, onExport }: TopProductsChartProps) {
+export function OrdersTrendChart({ data, isLoading, onExport }: OrdersTrendChartProps) {
   return (
-    <ChartCard title="Top Selling Products" isLoading={isLoading} isEmpty={data.length === 0} onExport={onExport}>
+    <ChartCard title="Orders Trend" isLoading={isLoading} isEmpty={data.length === 0} onExport={onExport}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: -20 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="name" fontSize={12} interval={0} angle={-15} textAnchor="end" height={50} />
-          <YAxis fontSize={12} />
+          <XAxis dataKey="bucket_label" fontSize={12} />
+          <YAxis fontSize={12} allowDecimals={false} />
           <Tooltip />
-          <Bar dataKey="qty_sold" name="Qty Sold" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="order_count" name="Orders" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>

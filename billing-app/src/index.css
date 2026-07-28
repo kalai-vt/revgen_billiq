@@ -129,6 +129,19 @@
     }
 }
 
+@media print {
+  aside,
+  header,
+  nav[aria-label="Breadcrumb"] {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+}
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
