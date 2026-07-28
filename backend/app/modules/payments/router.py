@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import assert_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.customers.service import get_customer
@@ -72,6 +73,7 @@ def get_customer_outstanding_invoices(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     customer = get_customer(db, current_user.tenant_id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -87,6 +89,7 @@ def get_customer_credit_summary(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     try:
         summary = service.get_credit_summary(db, current_user.tenant_id, customer_id)
     except PaymentError as exc:
@@ -100,6 +103,7 @@ def get_customer_ledger_route(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     try:
         ledger = service.get_customer_ledger(db, current_user.tenant_id, customer_id)
     except PaymentError as exc:
@@ -114,6 +118,7 @@ def get_customer_ledger_export(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     try:
         ledger = service.get_customer_ledger(db, current_user.tenant_id, customer_id)
     except PaymentError as exc:
@@ -140,6 +145,7 @@ def post_customer_ledger_adjustment(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     customer = get_customer(db, current_user.tenant_id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -152,6 +158,7 @@ def get_outstanding_dashboard_route(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     dashboard = service.get_outstanding_dashboard(db, current_user.tenant_id)
     return make_response(True, "Outstanding dashboard loaded", OutstandingDashboardOut.model_validate(dashboard).model_dump(mode="json"))
 
@@ -161,6 +168,7 @@ def get_ageing_route(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     report = service.get_ageing_report(db, current_user.tenant_id)
     return make_response(True, "Ageing report loaded", AgeingReportOut.model_validate(report).model_dump(mode="json"))
 
@@ -171,6 +179,7 @@ def get_ageing_export(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     report = service.get_ageing_report(db, current_user.tenant_id)
     if format == "excel":
         content = export_module.export_ageing_excel(report)
@@ -193,6 +202,7 @@ def get_outstanding_export(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "payments_credit")
     report = service.get_ageing_report(db, current_user.tenant_id)
     if format == "excel":
         content = export_module.export_outstanding_excel(report.invoices)

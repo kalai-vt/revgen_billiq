@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_role
+from app.core.limits import assert_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.admin_features.service import get_effective_flags_for_tenant
@@ -90,6 +91,7 @@ async def post_settings_logo(
     current_user: User = Depends(require_role("owner")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "custom_branding")
     settings = service.get_settings(db, current_user.tenant_id)
     if not settings:
         raise HTTPException(status_code=404, detail="Settings not found")

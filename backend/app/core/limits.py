@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.core.db import get_db
+from app.core.deps import get_current_user
 from app.core.plans import PlanConfig, get_plan
 from app.models.settings import Settings
+from app.models.user import User
 
 
 class LimitExceededError(Exception):
@@ -55,3 +61,18 @@ def assert_feature(db: Session, tenant_id: str, feature_key: str) -> None:
         raise FeatureNotAvailableError(
             f"This feature isn't available on the {plan['label']} plan. Upgrade to unlock it."
         )
+
+
+def require_feature(feature_key: str) -> Callable[..., None]:
+    """Router-level dependency form of `assert_feature`, for routers where every endpoint
+    belongs to the same catalog module (e.g. all of `categories/router.py` is "categories") —
+    apply once via `APIRouter(..., dependencies=[Depends(require_feature("categories"))])`
+    instead of repeating the call in every endpoint. Mixed-concern routers (e.g. sales/payments,
+    which combine multiple module keys under one file) should keep calling `assert_feature`
+    inline per-endpoint instead.
+    """
+
+    def dependency(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+        assert_feature(db, current_user.tenant_id, feature_key)
+
+    return dependency

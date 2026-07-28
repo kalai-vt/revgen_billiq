@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.customers import export as export_module
@@ -23,7 +24,7 @@ from app.schemas.customer import (
     CustomerUpdate,
 )
 
-router = APIRouter(prefix="/api", tags=["customers"])
+router = APIRouter(prefix="/api", tags=["customers"], dependencies=[Depends(require_feature("customers"))])
 
 
 @router.get("/customers")

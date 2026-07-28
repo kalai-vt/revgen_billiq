@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.barcode import generate_ean13
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.catalog import export as export_module
@@ -27,7 +28,7 @@ from app.schemas.catalog import (
     ProductUpdate,
 )
 
-router = APIRouter(prefix="/api", tags=["catalog"])
+router = APIRouter(prefix="/api", tags=["catalog"], dependencies=[Depends(require_feature("products"))])
 
 
 @router.get("/products/check-duplicate")

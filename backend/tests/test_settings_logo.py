@@ -30,6 +30,7 @@ def _headers(access_token: str) -> dict:
 def test_logo_upload_rejects_bad_content_type(client: TestClient) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
+    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
 
     response = client.post(
         "/api/settings/logo",
@@ -42,6 +43,7 @@ def test_logo_upload_rejects_bad_content_type(client: TestClient) -> None:
 def test_logo_upload_accepts_valid_image(client: TestClient) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
+    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
 
     tiny_png = bytes.fromhex(
         "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
@@ -65,6 +67,7 @@ def test_logo_upload_accepts_valid_image(client: TestClient) -> None:
 def test_logo_upload_rejects_oversized_file(client: TestClient) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
+    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
 
     oversized = b"\xff" * (2 * 1024 * 1024 + 1)
     response = client.post(

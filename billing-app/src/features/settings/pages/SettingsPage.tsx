@@ -22,6 +22,7 @@ import { ChangePasswordForm } from '@/features/settings/components/ChangePasswor
 import { InvoiceSettingsForm } from '@/features/settings/components/InvoiceSettingsForm';
 import { LoginHistoryTable } from '@/features/settings/components/LoginHistoryTable';
 import { ProductConfigurationForm } from '@/features/settings/components/ProductConfigurationForm';
+import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import { cn } from '@/lib/utils';
 import { ApiError } from '@/lib/api-client';
 
@@ -36,6 +37,7 @@ export function SettingsPage() {
   const isOwner = user?.role === 'owner';
   const isManager = user?.role === 'manager';
   const canManageUsers = hasFeature(plan, 'user_management');
+  const invoiceDesignerEnabled = useFeatureFlag('invoice_designer');
 
   const [form, setForm] = useState({
     company_name: tenant?.company_name ?? '',
@@ -100,7 +102,7 @@ export function SettingsPage() {
     { id: 'billing', label: 'Billing Settings', visible: isOwner },
     { id: 'product-config', label: 'Product Configuration', visible: isOwner },
     { id: 'invoice-settings', label: 'Invoice Settings', visible: isOwner },
-    { id: 'invoice-designer', label: 'Invoice Designer', visible: isOwner },
+    { id: 'invoice-designer', label: 'Invoice Designer', visible: isOwner && invoiceDesignerEnabled },
     { id: 'business-preferences', label: 'Business Preferences', visible: isOwner },
     { id: 'team', label: 'Team', visible: isOwner || isManager },
   ].filter((s) => s.visible);
@@ -300,7 +302,7 @@ export function SettingsPage() {
             </Card>
           )}
 
-          {isOwner && (
+          {isOwner && invoiceDesignerEnabled && (
             <Card id="invoice-designer" className="scroll-mt-4">
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div>

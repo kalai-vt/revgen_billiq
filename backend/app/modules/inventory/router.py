@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.inventory import export as export_module
@@ -18,7 +19,7 @@ from app.modules.inventory.parsers import ParserError
 from app.modules.inventory.service import InventoryError
 from app.schemas.inventory import ColumnMappingRequest, ImportRowUpdateRequest, StockAdjustRequest
 
-router = APIRouter(prefix="/api/inventory", tags=["inventory"])
+router = APIRouter(prefix="/api/inventory", tags=["inventory"], dependencies=[Depends(require_feature("inventory"))])
 
 
 @router.get("/dashboard")

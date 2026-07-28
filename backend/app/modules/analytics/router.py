@@ -45,6 +45,8 @@ def _resolve(
         raise HTTPException(status_code=404, detail="Tenant not found")
     if advanced:
         assert_feature(db, current_user.tenant_id, "advanced_analytics")
+    else:
+        assert_feature(db, current_user.tenant_id, "reports_analytics")
     try:
         window = service.resolve_window(tenant, date_from, date_to, preset)
     except AnalyticsError as exc:

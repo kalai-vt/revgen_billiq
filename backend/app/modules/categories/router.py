@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.categories import service
 from app.modules.categories.service import CategoryError
 from app.schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
 
-router = APIRouter(prefix="/api", tags=["categories"])
+router = APIRouter(prefix="/api", tags=["categories"], dependencies=[Depends(require_feature("categories"))])
 
 
 @router.get("/categories")

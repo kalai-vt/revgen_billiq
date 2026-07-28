@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.invoice_template import InvoiceTemplate
 from app.models.user import User
@@ -14,7 +15,9 @@ from app.modules.invoice_designer import service
 from app.modules.invoice_designer.service import InvoiceTemplateError
 from app.schemas.invoice_template import DocumentType, InvoiceTemplateCreate, InvoiceTemplateOut, InvoiceTemplateUpdate
 
-router = APIRouter(prefix="/api/invoice-templates", tags=["invoice-designer"])
+router = APIRouter(
+    prefix="/api/invoice-templates", tags=["invoice-designer"], dependencies=[Depends(require_feature("invoice_designer"))]
+)
 
 
 def _out(template: InvoiceTemplate) -> dict[str, Any]:

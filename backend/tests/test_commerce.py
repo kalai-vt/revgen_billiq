@@ -169,6 +169,9 @@ def test_invoice_pdf_embeds_uploaded_logo(client: TestClient) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
+    # Custom Branding is an "explore"+ catalog module (see feature_catalog.py's
+    # PLAN_DEFAULT_MODULES) — needed for logo upload to be allowed.
+    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
 
     logo_bytes = io.BytesIO()
     PILImage.new("RGB", (60, 30), color=(20, 90, 200)).save(logo_bytes, format="PNG")

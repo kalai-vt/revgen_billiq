@@ -5,6 +5,7 @@ import { BrandLogo } from '@/components/shared/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import * as settingsApi from '@/features/settings/api';
+import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import { ApiError } from '@/lib/api-client';
 
 interface LogoUploadControlProps {
@@ -15,6 +16,7 @@ export function LogoUploadControl({ logoUrl }: LogoUploadControlProps) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const brandingEnabled = useFeatureFlag('custom_branding');
 
   const mutation = useMutation({
     mutationFn: (file: File) => settingsApi.uploadLogo(file),
@@ -53,16 +55,19 @@ export function LogoUploadControl({ logoUrl }: LogoUploadControlProps) {
             type="button"
             variant="outline"
             size="sm"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !brandingEnabled}
             onClick={() => inputRef.current?.click()}
           >
             {mutation.isPending ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo'}
           </Button>
           {error && <p className="text-xs text-destructive">{error}</p>}
-          {!error && (
+          {!error && brandingEnabled && (
             <p className="text-xs text-muted-foreground">
               JPEG, PNG, WebP, or SVG. Max 2MB. Shown in the sidebar, dashboard, and invoices.
             </p>
+          )}
+          {!error && !brandingEnabled && (
+            <p className="text-xs text-muted-foreground">Custom branding isn't enabled for your account.</p>
           )}
         </div>
       </div>

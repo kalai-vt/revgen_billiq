@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.pos import service
 from app.modules.pos.service import HeldBillError
 from app.schemas.pos import HeldBillCreate
 
-router = APIRouter(prefix="/api/pos", tags=["pos"])
+router = APIRouter(prefix="/api/pos", tags=["pos"], dependencies=[Depends(require_feature("pos_billing"))])
 
 
 @router.post("/held-bills")

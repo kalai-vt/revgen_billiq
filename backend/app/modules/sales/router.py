@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import assert_feature
 from app.core.responses import make_response
 from app.models.settings import Settings
 from app.models.user import User
@@ -41,6 +42,7 @@ def get_invoices(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "pos_billing")
     items, total = service.list_invoices(
         db,
         current_user.tenant_id,
@@ -77,6 +79,7 @@ def get_invoices_export(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "pos_billing")
     items = service.list_invoices_for_export(
         db,
         current_user.tenant_id,
@@ -108,6 +111,7 @@ def get_invoice_detail(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "pos_billing")
     invoice = service.get_invoice(db, current_user.tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -120,6 +124,7 @@ def post_invoice(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "pos_billing")
     try:
         invoice = service.create_invoice(db, current_user.tenant_id, current_user, payload)
     except SalesError as exc:
@@ -133,6 +138,7 @@ def get_invoice_pdf(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "pos_billing")
     invoice = service.get_invoice(db, current_user.tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -154,6 +160,7 @@ def post_void_invoice(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "pos_billing")
     invoice = service.get_invoice(db, current_user.tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -179,6 +186,7 @@ def get_returns(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "returns")
     items, total = service.list_returns(
         db,
         current_user.tenant_id,
@@ -219,6 +227,7 @@ def get_returns_export(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "returns")
     items = service.list_returns_for_export(
         db,
         current_user.tenant_id,
@@ -251,6 +260,7 @@ def get_returns_dashboard(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "returns")
     dashboard = service.get_returns_dashboard(db, current_user.tenant_id)
     return make_response(True, "Returns dashboard loaded", ReturnsDashboardOut.model_validate(dashboard).model_dump(mode="json"))
 
@@ -261,6 +271,7 @@ def get_return_detail(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "returns")
     ret = service.get_return(db, current_user.tenant_id, return_id)
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")
@@ -273,6 +284,7 @@ def get_return_pdf(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> Response:
+    assert_feature(db, current_user.tenant_id, "returns")
     ret = service.get_return(db, current_user.tenant_id, return_id)
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")
@@ -298,6 +310,7 @@ def post_cancel_return(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "returns")
     ret = service.get_return(db, current_user.tenant_id, return_id)
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")
@@ -314,6 +327,7 @@ def get_invoice_returns(
     current_user: User = Depends(require_role("owner", "manager", "staff")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "returns")
     invoice = service.get_invoice(db, current_user.tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -328,6 +342,7 @@ def post_invoice_return(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    assert_feature(db, current_user.tenant_id, "returns")
     invoice = service.get_invoice(db, current_user.tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")

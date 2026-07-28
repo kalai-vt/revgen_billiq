@@ -60,8 +60,8 @@ export const NAV_ENTRIES: NavEntry[] = [
     label: 'Catalog',
     icon: Package,
     children: [
-      { to: '/categories', label: 'Categories', icon: Tags, roles: ['owner', 'manager', 'staff'] },
-      { to: '/products', label: 'Products', icon: Package, roles: ['owner', 'manager', 'staff'] },
+      { to: '/categories', label: 'Categories', icon: Tags, roles: ['owner', 'manager', 'staff'], moduleKey: 'categories' },
+      { to: '/products', label: 'Products', icon: Package, roles: ['owner', 'manager', 'staff'], moduleKey: 'products' },
     ],
   },
   {

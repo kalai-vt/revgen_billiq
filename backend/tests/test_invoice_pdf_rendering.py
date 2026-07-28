@@ -18,7 +18,12 @@ def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
         "currency": "USD",
         "timezone": "UTC",
     }
-    return register_and_activate_standalone(client, payload)
+    owner = register_and_activate_standalone(client, payload)
+    # Invoice Designer is an "explore"+ catalog module (see feature_catalog.py's
+    # PLAN_DEFAULT_MODULES) — this file exercises custom invoice templates, so the fixture
+    # tenant needs it enabled.
+    client.put("/api/settings", json={"plan": "explore"}, headers=_headers(owner["access_token"]))
+    return owner
 
 
 def _headers(access_token: str) -> dict:

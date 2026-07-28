@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import { RequireModule } from '@/components/layout/RequireModule';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { APP_BASE_PATH } from '@/lib/app-path';
 import { getRoleHomeRoute } from '@/lib/roleHome';
@@ -103,34 +104,169 @@ export const router = createBrowserRouter([
           {
             element: <ProtectedRoute roles={['owner', 'manager']} />,
             children: [
-              { path: '/dashboard', element: <DashboardPage /> },
+              {
+                path: '/dashboard',
+                element: (
+                  <RequireModule moduleKey="reports_analytics" label="Dashboard">
+                    <DashboardPage />
+                  </RequireModule>
+                ),
+              },
               { path: '/analytics', element: <Navigate to="/analytics/advanced" replace /> },
               { path: '/analytics/advanced', element: <AdvancedAnalyticsPage /> },
               { path: '/analytics/trends', element: <TrendComparisonPage /> },
-              { path: '/outstanding', element: <OutstandingDashboardPage /> },
-              { path: '/inventory/import', element: <ImportInventoryPage /> },
-              { path: '/inventory/import-history', element: <InventoryImportHistoryPage /> },
-              { path: '/products/import', element: <ImportProductsPage /> },
-              { path: '/products/import-history', element: <ProductImportHistoryPage /> },
-              { path: '/customers/import', element: <ImportCustomersPage /> },
-              { path: '/customers/import-history', element: <CustomerImportHistoryPage /> },
+              {
+                path: '/outstanding',
+                element: (
+                  <RequireModule moduleKey="payments_credit" label="Outstanding">
+                    <OutstandingDashboardPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/inventory/import',
+                element: (
+                  <RequireModule moduleKey="inventory" label="Inventory">
+                    <ImportInventoryPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/inventory/import-history',
+                element: (
+                  <RequireModule moduleKey="inventory" label="Inventory">
+                    <InventoryImportHistoryPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/products/import',
+                element: (
+                  <RequireModule moduleKey="products" label="Products">
+                    <ImportProductsPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/products/import-history',
+                element: (
+                  <RequireModule moduleKey="products" label="Products">
+                    <ProductImportHistoryPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/customers/import',
+                element: (
+                  <RequireModule moduleKey="customers" label="Customers">
+                    <ImportCustomersPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/customers/import-history',
+                element: (
+                  <RequireModule moduleKey="customers" label="Customers">
+                    <CustomerImportHistoryPage />
+                  </RequireModule>
+                ),
+              },
               { path: '/activity-log', element: <ActivityLogPage /> },
             ],
           },
-          { path: '/products', element: <ProductsPage /> },
-          { path: '/categories', element: <CategoriesPage /> },
-          { path: '/inventory', element: <InventoryDashboardPage /> },
-          { path: '/inventory/products', element: <InventoryListPage /> },
-          { path: '/inventory/history', element: <StockHistoryPage /> },
-          { path: '/customers', element: <CustomersPage /> },
-          { path: '/customers/:id', element: <CustomerDetailPage /> },
-          { path: '/pos', element: <POSPage /> },
-          { path: '/invoices', element: <InvoicesListPage /> },
-          { path: '/returns', element: <ReturnHistoryPage /> },
+          {
+            path: '/products',
+            element: (
+              <RequireModule moduleKey="products" label="Products">
+                <ProductsPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/categories',
+            element: (
+              <RequireModule moduleKey="categories" label="Categories">
+                <CategoriesPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/inventory',
+            element: (
+              <RequireModule moduleKey="inventory" label="Inventory">
+                <InventoryDashboardPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/inventory/products',
+            element: (
+              <RequireModule moduleKey="inventory" label="Inventory">
+                <InventoryListPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/inventory/history',
+            element: (
+              <RequireModule moduleKey="inventory" label="Inventory">
+                <StockHistoryPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/customers',
+            element: (
+              <RequireModule moduleKey="customers" label="Customers">
+                <CustomersPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/customers/:id',
+            element: (
+              <RequireModule moduleKey="customers" label="Customers">
+                <CustomerDetailPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/pos',
+            element: (
+              <RequireModule moduleKey="pos_billing" label="Billing">
+                <POSPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/invoices',
+            element: (
+              <RequireModule moduleKey="pos_billing" label="Invoices">
+                <InvoicesListPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/returns',
+            element: (
+              <RequireModule moduleKey="returns" label="Returns & Refunds">
+                <ReturnHistoryPage />
+              </RequireModule>
+            ),
+          },
           { path: '/settings', element: <SettingsPage /> },
           {
             element: <ProtectedRoute roles={['owner']} />,
-            children: [{ path: '/settings/invoice-designer', element: <InvoiceDesignerPage /> }],
+            children: [
+              {
+                path: '/settings/invoice-designer',
+                element: (
+                  <RequireModule moduleKey="invoice_designer" label="Invoice Designer">
+                    <InvoiceDesignerPage />
+                  </RequireModule>
+                ),
+              },
+            ],
           },
         ],
       },
