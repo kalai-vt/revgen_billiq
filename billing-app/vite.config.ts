@@ -3,7 +3,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // Served under /billiq/* in production (see root vercel.json); local dev keeps serving at "/"
+  // so the existing http://localhost:5173 workflow is unaffected.
+  base: command === 'build' ? '/billiq/' : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -34,4 +37,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
