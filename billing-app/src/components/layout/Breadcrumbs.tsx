@@ -10,7 +10,7 @@ interface RouteMeta {
 }
 
 const ROUTE_LABELS: Record<string, RouteMeta> = {
-  '/dashboard': { label: 'Dashboard' },
+  '/dashboard': { label: 'Overview' },
   '/analytics/advanced': { label: 'Advanced Analytics', group: 'Analytics' },
   '/analytics/trends': { label: 'Trend Comparison', group: 'Analytics' },
   '/pos': { label: 'Billing', group: 'Sales' },

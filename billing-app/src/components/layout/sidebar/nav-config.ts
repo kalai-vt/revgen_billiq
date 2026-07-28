@@ -45,7 +45,7 @@ export function isGroup(entry: NavEntry): entry is NavGroup {
 }
 
 export const NAV_ENTRIES: NavEntry[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['owner', 'manager'], moduleKey: 'reports_analytics' },
+  { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, roles: ['owner', 'manager'], moduleKey: 'reports_analytics' },
   {
     label: 'Sales',
     icon: ShoppingCart,

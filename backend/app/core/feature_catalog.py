@@ -62,7 +62,7 @@ def _m(
 
 FEATURE_CATALOG: list[FeatureModule] = [
     # ---- Core Modules (real, shipped) ----
-    _m("dashboard", "Dashboard", "The tenant's home overview screen.", "core", is_implemented=True, always_on=True),
+    _m("dashboard", "Overview", "The tenant's home overview screen.", "core", is_implemented=True, always_on=True),
     _m("pos_billing", "Billing", "Point-of-sale checkout and invoicing.", "core", is_implemented=True, config_schema=[
         {"key": "max_monthly_invoices", "label": "Maximum monthly invoices", "type": "number", "default": 1000},
         {"key": "thermal_printing", "label": "Thermal printing", "type": "boolean", "default": True},

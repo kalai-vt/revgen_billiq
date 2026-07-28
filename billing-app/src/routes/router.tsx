@@ -107,7 +107,7 @@ export const router = createBrowserRouter([
               {
                 path: '/dashboard',
                 element: (
-                  <RequireModule moduleKey="reports_analytics" label="Dashboard">
+                  <RequireModule moduleKey="reports_analytics" label="Overview">
                     <DashboardPage />
                   </RequireModule>
                 ),
