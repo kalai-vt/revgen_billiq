@@ -22,6 +22,7 @@ class DashboardKpis(BaseModel):
     net_sales: float
     total_orders: int
     average_order_value: float
+    total_units_sold: float
     new_customers: int
     credit_sales: float
     cash_sales: float
@@ -101,6 +102,24 @@ class RecentInvoice(BaseModel):
     created_at: datetime
 
 
+class CustomerRetention(BaseModel):
+    new_customers: int
+    returning_customers: int
+    retention_rate_percent: float
+
+
+class CashFlowPoint(BaseModel):
+    bucket_start: date
+    bucket_label: str
+    amount: float
+
+
+class CashFlowSummary(BaseModel):
+    total_cash_in: float
+    by_method: list[PaymentMethodBreakdown]
+    daily: list[CashFlowPoint]
+
+
 class DashboardOut(BaseModel):
     meta: DateRangeMeta
     kpis: DashboardKpis
@@ -113,3 +132,25 @@ class DashboardOut(BaseModel):
     tax_breakdown: list[TaxBreakdownRow]
     discount_analysis: DiscountAnalysis
     recent_invoices: list[RecentInvoice]
+    customer_retention: CustomerRetention
+    cash_flow_summary: CashFlowSummary
+
+
+ComparisonUnit = Literal["day", "week", "month", "quarter", "year"]
+
+
+class ComparisonMetric(BaseModel):
+    key: str
+    label: str
+    current_value: float
+    previous_value: float
+    absolute_difference: float
+    growth_percent: float | None
+    direction: Literal["up", "down", "flat"]
+
+
+class TrendComparisonOut(BaseModel):
+    unit: ComparisonUnit
+    current_label: str
+    previous_label: str
+    metrics: list[ComparisonMetric]

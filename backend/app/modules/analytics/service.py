@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import case, func
@@ -9,11 +10,17 @@ from sqlalchemy.orm import Session
 
 from app.models.catalog import Category, Product
 from app.models.customer import Customer
+from app.models.payment import Payment
 from app.models.returns import Return
 from app.models.sales import Invoice, InvoiceItem
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.analytics import (
+    CashFlowPoint,
+    CashFlowSummary,
+    ComparisonMetric,
+    ComparisonUnit,
+    CustomerRetention,
     DashboardKpis,
     DashboardOut,
     DateRangeMeta,
@@ -26,6 +33,7 @@ from app.schemas.analytics import (
     TaxBreakdownRow,
     TopCategory,
     TopProduct,
+    TrendComparisonOut,
     TrendPoint,
 )
 
@@ -66,6 +74,10 @@ def _local_day_bounds_utc(tenant: Tenant, d: date) -> datetime:
     tz = _tenant_zone(tenant)
     local_midnight = datetime(d.year, d.month, d.day, tzinfo=tz)
     return local_midnight.astimezone(timezone.utc)
+
+
+def _tenant_today(tenant: Tenant) -> date:
+    return datetime.now(timezone.utc).astimezone(_tenant_zone(tenant)).date()
 
 
 def resolve_window(tenant: Tenant, date_from: date, date_to: date, preset: str | None = None) -> AnalyticsWindow:
@@ -122,6 +134,14 @@ def get_kpis(db: Session, window: AnalyticsWindow) -> DashboardKpis:
     total_orders = int(totals.total_orders)
     average_order_value = total_sales / total_orders if total_orders else 0.0
 
+    total_units_sold = (
+        db.query(func.coalesce(func.sum(InvoiceItem.quantity), 0.0))
+        .join(Invoice, Invoice.id == InvoiceItem.invoice_id)
+        .filter(*_window_filter(window))
+        .scalar()
+        or 0.0
+    )
+
     returned = (
         db.query(
             func.count(func.distinct(Return.invoice_id)).label("returned_orders"),
@@ -172,6 +192,7 @@ def get_kpis(db: Session, window: AnalyticsWindow) -> DashboardKpis:
         net_sales=total_sales - returned_amount,
         total_orders=total_orders,
         average_order_value=average_order_value,
+        total_units_sold=float(total_units_sold),
         new_customers=int(new_customers),
         credit_sales=float(totals.credit_sales),
         cash_sales=float(totals.cash_sales),
@@ -405,6 +426,146 @@ def get_discount_analysis(db: Session, window: AnalyticsWindow) -> DiscountAnaly
     )
 
 
+def get_customer_retention(db: Session, window: AnalyticsWindow) -> CustomerRetention:
+    customer_ids = [
+        row[0]
+        for row in db.query(Invoice.customer_id.distinct())
+        .filter(*_window_filter(window), Invoice.customer_id.isnot(None))
+        .all()
+    ]
+    if not customer_ids:
+        return CustomerRetention(new_customers=0, returning_customers=0, retention_rate_percent=0.0)
+
+    returning = (
+        db.query(func.count(func.distinct(Invoice.customer_id)))
+        .filter(
+            Invoice.tenant_id == window.tenant_id,
+            Invoice.status.in_(_SALE_STATUSES),
+            Invoice.created_at < window.start_utc,
+            Invoice.customer_id.in_(customer_ids),
+        )
+        .scalar()
+        or 0
+    )
+    total = len(customer_ids)
+    retention_rate = (returning / total * 100) if total else 0.0
+    return CustomerRetention(new_customers=total - int(returning), returning_customers=int(returning), retention_rate_percent=retention_rate)
+
+
+def get_cash_flow_summary(db: Session, window: AnalyticsWindow) -> CashFlowSummary:
+    # Cash *inflow* only — there's no expense/outflow tracking in this app (Expenses is an
+    # unimplemented roadmap module), so this isn't a full cash-flow statement.
+    #
+    # `payments.service.record_initial_payment` mirrors a customer-linked invoice's checkout
+    # payment into a real Payment row (so the customer ledger reconciles the same way for money
+    # collected at checkout and later via Receive Payment) — it's a no-op for walk-in invoices
+    # with no customer_id. So: walk-in invoices must be counted from Invoice.paid_amount directly
+    # (they never get a Payment row), while customer-linked invoices must be counted from Payment
+    # rows only (which already cover both their checkout payment and any later collection) —
+    # counting both for a customer-linked invoice would double-count its checkout payment.
+    invoice_rows = (
+        db.query(
+            func.date(Invoice.created_at).label("day"),
+            Invoice.payment_method.label("method"),
+            func.coalesce(func.sum(Invoice.paid_amount), 0.0).label("amount"),
+            func.count(Invoice.id).label("count"),
+        )
+        .filter(*_window_filter(window), Invoice.customer_id.is_(None))
+        .group_by(func.date(Invoice.created_at), Invoice.payment_method)
+        .all()
+    )
+    payment_rows = (
+        db.query(
+            func.date(Payment.created_at).label("day"),
+            Payment.payment_method.label("method"),
+            func.coalesce(func.sum(Payment.amount), 0.0).label("amount"),
+            func.count(Payment.id).label("count"),
+        )
+        .filter(
+            Payment.tenant_id == window.tenant_id,
+            Payment.created_at >= window.start_utc,
+            Payment.created_at < window.end_utc,
+        )
+        .group_by(func.date(Payment.created_at), Payment.payment_method)
+        .all()
+    )
+
+    daily: dict[date, float] = {}
+    by_method: dict[str, list[float]] = {}
+    total = 0.0
+    for row in list(invoice_rows) + list(payment_rows):
+        day = row.day if isinstance(row.day, date) else date.fromisoformat(str(row.day))
+        amount = float(row.amount)
+        daily[day] = daily.get(day, 0.0) + amount
+        total += amount
+        bucket = by_method.setdefault(row.method, [0.0, 0])
+        bucket[0] += amount
+        bucket[1] += int(row.count)
+
+    daily_points = [
+        CashFlowPoint(bucket_start=day, bucket_label=day.strftime("%b %d"), amount=amount) for day, amount in sorted(daily.items())
+    ]
+    method_points = [
+        PaymentMethodBreakdown(method=method, amount=amount, count=int(count))
+        for method, (amount, count) in sorted(by_method.items())
+    ]
+    return CashFlowSummary(total_cash_in=total, by_method=method_points, daily=daily_points)
+
+
+_COMPARISON_UNIT_LABELS: dict[ComparisonUnit, str] = {
+    "day": "Day", "week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year",
+}
+
+
+def get_trend_comparison(db: Session, tenant: Tenant, unit: ComparisonUnit) -> TrendComparisonOut:
+    today_local = _tenant_today(tenant)
+    if unit == "day":
+        period_start = today_local
+    elif unit == "week":
+        period_start = today_local - timedelta(days=today_local.weekday())
+    elif unit == "month":
+        period_start = date(today_local.year, today_local.month, 1)
+    elif unit == "quarter":
+        quarter_start_month = ((today_local.month - 1) // 3) * 3 + 1
+        period_start = date(today_local.year, quarter_start_month, 1)
+    else:
+        period_start = date(today_local.year, 1, 1)
+
+    # Previous period is the immediately preceding span of the SAME length (in days) as
+    # "current period so far" — a fair like-for-like comparison (e.g. 15 days of this month vs
+    # the first 15 days of last month), not full-previous-period vs partial-current-period.
+    period_days = (today_local - period_start).days + 1
+    previous_to = period_start - timedelta(days=1)
+    previous_from = previous_to - timedelta(days=period_days - 1)
+
+    current_window = resolve_window(tenant, period_start, today_local)
+    previous_window = resolve_window(tenant, previous_from, previous_to)
+    current_kpis = get_kpis(db, current_window)
+    previous_kpis = get_kpis(db, previous_window)
+
+    metric_defs: list[tuple[str, str, float, float]] = [
+        ("revenue", "Revenue", current_kpis.total_sales, previous_kpis.total_sales),
+        ("orders", "Orders", float(current_kpis.total_orders), float(previous_kpis.total_orders)),
+        ("customers", "Customers", float(current_kpis.new_customers), float(previous_kpis.new_customers)),
+        ("average_order_value", "Average Order Value", current_kpis.average_order_value, previous_kpis.average_order_value),
+        ("products_sold", "Products Sold", current_kpis.total_units_sold, previous_kpis.total_units_sold),
+    ]
+    metrics: list[ComparisonMetric] = []
+    for key, label, current_value, previous_value in metric_defs:
+        diff = current_value - previous_value
+        growth = (diff / previous_value * 100) if previous_value else None
+        direction: Literal["up", "down", "flat"] = "flat" if diff == 0 else ("up" if diff > 0 else "down")
+        metrics.append(
+            ComparisonMetric(
+                key=key, label=label, current_value=current_value, previous_value=previous_value,
+                absolute_difference=diff, growth_percent=growth, direction=direction,
+            )
+        )
+
+    label = _COMPARISON_UNIT_LABELS[unit]
+    return TrendComparisonOut(unit=unit, current_label=f"Current {label}", previous_label=f"Previous {label}", metrics=metrics)
+
+
 def get_recent_invoices(db: Session, tenant_id: str, limit: int = 10) -> list[RecentInvoice]:
     rows = db.query(Invoice).filter(Invoice.tenant_id == tenant_id).order_by(Invoice.created_at.desc()).limit(limit).all()
     return [
@@ -433,4 +594,6 @@ def get_dashboard(db: Session, tenant: Tenant, window: AnalyticsWindow) -> Dashb
         tax_breakdown=get_tax_breakdown(db, window),
         discount_analysis=get_discount_analysis(db, window),
         recent_invoices=get_recent_invoices(db, tenant.id),
+        customer_retention=get_customer_retention(db, window),
+        cash_flow_summary=get_cash_flow_summary(db, window),
     )

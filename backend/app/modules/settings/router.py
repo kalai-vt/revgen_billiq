@@ -9,7 +9,7 @@ from app.core.db import get_db
 from app.core.deps import get_current_user, require_role
 from app.core.responses import make_response
 from app.models.user import User
-from app.modules.admin_features.service import get_enabled_flags_for_tenant
+from app.modules.admin_features.service import get_effective_flags_for_tenant
 from app.modules.settings import service
 from app.modules.settings.service import SettingsError
 from app.schemas.settings import BrandingOut, BusinessPreferencesOut, ProductConfigOut, SettingsOut, SettingsUpdate
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["settings"])
 def get_feature_flags(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict[str, Any]:
-    return make_response(True, "Feature flags loaded", get_enabled_flags_for_tenant(db, current_user.tenant_id))
+    return make_response(True, "Feature flags loaded", get_effective_flags_for_tenant(db, current_user.tenant_id))
 
 
 @router.get("/settings")

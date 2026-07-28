@@ -60,7 +60,12 @@ const OutstandingDashboardPage = lazy(() =>
 const InvoicePrintPage = lazy(() => import('@/features/pos/pages/InvoicePrintPage').then((m) => ({ default: m.InvoicePrintPage })));
 const ReturnPrintPage = lazy(() => import('@/features/pos/pages/ReturnPrintPage').then((m) => ({ default: m.ReturnPrintPage })));
 const DashboardPage = lazy(() => import('@/features/analytics/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const AnalyticsPage = lazy(() => import('@/features/analytics/pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
+const AdvancedAnalyticsPage = lazy(() =>
+  import('@/features/analytics/pages/AdvancedAnalyticsPage').then((m) => ({ default: m.AdvancedAnalyticsPage })),
+);
+const TrendComparisonPage = lazy(() =>
+  import('@/features/analytics/pages/TrendComparisonPage').then((m) => ({ default: m.TrendComparisonPage })),
+);
 const PricingPage = lazy(() => import('@/features/plans/pages/PricingPage').then((m) => ({ default: m.PricingPage })));
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const InvoiceDesignerPage = lazy(() =>
@@ -99,7 +104,9 @@ export const router = createBrowserRouter([
             element: <ProtectedRoute roles={['owner', 'manager']} />,
             children: [
               { path: '/dashboard', element: <DashboardPage /> },
-              { path: '/analytics', element: <AnalyticsPage /> },
+              { path: '/analytics', element: <Navigate to="/analytics/advanced" replace /> },
+              { path: '/analytics/advanced', element: <AdvancedAnalyticsPage /> },
+              { path: '/analytics/trends', element: <TrendComparisonPage /> },
               { path: '/outstanding', element: <OutstandingDashboardPage /> },
               { path: '/inventory/import', element: <ImportInventoryPage /> },
               { path: '/inventory/import-history', element: <InventoryImportHistoryPage /> },

@@ -59,7 +59,7 @@ def _m(
 FEATURE_CATALOG: list[FeatureModule] = [
     # ---- Core Modules (real, shipped) ----
     _m("dashboard", "Dashboard", "The tenant's home overview screen.", "core", is_implemented=True, always_on=True),
-    _m("pos_billing", "Billing / POS", "Point-of-sale checkout and invoicing.", "core", is_implemented=True, config_schema=[
+    _m("pos_billing", "Billing", "Point-of-sale checkout and invoicing.", "core", is_implemented=True, config_schema=[
         {"key": "max_monthly_invoices", "label": "Maximum monthly invoices", "type": "number", "default": 1000},
         {"key": "thermal_printing", "label": "Thermal printing", "type": "boolean", "default": True},
         {"key": "credit_sales", "label": "Credit sales", "type": "boolean", "default": True},
@@ -90,6 +90,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
     ]),
     _m("settings", "Settings", "Tenant business settings and preferences.", "core", is_implemented=True, always_on=True),
     _m("payments_credit", "Payments & Credit", "Outstanding balances and credit collection.", "core", is_implemented=True, requires=["pos_billing"]),
+    _m("analytics", "Analytics", "Sales performance and business intelligence dashboards.", "core", is_implemented=True),
 
     # ---- Business Modules (roadmap) ----
     _m("purchase", "Purchase", "Purchase order management.", "business"),
@@ -124,7 +125,8 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("api_access", "API Access", "Programmatic access via API keys.", "premium"),
     _m("custom_branding", "Custom Branding", "Upload a logo and brand the invoices.", "premium", is_implemented=True),
     _m("white_label", "White Label", "Remove RevGen BillIQ branding entirely.", "premium", requires=["custom_branding"]),
-    _m("advanced_analytics", "Advanced Analytics", "Deeper analytics and trend charts.", "premium", is_implemented=True, requires=["reports_analytics"]),
+    _m("advanced_analytics", "Advanced Analytics", "Deeper analytics and trend charts.", "premium", is_implemented=True, requires=["analytics"]),
+    _m("trend_comparison", "Trend Comparison", "Period-over-period performance comparison.", "premium", is_implemented=True, requires=["analytics"]),
 ]
 
 FEATURE_BY_KEY: dict[str, FeatureModule] = {m["key"]: m for m in FEATURE_CATALOG}
@@ -154,7 +156,7 @@ _CORE_KEYS = [m["key"] for m in FEATURE_CATALOG if m["category"] == "core"]
 
 PLAN_DEFAULT_MODULES: dict[str, list[str]] = {
     "basic": [*_CORE_KEYS],
-    "explore": [*_CORE_KEYS, "invoice_designer", "custom_branding", "advanced_analytics"],
+    "explore": [*_CORE_KEYS, "invoice_designer", "custom_branding", "advanced_analytics", "trend_comparison"],
     "advance": [m["key"] for m in FEATURE_CATALOG],
 }
 

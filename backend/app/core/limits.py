@@ -34,13 +34,14 @@ def assert_under_limit(db: Session, tenant_id: str, limit_key: str, current_coun
 def assert_feature(db: Session, tenant_id: str, feature_key: str) -> None:
     # Some plan-tier features (e.g. "advanced_analytics") are also modules the RevGenIQ Admin
     # Portal's Feature Management page can enable per-tenant, overriding the plan default — so
-    # the admin's merged effective-flags computation (override if set, else plan default) is
-    # authoritative here, not the raw static plan matrix. Keys with no catalog module equivalent
-    # (e.g. "user_management", "barcode_support") aren't in this map, so they fall through to the
-    # plan-only check below unchanged.
-    from app.modules.admin_features.service import get_enabled_flags_for_tenant
+    # the admin's cascaded effective-flags computation (override if set else plan default, then
+    # cascaded through each module's `requires` chain so a disabled prerequisite also disables
+    # its dependents) is authoritative here, not the raw static plan matrix. Keys with no catalog
+    # module equivalent (e.g. "user_management", "barcode_support") aren't in this map, so they
+    # fall through to the plan-only check below unchanged.
+    from app.modules.admin_features.service import get_effective_flags_for_tenant
 
-    flags = get_enabled_flags_for_tenant(db, tenant_id)
+    flags = get_effective_flags_for_tenant(db, tenant_id)
     if feature_key in flags:
         if not flags[feature_key]:
             plan = get_plan_config(db, tenant_id)

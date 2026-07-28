@@ -31,6 +31,8 @@ Widget = Literal[
     "tax_breakdown",
     "discount_analysis",
     "recent_invoices",
+    "customer_retention",
+    "cash_flow_summary",
     "full_dashboard",
 ]
 
@@ -117,5 +119,57 @@ def dashboard_export(
         content = export_module.export_widget_pdf(widget, data, meta)
         media_type = "application/pdf"
         filename = f"{widget}.pdf"
+
+    return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/analytics/trend-comparison")
+def trend_comparison(
+    unit: service.ComparisonUnit = Query(...),
+    current_user: User = Depends(require_role("owner", "manager")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    tenant = get_tenant(db, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    assert_feature(db, current_user.tenant_id, "trend_comparison")
+    result = service.get_trend_comparison(db, tenant, unit)
+    return make_response(True, "Trend comparison generated", result.model_dump(mode="json"))
+
+
+@router.get("/analytics/trend-comparison/export")
+def trend_comparison_export(
+    unit: service.ComparisonUnit = Query(...),
+    format: str = Query(pattern="^(excel|pdf|csv)$"),
+    current_user: User = Depends(require_role("owner", "manager")),
+    db: Session = Depends(get_db),
+) -> Response:
+    tenant = get_tenant(db, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    assert_feature(db, current_user.tenant_id, "trend_comparison")
+    result = service.get_trend_comparison(db, tenant, unit)
+
+    settings = get_settings(db, current_user.tenant_id)
+    meta = ExportMeta(
+        company_name=tenant.company_name,
+        logo_url=settings.logo_url if settings else None,
+        report_title="Trend Comparison",
+        filter_label=f"{result.current_label} vs {result.previous_label}",
+        generated_at=datetime.now(timezone.utc),
+    )
+
+    if format == "excel":
+        content = export_module.export_trend_comparison_excel(result)
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        filename = "trend_comparison.xlsx"
+    elif format == "csv":
+        content = export_module.export_trend_comparison_csv(result)
+        media_type = "text/csv"
+        filename = "trend_comparison.csv"
+    else:
+        content = export_module.export_trend_comparison_pdf(result, meta)
+        media_type = "application/pdf"
+        filename = "trend_comparison.pdf"
 
     return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})

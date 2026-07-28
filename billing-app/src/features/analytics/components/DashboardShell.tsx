@@ -6,13 +6,16 @@ import { IconButton } from '@/components/ui/icon-button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as analyticsApi from '@/features/analytics/api';
 import type { DashboardWidget } from '@/features/analytics/api';
+import { CashFlowSummaryChart } from '@/features/analytics/components/CashFlowSummaryChart';
+import { CustomerRetentionCard } from '@/features/analytics/components/CustomerRetentionCard';
 import { DiscountAnalysisCard } from '@/features/analytics/components/DiscountAnalysisCard';
 import { HourlySalesChart } from '@/features/analytics/components/HourlySalesChart';
-import { KpiCards } from '@/features/analytics/components/KpiCards';
+import { KpiCards, OVERVIEW_KPI_KEYS } from '@/features/analytics/components/KpiCards';
 import { OrdersTrendChart } from '@/features/analytics/components/OrdersTrendChart';
 import { PaymentMethodsChart } from '@/features/analytics/components/PaymentMethodsChart';
 import { RecentInvoicesTable } from '@/features/analytics/components/RecentInvoicesTable';
 import { SalesByEmployeeChart } from '@/features/analytics/components/SalesByEmployeeChart';
+import { SalesOrdersComboChart } from '@/features/analytics/components/SalesOrdersComboChart';
 import { SalesTrendChart } from '@/features/analytics/components/SalesTrendChart';
 import { TaxBreakdownChart } from '@/features/analytics/components/TaxBreakdownChart';
 import { TopCategoriesChart } from '@/features/analytics/components/TopCategoriesChart';
@@ -29,9 +32,13 @@ interface DashboardShellProps {
   description: string;
   defaultPreset: DateRangePreset;
   advanced: boolean;
+  /** "overview" = lean 5-KPI/4-chart/2-table executive snapshot. "advanced" = the full detailed
+   * report suite. Both share the same header chrome (date filter, refresh, export, print). */
+  variant: 'overview' | 'advanced';
+  presets?: DateRangePreset[];
 }
 
-export function DashboardShell({ title, description, defaultPreset, advanced }: DashboardShellProps) {
+export function DashboardShell({ title, description, defaultPreset, advanced, variant, presets }: DashboardShellProps) {
   const { tenant } = useAuth();
   const timezone = tenant?.timezone ?? 'UTC';
   const [range, setRange] = useState(() => resolveDateRangePreset(defaultPreset, timezone));
@@ -54,7 +61,7 @@ export function DashboardShell({ title, description, defaultPreset, advanced }: 
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <DateRangeSelector value={range} onChange={setRange} timezone={timezone} />
+          <DateRangeSelector value={range} onChange={setRange} timezone={timezone} presets={presets} />
           <IconButton
             tooltip="Refresh"
             variant="outline"
@@ -75,38 +82,70 @@ export function DashboardShell({ title, description, defaultPreset, advanced }: 
         </div>
       </div>
 
-      <KpiCards kpis={data?.kpis} isLoading={isLoading} />
+      <KpiCards kpis={data?.kpis} isLoading={isLoading} tiles={variant === 'overview' ? OVERVIEW_KPI_KEYS : undefined} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SalesTrendChart data={data?.sales_trend ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_trend', f)} />
-        <OrdersTrendChart data={data?.sales_trend ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_trend', f)} />
-      </div>
+      {variant === 'overview' ? (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TopProductsChart data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
+            <TopCategoriesChart data={data?.top_categories ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_categories', f)} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PaymentMethodsChart data={data?.payment_methods ?? []} isLoading={isLoading} onExport={(f) => exportWidget('payment_methods', f)} />
+            <SalesOrdersComboChart data={data?.sales_trend ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_trend', f)} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TopProductsTable data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
+            <RecentInvoicesTable data={data?.recent_invoices ?? []} isLoading={isLoading} onExport={(f) => exportWidget('recent_invoices', f)} />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SalesTrendChart data={data?.sales_trend ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_trend', f)} />
+            <OrdersTrendChart data={data?.sales_trend ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_trend', f)} />
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PaymentMethodsChart data={data?.payment_methods ?? []} isLoading={isLoading} onExport={(f) => exportWidget('payment_methods', f)} />
-        <HourlySalesChart data={data?.hourly_sales ?? []} isLoading={isLoading} onExport={(f) => exportWidget('hourly_sales', f)} />
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PaymentMethodsChart data={data?.payment_methods ?? []} isLoading={isLoading} onExport={(f) => exportWidget('payment_methods', f)} />
+            <HourlySalesChart data={data?.hourly_sales ?? []} isLoading={isLoading} onExport={(f) => exportWidget('hourly_sales', f)} />
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TopProductsChart data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
-        <TopCategoriesChart data={data?.top_categories ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_categories', f)} />
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TopProductsChart data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
+            <TopCategoriesChart data={data?.top_categories ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_categories', f)} />
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SalesByEmployeeChart data={data?.sales_by_employee ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_by_employee', f)} />
-        <TaxBreakdownChart data={data?.tax_breakdown ?? []} isLoading={isLoading} onExport={(f) => exportWidget('tax_breakdown', f)} />
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SalesByEmployeeChart data={data?.sales_by_employee ?? []} isLoading={isLoading} onExport={(f) => exportWidget('sales_by_employee', f)} />
+            <TaxBreakdownChart data={data?.tax_breakdown ?? []} isLoading={isLoading} onExport={(f) => exportWidget('tax_breakdown', f)} />
+          </div>
 
-      <DiscountAnalysisCard
-        data={data?.discount_analysis ?? EMPTY_DISCOUNT_ANALYSIS}
-        isLoading={isLoading}
-        onExport={(f) => exportWidget('discount_analysis', f)}
-      />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CustomerRetentionCard
+              data={data?.customer_retention ?? EMPTY_CUSTOMER_RETENTION}
+              isLoading={isLoading}
+              onExport={(f) => exportWidget('customer_retention', f)}
+            />
+            <CashFlowSummaryChart
+              data={data?.cash_flow_summary ?? EMPTY_CASH_FLOW_SUMMARY}
+              isLoading={isLoading}
+              onExport={(f) => exportWidget('cash_flow_summary', f)}
+            />
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RecentInvoicesTable data={data?.recent_invoices ?? []} isLoading={isLoading} onExport={(f) => exportWidget('recent_invoices', f)} />
-        <TopProductsTable data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
-      </div>
+          <DiscountAnalysisCard
+            data={data?.discount_analysis ?? EMPTY_DISCOUNT_ANALYSIS}
+            isLoading={isLoading}
+            onExport={(f) => exportWidget('discount_analysis', f)}
+          />
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RecentInvoicesTable data={data?.recent_invoices ?? []} isLoading={isLoading} onExport={(f) => exportWidget('recent_invoices', f)} />
+            <TopProductsTable data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -116,4 +155,16 @@ const EMPTY_DISCOUNT_ANALYSIS = {
   discounted_invoice_count: 0,
   total_invoice_count: 0,
   avg_discount_percent: 0,
+};
+
+const EMPTY_CUSTOMER_RETENTION = {
+  new_customers: 0,
+  returning_customers: 0,
+  retention_rate_percent: 0,
+};
+
+const EMPTY_CASH_FLOW_SUMMARY = {
+  total_cash_in: 0,
+  by_method: [],
+  daily: [],
 };

@@ -10,10 +10,11 @@ interface KpiTileConfig {
 }
 
 const KPI_TILES: KpiTileConfig[] = [
-  { key: 'total_sales', label: 'Total Sales', format: 'currency', scope: 'range' },
+  { key: 'total_sales', label: 'Total Revenue', format: 'currency', scope: 'range' },
   { key: 'net_sales', label: 'Net Sales', format: 'currency', scope: 'range' },
   { key: 'total_orders', label: 'Total Orders', format: 'number', scope: 'range' },
   { key: 'average_order_value', label: 'Average Order Value', format: 'currency', scope: 'range' },
+  { key: 'total_units_sold', label: 'Total Products Sold', format: 'number', scope: 'range' },
   { key: 'new_customers', label: 'New Customers', format: 'number', scope: 'range' },
   { key: 'credit_sales', label: 'Credit Sales', format: 'currency', scope: 'range' },
   { key: 'cash_sales', label: 'Cash Sales', format: 'currency', scope: 'range' },
@@ -27,6 +28,16 @@ const KPI_TILES: KpiTileConfig[] = [
   { key: 'outstanding_amount', label: 'Outstanding Amount', format: 'currency', scope: 'allTime' },
 ];
 
+/** Overview's lean 5-tile executive snapshot (Total Revenue/Orders/Customers/AOV/Products Sold).
+ * Advanced Analytics shows the full KPI_TILES set by omitting this prop. */
+export const OVERVIEW_KPI_KEYS: Array<keyof DashboardKpis> = [
+  'total_sales',
+  'total_orders',
+  'total_customers',
+  'average_order_value',
+  'total_units_sold',
+];
+
 function formatValue(value: number, format: 'currency' | 'number'): string {
   return format === 'currency' ? `₹${value.toFixed(2)}` : value.toLocaleString();
 }
@@ -34,12 +45,15 @@ function formatValue(value: number, format: 'currency' | 'number'): string {
 interface KpiCardsProps {
   kpis: DashboardKpis | undefined;
   isLoading: boolean;
+  /** Restrict to a subset of tiles (by DashboardKpis key), in the given order. Omit for the full set. */
+  tiles?: Array<keyof DashboardKpis>;
 }
 
-export function KpiCards({ kpis, isLoading }: KpiCardsProps) {
+export function KpiCards({ kpis, isLoading, tiles }: KpiCardsProps) {
+  const visibleTiles = tiles ? tiles.map((key) => KPI_TILES.find((t) => t.key === key)!).filter(Boolean) : KPI_TILES;
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      {KPI_TILES.map((tile) => (
+      {visibleTiles.map((tile) => (
         <Card key={tile.key} size="sm">
           <CardHeader className="pb-1.5">
             <CardTitle className="text-xs font-medium text-muted-foreground">{tile.label}</CardTitle>

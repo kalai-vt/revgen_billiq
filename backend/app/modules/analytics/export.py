@@ -16,7 +16,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from app.core.pdf_utils import logo_flowable
 from app.core.sanitize import escape_formula
-from app.schemas.analytics import DashboardOut
+from app.schemas.analytics import DashboardOut, TrendComparisonOut
 
 
 @dataclass
@@ -103,6 +103,25 @@ def _rows_recent_invoices(data: DashboardOut) -> list[list[str]]:
     ]
 
 
+def _rows_customer_retention(data: DashboardOut) -> list[list[str]]:
+    r = data.customer_retention
+    return [
+        ["New Customers", str(r.new_customers)],
+        ["Returning Customers", str(r.returning_customers)],
+        ["Retention Rate", f"{r.retention_rate_percent:.1f}%"],
+    ]
+
+
+def _rows_cash_flow_summary(data: DashboardOut) -> list[list[str]]:
+    c = data.cash_flow_summary
+    rows = [["Total Cash In", "", f"{c.total_cash_in:.2f}"]]
+    for m in c.by_method:
+        rows.append([f"By Method: {m.method.upper()}", str(m.count), f"{m.amount:.2f}"])
+    for p in c.daily:
+        rows.append([f"By Day: {p.bucket_label}", "", f"{p.amount:.2f}"])
+    return rows
+
+
 @dataclass
 class WidgetSpec:
     title: str
@@ -124,6 +143,8 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
     "recent_invoices": WidgetSpec(
         "Recent Invoices", ["Invoice #", "Date", "Customer", "Status", "Total", "Payment Method"], _rows_recent_invoices, 4
     ),
+    "customer_retention": WidgetSpec("Customer Retention", ["Metric", "Value"], _rows_customer_retention, 1),
+    "cash_flow_summary": WidgetSpec("Cash Flow Summary", ["Item", "Count", "Amount"], _rows_cash_flow_summary, 1),
 }
 
 _TABLE_STYLE = TableStyle(
@@ -244,5 +265,63 @@ def export_full_dashboard_pdf(data: DashboardOut, meta: ExportMeta) -> bytes:
     story = _pdf_header_story(meta, styles)
     for spec in WIDGET_SPECS.values():
         story.extend(_widget_table_story(spec, data, styles))
+    doc.build(story, onFirstPage=_pdf_footer, onLaterPages=_pdf_footer)
+    return buffer.getvalue()
+
+
+_COMPARISON_HEADERS = ["Metric", "Current", "Previous", "Difference", "Growth %"]
+
+
+def _rows_trend_comparison(result: TrendComparisonOut) -> list[list[str]]:
+    return [
+        [
+            m.label,
+            f"{m.current_value:.2f}",
+            f"{m.previous_value:.2f}",
+            f"{m.absolute_difference:+.2f}",
+            f"{m.growth_percent:+.1f}%" if m.growth_percent is not None else "—",
+        ]
+        for m in result.metrics
+    ]
+
+
+def export_trend_comparison_excel(result: TrendComparisonOut) -> bytes:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Trend Comparison"
+    sheet.append(_COMPARISON_HEADERS)
+    for row in _rows_trend_comparison(result):
+        text_columns, rest = row[:1], row[1:]
+        sheet.append([escape_formula(v) for v in text_columns] + rest)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def export_trend_comparison_csv(result: TrendComparisonOut) -> bytes:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(_COMPARISON_HEADERS)
+    for row in _rows_trend_comparison(result):
+        text_columns, rest = row[:1], row[1:]
+        writer.writerow([escape_formula(v) for v in text_columns] + rest)
+    return output.getvalue().encode("utf-8")
+
+
+def export_trend_comparison_pdf(result: TrendComparisonOut, meta: ExportMeta) -> bytes:
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4), topMargin=14 * mm, bottomMargin=18 * mm, leftMargin=14 * mm, rightMargin=14 * mm
+    )
+    styles = getSampleStyleSheet()
+    story = _pdf_header_story(meta, styles)
+    story.append(Paragraph(f"{result.current_label} vs {result.previous_label}", styles["Heading2"]))
+    story.append(Spacer(1, 2 * mm))
+    rows = _rows_trend_comparison(result)
+    table = Table([_COMPARISON_HEADERS] + rows, repeatRows=1)
+    style = TableStyle(_TABLE_STYLE.getCommands())
+    style.add("ALIGN", (1, 0), (-1, -1), "RIGHT")
+    table.setStyle(style)
+    story.append(table)
     doc.build(story, onFirstPage=_pdf_footer, onLaterPages=_pdf_footer)
     return buffer.getvalue()

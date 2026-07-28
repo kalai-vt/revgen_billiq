@@ -791,3 +791,19 @@ def get_analytics(db: Session) -> dict[str, Any]:
 def get_enabled_flags_for_tenant(db: Session, tenant_id: str) -> dict[str, bool]:
     items = list_tenant_features(db, tenant_id)
     return {item["module_key"]: item["status"] == "enabled" for item in items}
+
+
+def get_effective_flags_for_tenant(db: Session, tenant_id: str) -> dict[str, bool]:
+    """Like `get_enabled_flags_for_tenant`, but cascaded through each module's `requires` chain —
+    a module whose prerequisite is disabled resolves to `False` here even if its own stored flag
+    says "enabled". This is what the tenant-facing app should always consult (nav visibility,
+    `assert_feature`); the raw per-module status from `get_enabled_flags_for_tenant`/
+    `list_tenant_features` stays available for the admin UI, which needs to show/edit each
+    module's own stored value independently rather than a pre-collapsed cascade.
+    """
+    own = get_enabled_flags_for_tenant(db, tenant_id)
+    effective: dict[str, bool] = {}
+    for key in topo_order():
+        module = FEATURE_BY_KEY[key]
+        effective[key] = own.get(key, False) and all(effective.get(req, False) for req in module["requires"])
+    return effective

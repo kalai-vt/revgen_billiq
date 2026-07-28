@@ -14,6 +14,8 @@ import {
   Undo2,
   ScrollText,
   Wallet,
+  TrendingUp,
+  GitCompareArrows,
   type LucideIcon,
 } from 'lucide-react';
 import type { PlanId, UserRole } from '@/features/auth/api';
@@ -75,12 +77,25 @@ export const NAV_ENTRIES: NavEntry[] = [
   },
   { to: '/customers', label: 'Customers', icon: Users, roles: ['owner', 'manager', 'staff'], moduleKey: 'customers' },
   {
-    to: '/analytics',
     label: 'Analytics',
     icon: BarChart3,
-    roles: ['owner', 'manager'],
-    feature: 'advanced_analytics',
-    moduleKey: 'reports_analytics',
+    children: [
+      {
+        to: '/analytics/advanced',
+        label: 'Advanced Analytics',
+        icon: TrendingUp,
+        roles: ['owner', 'manager'],
+        feature: 'advanced_analytics',
+        moduleKey: 'advanced_analytics',
+      },
+      {
+        to: '/analytics/trends',
+        label: 'Trend Comparison',
+        icon: GitCompareArrows,
+        roles: ['owner', 'manager'],
+        moduleKey: 'trend_comparison',
+      },
+    ],
   },
   { to: '/activity-log', label: 'Activity Log', icon: ScrollText, roles: ['owner', 'manager'] },
   { to: '/settings', label: 'Settings', icon: UserCircle, roles: ['owner', 'manager', 'staff'] },

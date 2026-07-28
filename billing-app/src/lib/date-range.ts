@@ -2,11 +2,15 @@ export type DateRangePreset =
   | 'today'
   | 'yesterday'
   | 'this_week'
+  | 'last_week'
   | 'last_7_days'
   | 'this_month'
+  | 'last_month'
   | 'last_30_days'
   | 'this_quarter'
+  | 'last_quarter'
   | 'this_year'
+  | 'last_year'
   | 'custom_date'
   | 'custom_range';
 
@@ -21,11 +25,15 @@ export const PRESET_LABELS: Record<DateRangePreset, string> = {
   today: 'Today',
   yesterday: 'Yesterday',
   this_week: 'This Week',
+  last_week: 'Last Week',
   last_7_days: 'Last 7 Days',
   this_month: 'This Month',
+  last_month: 'Last Month',
   last_30_days: 'Last 30 Days',
   this_quarter: 'This Quarter',
+  last_quarter: 'Last Quarter',
   this_year: 'This Year',
+  last_year: 'Last Year',
   custom_date: 'Custom Date',
   custom_range: 'Custom Date Range',
 };
@@ -34,12 +42,33 @@ export const ALL_PRESETS: DateRangePreset[] = [
   'today',
   'yesterday',
   'this_week',
+  'last_week',
   'last_7_days',
   'this_month',
+  'last_month',
   'last_30_days',
   'this_quarter',
+  'last_quarter',
   'this_year',
+  'last_year',
   'custom_date',
+  'custom_range',
+];
+
+/** Overview's spec'd preset set (Today/Yesterday/This-and-Last Week/Month/Quarter/Year + Custom
+ * Range) — a subset of ALL_PRESETS, omitting the rolling-window presets (Last 7/30 Days) and the
+ * single-date custom picker that are specific to Advanced Analytics' broader preset list. */
+export const OVERVIEW_PRESETS: DateRangePreset[] = [
+  'today',
+  'yesterday',
+  'this_week',
+  'last_week',
+  'this_month',
+  'last_month',
+  'this_quarter',
+  'last_quarter',
+  'this_year',
+  'last_year',
   'custom_range',
 ];
 
@@ -92,6 +121,26 @@ function startOfYear(s: string): string {
   return formatISODate(new Date(Date.UTC(d.getUTCFullYear(), 0, 1)));
 }
 
+function lastWeekRange(today: string): { from: string; to: string } {
+  const thisWeekStart = startOfWeekMonday(today);
+  return { from: addDays(thisWeekStart, -7), to: addDays(thisWeekStart, -1) };
+}
+
+function lastMonthRange(today: string): { from: string; to: string } {
+  const to = addDays(startOfMonth(today), -1);
+  return { from: startOfMonth(to), to };
+}
+
+function lastQuarterRange(today: string): { from: string; to: string } {
+  const to = addDays(startOfQuarter(today), -1);
+  return { from: startOfQuarter(to), to };
+}
+
+function lastYearRange(today: string): { from: string; to: string } {
+  const to = addDays(startOfYear(today), -1);
+  return { from: startOfYear(to), to };
+}
+
 function formatDisplayDate(s: string): string {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(parseISODate(s));
 }
@@ -117,6 +166,9 @@ export function resolveDateRangePreset(
       from = startOfWeekMonday(today);
       to = today;
       break;
+    case 'last_week':
+      ({ from, to } = lastWeekRange(today));
+      break;
     case 'last_7_days':
       from = addDays(today, -6);
       to = today;
@@ -124,6 +176,9 @@ export function resolveDateRangePreset(
     case 'this_month':
       from = startOfMonth(today);
       to = today;
+      break;
+    case 'last_month':
+      ({ from, to } = lastMonthRange(today));
       break;
     case 'last_30_days':
       from = addDays(today, -29);
@@ -133,9 +188,15 @@ export function resolveDateRangePreset(
       from = startOfQuarter(today);
       to = today;
       break;
+    case 'last_quarter':
+      ({ from, to } = lastQuarterRange(today));
+      break;
     case 'this_year':
       from = startOfYear(today);
       to = today;
+      break;
+    case 'last_year':
+      ({ from, to } = lastYearRange(today));
       break;
     case 'custom_date':
       from = to = custom?.from ?? today;

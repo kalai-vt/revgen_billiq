@@ -16,6 +16,7 @@ export interface DashboardKpis {
   net_sales: number;
   total_orders: number;
   average_order_value: number;
+  total_units_sold: number;
   new_customers: number;
   credit_sales: number;
   cash_sales: number;
@@ -94,6 +95,24 @@ export interface RecentInvoice {
   created_at: string;
 }
 
+export interface CustomerRetention {
+  new_customers: number;
+  returning_customers: number;
+  retention_rate_percent: number;
+}
+
+export interface CashFlowPoint {
+  bucket_start: string;
+  bucket_label: string;
+  amount: number;
+}
+
+export interface CashFlowSummary {
+  total_cash_in: number;
+  by_method: PaymentMethodBreakdown[];
+  daily: CashFlowPoint[];
+}
+
 export interface DashboardData {
   meta: DateRangeMeta;
   kpis: DashboardKpis;
@@ -106,6 +125,8 @@ export interface DashboardData {
   tax_breakdown: TaxBreakdownRow[];
   discount_analysis: DiscountAnalysis;
   recent_invoices: RecentInvoice[];
+  customer_retention: CustomerRetention;
+  cash_flow_summary: CashFlowSummary;
 }
 
 export type DashboardWidget =
@@ -119,7 +140,28 @@ export type DashboardWidget =
   | 'tax_breakdown'
   | 'discount_analysis'
   | 'recent_invoices'
+  | 'customer_retention'
+  | 'cash_flow_summary'
   | 'full_dashboard';
+
+export type ComparisonUnit = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+export interface ComparisonMetric {
+  key: string;
+  label: string;
+  current_value: number;
+  previous_value: number;
+  absolute_difference: number;
+  growth_percent: number | null;
+  direction: 'up' | 'down' | 'flat';
+}
+
+export interface TrendComparisonData {
+  unit: ComparisonUnit;
+  current_label: string;
+  previous_label: string;
+  metrics: ComparisonMetric[];
+}
 
 export function getDashboard(dateFrom: string, dateTo: string, advanced = false, preset?: string): Promise<DashboardData> {
   const search = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, advanced: String(advanced) });
@@ -144,4 +186,12 @@ export function exportDashboardWidget(
   });
   if (preset) search.set('preset', preset);
   return requestBlob(`/api/analytics/dashboard/export?${search.toString()}`);
+}
+
+export function getTrendComparison(unit: ComparisonUnit): Promise<TrendComparisonData> {
+  return request(`/api/analytics/trend-comparison?unit=${unit}`);
+}
+
+export function exportTrendComparison(unit: ComparisonUnit, format: ExportFormat): Promise<Blob> {
+  return requestBlob(`/api/analytics/trend-comparison/export?unit=${unit}&format=${format}`);
 }
