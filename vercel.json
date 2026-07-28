@@ -61,6 +61,16 @@
       "source": "/",
       "destination": "/billiq",
       "permanent": false
+    },
+    {
+      "source": "/verify-email",
+      "destination": "/billiq/verify-email",
+      "permanent": false
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/billiq/reset-password",
+      "permanent": false
     }
   ]
 }
