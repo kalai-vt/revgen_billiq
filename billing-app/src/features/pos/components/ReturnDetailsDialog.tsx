@@ -13,6 +13,7 @@ import type { ReturnCondition, ReturnReason, InventoryAction, RefundMethod } fro
 import { ViewInvoiceDialog } from '@/features/pos/components/ViewInvoiceDialog';
 import { returnStatusBadgeClassName, returnStatusLabel } from '@/features/pos/lib/returnStatus';
 import { ApiError } from '@/lib/api-client';
+import { appPath } from '@/lib/app-path';
 
 interface ReturnDetailsDialogProps {
   returnId: string | null;
@@ -45,7 +46,7 @@ export function ReturnDetailsDialog({ returnId, onClose }: ReturnDetailsDialogPr
 
   function handlePrint() {
     if (!ret) return;
-    window.open(`/returns/${ret.id}/print`, '_blank', 'noopener,noreferrer');
+    window.open(appPath(`/returns/${ret.id}/print`), '_blank', 'noopener,noreferrer');
   }
 
   return (

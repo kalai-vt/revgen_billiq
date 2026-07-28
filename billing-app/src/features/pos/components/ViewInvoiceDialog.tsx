@@ -12,6 +12,7 @@ import { invoiceStatusBadgeClassName, invoiceStatusLabel } from '@/features/pos/
 import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/payments/lib/paymentStatus';
 import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { ApiError } from '@/lib/api-client';
+import { appPath } from '@/lib/app-path';
 
 interface ViewInvoiceDialogProps {
   invoiceId: string | null;
@@ -46,7 +47,7 @@ export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onRet
 
   function handlePrint() {
     if (!invoice) return;
-    window.open(`/invoices/${invoice.id}/print`, '_blank', 'noopener,noreferrer');
+    window.open(appPath(`/invoices/${invoice.id}/print`), '_blank', 'noopener,noreferrer');
   }
 
   return (

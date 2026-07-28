@@ -8,6 +8,7 @@ import type { Invoice } from '@/features/pos/api';
 import { InvoiceReceiptSummary } from '@/features/pos/components/InvoiceReceiptSummary';
 import { WhatsAppShareButton } from '@/features/pos/components/WhatsAppShareButton';
 import { ApiError } from '@/lib/api-client';
+import { appPath } from '@/lib/app-path';
 
 interface InvoiceSuccessDialogProps {
   invoice: Invoice | null;
@@ -21,7 +22,7 @@ export function InvoiceSuccessDialog({ invoice, onClose, autoPrint = false }: In
   useEffect(() => {
     if (invoice && autoPrint && autoPrintedFor.current !== invoice.id) {
       autoPrintedFor.current = invoice.id;
-      window.open(`/invoices/${invoice.id}/print`, '_blank', 'noopener,noreferrer');
+      window.open(appPath(`/invoices/${invoice.id}/print`), '_blank', 'noopener,noreferrer');
     }
   }, [invoice, autoPrint]);
 
@@ -42,7 +43,7 @@ export function InvoiceSuccessDialog({ invoice, onClose, autoPrint = false }: In
   }
 
   function handlePrint() {
-    window.open(`/invoices/${invoice!.id}/print`, '_blank', 'noopener,noreferrer');
+    window.open(appPath(`/invoices/${invoice!.id}/print`), '_blank', 'noopener,noreferrer');
   }
 
   return (

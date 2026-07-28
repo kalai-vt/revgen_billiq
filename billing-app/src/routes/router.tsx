@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { APP_BASE_PATH } from '@/lib/app-path';
 import { getRoleHomeRoute } from '@/lib/roleHome';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
@@ -129,4 +130,4 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
-], { basename: import.meta.env.PROD ? '/billiq' : '/' });
+], { basename: APP_BASE_PATH || '/' });

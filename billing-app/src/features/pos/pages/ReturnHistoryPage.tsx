@@ -25,6 +25,7 @@ import { ReturnsKpiCards } from '@/features/pos/components/ReturnsKpiCards';
 import { returnStatusBadgeClassName, returnStatusLabel } from '@/features/pos/lib/returnStatus';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ApiError } from '@/lib/api-client';
+import { appPath } from '@/lib/app-path';
 import { downloadBlob } from '@/lib/download-blob';
 
 const PAGE_SIZE = 20;
@@ -326,7 +327,7 @@ export function ReturnHistoryPage() {
                           tooltip="Print Return"
                           className="size-8"
                           aria-label={`Print return ${ret.return_number}`}
-                          onClick={() => window.open(`/returns/${ret.id}/print`, '_blank', 'noopener,noreferrer')}
+                          onClick={() => window.open(appPath(`/returns/${ret.id}/print`), '_blank', 'noopener,noreferrer')}
                         >
                           <Printer className="size-4" />
                         </IconButton>
