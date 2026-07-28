@@ -4,6 +4,7 @@ import logging
 from datetime import timedelta
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.audit import (
@@ -64,6 +65,14 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(User.email == email).first()
 
 
+def get_user_by_mobile(db: Session, mobile: str) -> User | None:
+    return db.query(User).filter(User.mobile == mobile).first()
+
+
+def get_tenant_by_phone(db: Session, phone: str) -> Tenant | None:
+    return db.query(Tenant).filter(Tenant.phone == phone, Tenant.is_deleted.is_(False)).first()
+
+
 def _issue_and_send_verification(db: Session, user: User, *, resent: bool = False) -> None:
     now = utc_now()
     db.query(EmailVerificationToken).filter(
@@ -100,6 +109,8 @@ def _issue_and_send_verification(db: Session, user: User, *, resent: bool = Fals
 def register_tenant(db: Session, payload: RegisterRequest) -> tuple[Tenant, User]:
     if get_user_by_email(db, payload.email):
         raise AuthError(400, "Email already registered")
+    if get_tenant_by_phone(db, payload.phone) or get_user_by_mobile(db, payload.phone):
+        raise AuthError(400, "This mobile number is already registered to another account")
 
     tenant = Tenant(
         company_name=payload.company_name,
@@ -129,7 +140,13 @@ def register_tenant(db: Session, payload: RegisterRequest) -> tuple[Tenant, User
     db.add(user)
     db.flush()
     log_event(db, event_type=USER_REGISTERED, email=user.email, user_id=user.id, tenant_id=tenant.id)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Defense-in-depth against a race between the pre-checks above and this commit —
+        # the pre-checks catch the overwhelming majority of cases already.
+        db.rollback()
+        raise AuthError(400, "This email or mobile number is already registered.") from None
     db.refresh(tenant)
     db.refresh(user)
 
@@ -249,10 +266,19 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
 
 
 def update_profile(db: Session, user: User, payload: UpdateProfileRequest) -> User:
+    if payload.mobile and payload.mobile != user.mobile:
+        existing = get_user_by_mobile(db, payload.mobile)
+        if existing and existing.id != user.id:
+            raise AuthError(400, "This mobile number is already registered to another account")
+
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(user, field, value)
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise AuthError(400, "This mobile number is already registered to another account") from None
     db.refresh(user)
     return user
 
@@ -399,10 +425,19 @@ def get_tenant(db: Session, tenant_id: str) -> Tenant | None:
 
 
 def update_tenant_profile(db: Session, tenant: Tenant, payload: TenantUpdate) -> Tenant:
+    if payload.phone and payload.phone != tenant.phone:
+        existing = get_tenant_by_phone(db, payload.phone)
+        if existing and existing.id != tenant.id:
+            raise AuthError(400, "This mobile number is already registered to another account")
+
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(tenant, field, value)
     db.add(tenant)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise AuthError(400, "This mobile number is already registered to another account") from None
     db.refresh(tenant)
     return tenant
 
@@ -414,6 +449,8 @@ def list_team_members(db: Session, tenant_id: str) -> list[User]:
 def create_team_member(db: Session, tenant_id: str, payload: TeamMemberCreate) -> User:
     if get_user_by_email(db, payload.email):
         raise AuthError(400, "Email already registered")
+    if payload.mobile and get_user_by_mobile(db, payload.mobile):
+        raise AuthError(400, "This mobile number is already registered to another account")
 
     assert_feature(db, tenant_id, "user_management")
     user_count = db.query(func.count(User.id)).filter(User.tenant_id == tenant_id).scalar() or 0
@@ -431,6 +468,10 @@ def create_team_member(db: Session, tenant_id: str, payload: TeamMemberCreate) -
         is_email_verified=False,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise AuthError(400, "This email or mobile number is already registered to another account") from None
     db.refresh(user)
     return user

@@ -20,7 +20,7 @@ class Tenant(Base):
     company_name: Mapped[str] = mapped_column(String(255))
     legal_name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    phone: Mapped[str] = mapped_column(String(50))
+    phone: Mapped[str] = mapped_column(String(50), unique=True)
     phone_type: Mapped[str] = mapped_column(String(20), default="mobile")
     country: Mapped[str] = mapped_column(String(2), default="IN")
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
