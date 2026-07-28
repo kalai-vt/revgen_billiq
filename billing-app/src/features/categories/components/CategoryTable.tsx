@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Pencil, Tags, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconButton, TooltipWrap } from '@/components/ui/icon-button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,7 +14,7 @@ import * as categoriesApi from '@/features/categories/api';
 import type { Category, CategorySortField } from '@/features/categories/api';
 import { CategoryFormDialog } from '@/features/categories/components/CategoryFormDialog';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { ApiError } from '@/lib/api-client';
 
 interface CategoryTableProps {
@@ -88,24 +89,25 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
               {canEdit && (
                 <TableCell>
                   <div className="flex justify-end gap-1">
-                    <CategoryFormDialog
-                      category={category}
-                      trigger={
-                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${category.name}`}>
-                          <Pencil className="size-4" />
-                        </Button>
-                      }
-                    />
+                    <TooltipWrap tooltip="Edit Category">
+                      <CategoryFormDialog
+                        category={category}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${category.name}`}>
+                            <Pencil className="size-4" />
+                          </Button>
+                        }
+                      />
+                    </TooltipWrap>
                     {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                      <IconButton
+                        tooltip="Delete Category"
                         className="size-8"
                         aria-label={`Delete ${category.name}`}
                         onClick={() => setPendingDelete(category)}
                       >
                         <Trash2 className="size-4" />
-                      </Button>
+                      </IconButton>
                     )}
                   </div>
                 </TableCell>
@@ -115,7 +117,7 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
         </TableBody>
       </Table>
 
-      <ConfirmDialog
+      <ConfirmationDialog
         open={!!pendingDelete}
         onOpenChange={(open) => !open && setPendingDelete(null)}
         title={`Delete "${pendingDelete?.name}"?`}

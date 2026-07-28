@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Pencil, Trash2, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton, TooltipWrap } from '@/components/ui/icon-button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,7 +16,7 @@ import * as customersApi from '@/features/customers/api';
 import type { Customer, CustomerListResult, CustomerSortField } from '@/features/customers/api';
 import { CustomerFormDialog } from '@/features/customers/components/CustomerFormDialog';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { ApiError } from '@/lib/api-client';
 
 interface CustomerTableProps {
@@ -145,24 +146,25 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
               {canEdit && (
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1">
-                    <CustomerFormDialog
-                      customer={customer}
-                      trigger={
-                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${customer.name}`}>
-                          <Pencil className="size-4" />
-                        </Button>
-                      }
-                    />
+                    <TooltipWrap tooltip="Edit Customer">
+                      <CustomerFormDialog
+                        customer={customer}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${customer.name}`}>
+                            <Pencil className="size-4" />
+                          </Button>
+                        }
+                      />
+                    </TooltipWrap>
                     {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                      <IconButton
+                        tooltip="Delete Customer"
                         className="size-8"
                         aria-label={`Delete ${customer.name}`}
                         onClick={() => setPendingDelete(customer)}
                       >
                         <Trash2 className="size-4" />
-                      </Button>
+                      </IconButton>
                     )}
                   </div>
                 </TableCell>
@@ -172,7 +174,7 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
         </TableBody>
       </Table>
 
-      <ConfirmDialog
+      <ConfirmationDialog
         open={!!pendingDelete}
         onOpenChange={(open) => !open && setPendingDelete(null)}
         title={`Delete "${pendingDelete?.name}"?`}

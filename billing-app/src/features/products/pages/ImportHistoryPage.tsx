@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Download, FileClock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,6 +12,7 @@ import { TablePagination } from '@/components/shared/TablePagination';
 import * as productsApi from '@/features/products/api';
 import { useImportHistory } from '@/features/products/hooks/useImportHistory';
 import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
 
 const PAGE_SIZE = 20;
 
@@ -30,12 +31,7 @@ export function ImportHistoryPage() {
   async function handleDownloadErrorReport(importId: string) {
     try {
       const blob = await productsApi.downloadImportErrorReport(importId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `import_${importId}_errors.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `import_${importId}_errors.csv`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not download error report');
     }
@@ -100,15 +96,14 @@ export function ImportHistoryPage() {
               </TableCell>
               <TableCell>
                 {entry.rows_failed > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <IconButton
+                    tooltip="Download Error Report"
                     className="size-8"
                     aria-label={`Download error report for ${entry.file_name}`}
                     onClick={() => handleDownloadErrorReport(entry.id)}
                   >
                     <Download className="size-4" />
-                  </Button>
+                  </IconButton>
                 )}
               </TableCell>
             </TableRow>

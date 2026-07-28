@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ClipboardList, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,7 +52,7 @@ export function HeldBillsDialog({ open, onClose, onResume }: HeldBillsDialogProp
           <EmptyState icon={ClipboardList} title="No held bills" description="Bills you hold during checkout will show up here." />
         )}
 
-        <div className="max-h-96 space-y-2 overflow-y-auto">
+        <div className="max-h-96 space-y-2 overflow-y-auto scrollbar-thin">
           {data?.items.map((heldBill) => {
             const itemCount = heldBill.lines.reduce((sum, line) => sum + line.quantity, 0);
             return (
@@ -72,15 +73,14 @@ export function HeldBillsDialog({ open, onClose, onResume }: HeldBillsDialogProp
                   <Button size="sm" onClick={() => onResume(heldBill)}>
                     Resume
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <IconButton
+                    tooltip="Delete Held Bill"
                     className="size-8 text-destructive"
                     aria-label={`Delete held bill for ${heldBill.notes || heldBill.customer_name || 'this bill'}`}
                     onClick={() => deleteMutation.mutate(heldBill.id)}
                   >
                     <Trash2 className="size-4" />
-                  </Button>
+                  </IconButton>
                 </div>
               </div>
             );

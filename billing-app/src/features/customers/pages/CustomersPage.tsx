@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Plus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModulePage } from '@/components/layout/ModulePage';
 import { TablePagination } from '@/components/shared/TablePagination';
+import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { CustomerExportButtons } from '@/features/customers/components/CustomerExportButtons';
+import * as customersApi from '@/features/customers/api';
 import { CustomerFormDialog } from '@/features/customers/components/CustomerFormDialog';
 import { CustomerSearchBar } from '@/features/customers/components/CustomerSearchBar';
 import { CustomerTable } from '@/features/customers/components/CustomerTable';
 import { usePaginatedCustomers } from '@/features/customers/hooks/usePaginatedCustomers';
 import type { CustomerSortField } from '@/features/customers/api';
 import { cn } from '@/lib/utils';
+
+const EXPORT_FILENAMES: Record<ExportFormat, string> = {
+  excel: 'customers.xlsx',
+  pdf: 'customers.pdf',
+  csv: 'customers.csv',
+};
 
 const PAGE_SIZE = 20;
 
@@ -75,6 +85,15 @@ export function CustomersPage() {
     credit_enabled: creditFilter === 'credit_enabled' ? true : undefined,
   });
 
+  async function handleExport(format: ExportFormat) {
+    try {
+      const blob = await customersApi.exportCustomers(format, { q: q || undefined });
+      downloadBlob(blob, EXPORT_FILENAMES[format]);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not export customers');
+    }
+  }
+
   return (
     <ModulePage
       header={
@@ -84,7 +103,7 @@ export function CustomersPage() {
             <p className="text-sm text-muted-foreground">Manage your customer base.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <CustomerExportButtons q={q || undefined} />
+            <ExportDropdown onExport={handleExport} />
             {canImport && (
               <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/customers/import" />}>
                 <Upload className="size-4" />

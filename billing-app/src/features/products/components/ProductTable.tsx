@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Package, Pencil, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton, TooltipWrap } from '@/components/ui/icon-button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,7 +16,7 @@ import { IDENTIFIER_TYPE_LABELS } from '@/features/products/api';
 import type { Product, ProductListResult, ProductSortField } from '@/features/products/api';
 import { ProductFormDialog } from '@/features/products/components/ProductFormDialog';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { ApiError } from '@/lib/api-client';
 
 interface ProductTableProps {
@@ -130,24 +131,25 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
               {canEdit && (
                 <TableCell>
                   <div className="flex justify-end gap-1">
-                    <ProductFormDialog
-                      product={product}
-                      trigger={
-                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${product.name}`}>
-                          <Pencil className="size-4" />
-                        </Button>
-                      }
-                    />
+                    <TooltipWrap tooltip="Edit Product">
+                      <ProductFormDialog
+                        product={product}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${product.name}`}>
+                            <Pencil className="size-4" />
+                          </Button>
+                        }
+                      />
+                    </TooltipWrap>
                     {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                      <IconButton
+                        tooltip="Delete Product"
                         className="size-8"
                         aria-label={`Delete ${product.name}`}
                         onClick={() => setPendingDelete(product)}
                       >
                         <Trash2 className="size-4" />
-                      </Button>
+                      </IconButton>
                     )}
                   </div>
                 </TableCell>
@@ -157,7 +159,7 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
         </TableBody>
       </Table>
 
-      <ConfirmDialog
+      <ConfirmationDialog
         open={!!pendingDelete}
         onOpenChange={(open) => !open && setPendingDelete(null)}
         title={`Delete "${pendingDelete?.name}"?`}

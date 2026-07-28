@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Banknote,
   CalendarClock,
-  Download,
   FileText,
   Landmark,
   Pencil,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,7 +27,7 @@ import { NumericInput } from '@/components/ui/numeric-input';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
 import { ModulePage } from '@/components/layout/ModulePage';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as customersApi from '@/features/customers/api';
@@ -36,6 +36,7 @@ import * as paymentsApi from '@/features/payments/api';
 import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/payments/lib/paymentStatus';
 import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
 
 const LEDGER_TYPE_ICON: Record<string, typeof FileText> = {
   invoice: FileText,
@@ -171,15 +172,10 @@ export function CustomerDetailPage() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Something went wrong'),
   });
 
-  async function handleExportLedger(format: 'excel' | 'pdf' | 'csv') {
+  async function handleExportLedger(format: ExportFormat) {
     try {
       const blob = await paymentsApi.exportCustomerLedger(id!, format);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ledger-${customer?.name ?? id}.${format === 'excel' ? 'xlsx' : format}`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `ledger-${customer?.name ?? id}.${format === 'excel' ? 'xlsx' : format}`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not export ledger');
     }
@@ -202,9 +198,9 @@ export function CustomerDetailPage() {
         header={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="size-8" aria-label="Back to customers" onClick={() => navigate('/customers')}>
+              <IconButton tooltip="Back to Customers" className="size-8" aria-label="Back to customers" onClick={() => navigate('/customers')}>
                 <ArrowLeft className="size-4" />
-              </Button>
+              </IconButton>
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight">{customer.name}</h1>
                 <p className="text-sm text-muted-foreground">
@@ -438,21 +434,7 @@ export function CustomerDetailPage() {
                     Adjustment
                   </Button>
                 )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button variant="outline" size="sm">
-                        <Download className="size-4" />
-                        Export
-                      </Button>
-                    }
-                  />
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleExportLedger('excel')}>Excel</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExportLedger('csv')}>CSV</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExportLedger('pdf')}>PDF</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ExportDropdown onExport={handleExportLedger} />
               </div>
             </div>
 

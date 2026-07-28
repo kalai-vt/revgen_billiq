@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { CartLineItem } from '@/features/pos/components/CartLineItem';
 import { CustomerPicker } from '@/features/pos/components/CustomerPicker';
 import { DiscountInput } from '@/features/pos/components/DiscountInput';
@@ -98,9 +100,11 @@ export function Cart({
     (paymentType !== 'paid' || paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total)) &&
     (!requiresCustomer || (!!customerId && !!dueDate));
 
+  const [clearCartOpen, setClearCartOpen] = useState(false);
+
   function handleClear() {
     if (lines.length === 0) return;
-    if (window.confirm('Clear all items from the cart?')) onClear();
+    setClearCartOpen(true);
   }
 
   return (
@@ -119,7 +123,7 @@ export function Cart({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border scrollbar-thin">
         {lines.length === 0 ? (
           <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <ShoppingCart className="size-8" />
@@ -242,6 +246,19 @@ export function Cart({
           </Button>
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={clearCartOpen}
+        onOpenChange={setClearCartOpen}
+        title="Clear Cart?"
+        description="Are you sure you want to remove all items from the current cart? This action cannot be undone."
+        confirmLabel="Clear Cart"
+        destructive
+        onConfirm={() => {
+          onClear();
+          setClearCartOpen(false);
+        }}
+      />
     </div>
   );
 }

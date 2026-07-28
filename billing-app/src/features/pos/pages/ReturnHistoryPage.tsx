@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { Download, Eye, Printer, Receipt, Search, Undo2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { IconButton } from '@/components/ui/icon-button';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,18 +15,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ModulePage } from '@/components/layout/ModulePage';
 import { TablePagination } from '@/components/shared/TablePagination';
+import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
 import * as authApi from '@/features/auth/api';
 import * as posApi from '@/features/pos/api';
 import { REFUND_METHOD_LABELS, REFUND_METHODS } from '@/features/pos/api';
 import type { RefundMethod } from '@/features/pos/api';
 import { ReturnDetailsDialog } from '@/features/pos/components/ReturnDetailsDialog';
-import { ReturnExportButtons } from '@/features/pos/components/ReturnExportButtons';
 import { ReturnsKpiCards } from '@/features/pos/components/ReturnsKpiCards';
 import { returnStatusBadgeClassName, returnStatusLabel } from '@/features/pos/lib/returnStatus';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
 
 const PAGE_SIZE = 20;
+
+const EXPORT_FILENAMES: Record<ExportFormat, string> = {
+  excel: 'returns.xlsx',
+  pdf: 'returns.pdf',
+  csv: 'returns.csv',
+};
 
 type StatusFilter = 'all' | 'fully_refunded' | 'partially_refunded' | 'cancelled';
 type RefundMethodFilter = 'all' | RefundMethod;
@@ -124,14 +132,27 @@ export function ReturnHistoryPage() {
   async function handleDownloadPdf(id: string, returnNumber: string) {
     try {
       const blob = await posApi.downloadReturnPdf(id);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${returnNumber}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${returnNumber}.pdf`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not download PDF');
+    }
+  }
+
+  async function handleExport(format: ExportFormat) {
+    try {
+      const blob = await posApi.exportReturns(format, {
+        q: q || undefined,
+        status: status === 'all' ? undefined : status,
+        refund_method: refundMethod === 'all' ? undefined : refundMethod,
+        created_by: cashier === 'all' ? undefined : cashier,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+      });
+      downloadBlob(blob, EXPORT_FILENAMES[format]);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not export returns');
     }
   }
 
@@ -144,16 +165,7 @@ export function ReturnHistoryPage() {
               <h1 className="text-2xl font-semibold tracking-tight">Returns</h1>
               <p className="text-sm text-muted-foreground">Every return and refund processed against an invoice.</p>
             </div>
-            <ReturnExportButtons
-              q={q || undefined}
-              status={status === 'all' ? undefined : status}
-              refund_method={refundMethod === 'all' ? undefined : refundMethod}
-              created_by={cashier === 'all' ? undefined : cashier}
-              date_from={dateFrom || undefined}
-              date_to={dateTo || undefined}
-              sort_by={sortBy}
-              sort_dir={sortDir}
-            />
+            <ExportDropdown onExport={handleExport} />
           </div>
         }
         bodyClassName="space-y-4 border-0 p-0 overflow-visible"
@@ -302,43 +314,39 @@ export function ReturnHistoryPage() {
                     <TableCell className="hidden text-muted-foreground sm:table-cell">{new Date(ret.created_at).toLocaleString()}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                        <IconButton
+                          tooltip="View Return"
                           className="size-8"
                           aria-label={`View return ${ret.return_number}`}
                           onClick={() => setViewReturnId(ret.id)}
                         >
                           <Eye className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                        </IconButton>
+                        <IconButton
+                          tooltip="Print Return"
                           className="size-8"
                           aria-label={`Print return ${ret.return_number}`}
                           onClick={() => window.open(`/returns/${ret.id}/print`, '_blank', 'noopener,noreferrer')}
                         >
                           <Printer className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                        </IconButton>
+                        <IconButton
+                          tooltip="Download PDF"
                           className="size-8"
                           aria-label={`Download return ${ret.return_number} as PDF`}
                           onClick={() => handleDownloadPdf(ret.id, ret.return_number)}
                         >
                           <Download className="size-4" />
-                        </Button>
+                        </IconButton>
                         {canCancel && ret.status !== 'cancelled' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
+                          <IconButton
+                            tooltip="Cancel Return"
                             className="size-8 text-destructive"
                             aria-label={`Cancel return ${ret.return_number}`}
                             onClick={() => setCancelReturnId(ret.id)}
                           >
                             <X className="size-4" />
-                          </Button>
+                          </IconButton>
                         )}
                       </div>
                     </TableCell>
@@ -354,7 +362,7 @@ export function ReturnHistoryPage() {
 
       <ReturnDetailsDialog returnId={viewReturnId} onClose={() => setViewReturnId(null)} />
 
-      <ConfirmDialog
+      <ConfirmationDialog
         open={!!cancelReturnId}
         onOpenChange={(open) => {
           if (!open) {
@@ -374,7 +382,7 @@ export function ReturnHistoryPage() {
           value={cancelReason}
           onChange={(e) => setCancelReason(e.target.value)}
         />
-      </ConfirmDialog>
+      </ConfirmationDialog>
     </>
   );
 }

@@ -18,6 +18,7 @@ function TooltipContent({
   className,
   side = "right",
   sideOffset = 8,
+  children,
   ...props
 }: TooltipPrimitive.Popup.Props &
   Pick<TooltipPrimitive.Positioner.Props, "side" | "sideOffset" | "align">) {
@@ -31,7 +32,14 @@ function TooltipContent({
             className
           )}
           {...props}
-        />
+        >
+          {children}
+          <TooltipPrimitive.Arrow className="data-[side=bottom]:top-[-4px] data-[side=left]:right-[-4px] data-[side=right]:left-[-4px] data-[side=top]:bottom-[-4px]">
+            <svg width="8" height="4" viewBox="0 0 8 4" className="fill-foreground">
+              <path d="M0 0L4 4L8 0Z" />
+            </svg>
+          </TooltipPrimitive.Arrow>
+        </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
   )

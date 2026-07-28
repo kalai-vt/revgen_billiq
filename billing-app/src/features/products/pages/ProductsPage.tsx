@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Plus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModulePage } from '@/components/layout/ModulePage';
 import { TablePagination } from '@/components/shared/TablePagination';
+import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { ProductExportButtons } from '@/features/products/components/ProductExportButtons';
+import * as productsApi from '@/features/products/api';
 import { ProductFormDialog } from '@/features/products/components/ProductFormDialog';
 import { ProductSearchBar } from '@/features/products/components/ProductSearchBar';
 import { ProductTable } from '@/features/products/components/ProductTable';
 import { usePaginatedProducts } from '@/features/products/hooks/usePaginatedProducts';
 import type { ProductSortField } from '@/features/products/api';
+
+const EXPORT_FILENAMES: Record<ExportFormat, string> = {
+  excel: 'products.xlsx',
+  pdf: 'products.pdf',
+  csv: 'products.csv',
+};
 
 const PAGE_SIZE = 20;
 
@@ -60,6 +70,15 @@ export function ProductsPage() {
     sort_dir: sortDir,
   });
 
+  async function handleExport(format: ExportFormat) {
+    try {
+      const blob = await productsApi.exportProducts(format, { q: q || undefined, category_id: categoryId || undefined });
+      downloadBlob(blob, EXPORT_FILENAMES[format]);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not export products');
+    }
+  }
+
   return (
     <ModulePage
       header={
@@ -69,7 +88,7 @@ export function ProductsPage() {
             <p className="text-sm text-muted-foreground">Manage your product catalog.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <ProductExportButtons q={q || undefined} categoryId={categoryId || undefined} />
+            <ExportDropdown onExport={handleExport} />
             {canCreate && (
               <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/products/import" />}>
                 <Upload className="size-4" />

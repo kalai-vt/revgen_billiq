@@ -8,7 +8,7 @@ import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { GlobalSearchInput } from '@/components/layout/GlobalSearchInput';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -50,9 +50,9 @@ export function AppShell() {
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center justify-between gap-4 border-b bg-background px-4 py-3 md:grid md:grid-cols-[minmax(0,1fr)_minmax(20rem,32rem)_minmax(0,1fr)] md:px-6">
           <div className="col-start-1 flex items-center md:hidden">
-            <Button variant="ghost" size="icon" aria-label="Open navigation menu" onClick={() => setMobileNavOpen(true)}>
+            <IconButton tooltip="Open Menu" aria-label="Open navigation menu" onClick={() => setMobileNavOpen(true)}>
               <Menu className="size-5" />
-            </Button>
+            </IconButton>
           </div>
           <div className="col-start-2">
             <GlobalSearchInput />

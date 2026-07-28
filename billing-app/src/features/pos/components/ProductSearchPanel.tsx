@@ -58,7 +58,7 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
         </div>
       )}
 
-      <div className="flex flex-1 gap-2 overflow-x-auto lg:flex-col lg:gap-1.5 lg:overflow-x-visible lg:overflow-y-auto">
+      <div className="flex flex-1 gap-2 overflow-x-auto lg:flex-col lg:gap-1.5 lg:overflow-x-visible lg:overflow-y-auto lg:scrollbar-thin">
         {isLoading &&
           Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-36 shrink-0 lg:h-11 lg:w-full lg:shrink" />

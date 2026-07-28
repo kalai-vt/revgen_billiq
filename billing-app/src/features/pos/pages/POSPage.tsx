@@ -183,7 +183,7 @@ export function POSPage() {
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:h-[calc(100vh-6rem)] lg:grid-cols-[28%_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:h-full lg:grid-cols-[30%_70%] lg:overflow-hidden">
       <Card className="min-h-0 p-4">
         <div className="mb-3 flex justify-end">
           <Button variant="outline" size="sm" onClick={() => setHeldBillsOpen(true)}>

@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { toast } from 'sonner';
 import { Download, Printer, Ban, Eye, Undo2, Search, Receipt, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
@@ -14,18 +14,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ModulePage } from '@/components/layout/ModulePage';
 import { TablePagination } from '@/components/shared/TablePagination';
+import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import * as posApi from '@/features/pos/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { InvoiceExportButtons } from '@/features/pos/components/InvoiceExportButtons';
 import { ReturnDialog } from '@/features/pos/components/ReturnDialog';
 import { ViewInvoiceDialog } from '@/features/pos/components/ViewInvoiceDialog';
 import { invoiceStatusBadgeClassName, invoiceStatusLabel } from '@/features/pos/lib/invoiceStatus';
 import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/payments/lib/paymentStatus';
 import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
 
 const PAGE_SIZE = 20;
+
+const EXPORT_FILENAMES: Record<ExportFormat, string> = {
+  excel: 'invoices.xlsx',
+  pdf: 'invoices.pdf',
+  csv: 'invoices.csv',
+};
 
 type StatusFilter = 'all' | 'paid' | 'partial' | 'cancelled' | 'refunded';
 type SortValue =
@@ -122,14 +129,25 @@ export function InvoicesListPage() {
   async function handleDownloadPdf(id: string, invoiceNumber: string) {
     try {
       const blob = await posApi.downloadInvoicePdf(id);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${invoiceNumber}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${invoiceNumber}.pdf`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not download PDF');
+    }
+  }
+
+  async function handleExport(format: ExportFormat) {
+    try {
+      const blob = await posApi.exportInvoices(format, {
+        q: q || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        status: status === 'all' ? undefined : status,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+      });
+      downloadBlob(blob, EXPORT_FILENAMES[format]);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not export invoices');
     }
   }
 
@@ -142,14 +160,7 @@ export function InvoicesListPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Invoices</h1>
             <p className="text-sm text-muted-foreground">Browse and manage past sales.</p>
           </div>
-          <InvoiceExportButtons
-            q={q || undefined}
-            dateFrom={dateFrom || undefined}
-            dateTo={dateTo || undefined}
-            status={status === 'all' ? undefined : status}
-            sortBy={sortBy}
-            sortDir={sortDir}
-          />
+          <ExportDropdown onExport={handleExport} />
         </div>
       }
       filters={
@@ -278,65 +289,59 @@ export function InvoicesListPage() {
               <TableCell className="hidden truncate text-muted-foreground sm:table-cell">{new Date(invoice.created_at).toLocaleString()}</TableCell>
               <TableCell>
                 <div className="flex justify-end gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <IconButton
+                    tooltip="View Invoice"
                     className="size-8"
                     aria-label={`View invoice ${invoice.invoice_number}`}
                     onClick={() => setViewInvoiceId(invoice.id)}
                   >
                     <Eye className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  </IconButton>
+                  <IconButton
+                    tooltip="Print Invoice"
                     className="size-8"
                     aria-label={`Print invoice ${invoice.invoice_number}`}
                     onClick={() => window.open(`/invoices/${invoice.id}/print`, '_blank', 'noopener,noreferrer')}
                   >
                     <Printer className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  </IconButton>
+                  <IconButton
+                    tooltip="Download PDF"
                     className="size-8"
                     aria-label={`Download invoice ${invoice.invoice_number} as PDF`}
                     onClick={() => handleDownloadPdf(invoice.id, invoice.invoice_number)}
                   >
                     <Download className="size-4" />
-                  </Button>
+                  </IconButton>
                   {invoice.customer_id && invoice.outstanding_amount > 0 && invoice.status !== 'cancelled' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                    <IconButton
+                      tooltip="Receive Payment"
                       className="size-8"
                       aria-label={`Receive payment for invoice ${invoice.invoice_number}`}
                       onClick={() => setReceivePaymentCustomerId(invoice.customer_id)}
                     >
                       <Wallet className="size-4" />
-                    </Button>
+                    </IconButton>
                   )}
                   {canReturn && (invoice.status === 'paid' || invoice.status === 'partial') && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                    <IconButton
+                      tooltip="Return Items"
                       className="size-8"
                       aria-label={`Return items for invoice ${invoice.invoice_number}`}
                       onClick={() => setReturnInvoiceId(invoice.id)}
                     >
                       <Undo2 className="size-4" />
-                    </Button>
+                    </IconButton>
                   )}
                   {canVoid && invoice.status !== 'cancelled' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                    <IconButton
+                      tooltip="Void Invoice"
                       className="size-8 text-destructive"
                       aria-label={`Void invoice ${invoice.invoice_number}`}
                       onClick={() => voidMutation.mutate(invoice.id)}
                     >
                       <Ban className="size-4" />
-                    </Button>
+                    </IconButton>
                   )}
                 </div>
               </TableCell>

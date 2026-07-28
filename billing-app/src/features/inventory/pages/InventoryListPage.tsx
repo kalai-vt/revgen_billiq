@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { ModulePage } from '@/components/layout/ModulePage';
 import { TablePagination } from '@/components/shared/TablePagination';
-import { InventoryExportButtons } from '@/features/inventory/components/InventoryExportButtons';
+import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/download-blob';
+import * as inventoryApi from '@/features/inventory/api';
 import { InventoryFilters } from '@/features/inventory/components/InventoryFilters';
 import { InventoryTable } from '@/features/inventory/components/InventoryTable';
 import { usePaginatedInventory } from '@/features/inventory/hooks/usePaginatedInventory';
 import type { InventorySortField } from '@/features/inventory/api';
 
 const PAGE_SIZE = 20;
+
+const EXPORT_FILENAMES: Record<ExportFormat, string> = {
+  excel: 'inventory.xlsx',
+  pdf: 'inventory.pdf',
+  csv: 'inventory.csv',
+};
 
 type StockStatusFilter = 'all' | 'low' | 'out';
 
@@ -54,6 +64,19 @@ export function InventoryListPage() {
     sort_dir: sortDir,
   });
 
+  async function handleExport(format: ExportFormat) {
+    try {
+      const blob = await inventoryApi.exportInventory(format, {
+        q: q || undefined,
+        category_id: categoryId || undefined,
+        stock_status: stockStatus === 'all' ? undefined : stockStatus,
+      });
+      downloadBlob(blob, EXPORT_FILENAMES[format]);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not export inventory');
+    }
+  }
+
   return (
     <ModulePage
       header={
@@ -62,11 +85,7 @@ export function InventoryListPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
             <p className="text-sm text-muted-foreground">Stock levels and pricing for every product.</p>
           </div>
-          <InventoryExportButtons
-            q={q || undefined}
-            categoryId={categoryId || undefined}
-            stockStatus={stockStatus === 'all' ? undefined : stockStatus}
-          />
+          <ExportDropdown onExport={handleExport} />
         </div>
       }
       filters={

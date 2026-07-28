@@ -122,7 +122,7 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
       </div>
 
       {/* Navigation — the only scrollable section */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-2 scrollbar-thin">
         <SidebarNav collapsed={isCollapsed} onNavigate={onNavigate} onRequestSidebarExpand={() => setCollapsed(false)} />
       </div>
 

@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { PackagePlus, Boxes } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TooltipWrap } from '@/components/ui/icon-button';
 import { ColumnResizeHandle } from '@/components/ui/column-resize-handle';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SortableTableHead } from '@/components/ui/sortable-table-head';
@@ -131,14 +132,16 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
             <TableCell className="hidden truncate text-muted-foreground lg:table-cell">{new Date(item.updated_at).toLocaleDateString()}</TableCell>
             {canAdjust && (
               <TableCell>
-                <StockAdjustDialog
-                  item={item}
-                  trigger={
-                    <Button variant="ghost" size="icon" className="size-8" aria-label={`Adjust stock for ${item.product_name}`}>
-                      <PackagePlus className="size-4" />
-                    </Button>
-                  }
-                />
+                <TooltipWrap tooltip="Adjust Stock">
+                  <StockAdjustDialog
+                    item={item}
+                    trigger={
+                      <Button variant="ghost" size="icon" className="size-8" aria-label={`Adjust stock for ${item.product_name}`}>
+                        <PackagePlus className="size-4" />
+                      </Button>
+                    }
+                  />
+                </TooltipWrap>
               </TableCell>
             )}
           </TableRow>

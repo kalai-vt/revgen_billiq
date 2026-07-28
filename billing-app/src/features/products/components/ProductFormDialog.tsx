@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   Dialog,
   DialogContent,
@@ -380,16 +381,15 @@ export function ProductFormDialog({ product, trigger }: ProductFormDialogProps) 
                     value={item.identifier_value}
                     onChange={(e) => updateAdditionalIdentifier(index, { identifier_value: e.target.value })}
                   />
-                  <Button
+                  <IconButton
                     type="button"
-                    variant="ghost"
-                    size="icon"
+                    tooltip="Remove Identifier"
                     className="size-8 shrink-0 text-muted-foreground"
                     aria-label={`Remove ${IDENTIFIER_TYPE_LABELS[item.identifier_type]} identifier`}
                     onClick={() => removeIdentifierRow(index)}
                   >
                     <X className="size-4" />
-                  </Button>
+                  </IconButton>
                 </div>
               ))}
             </div>

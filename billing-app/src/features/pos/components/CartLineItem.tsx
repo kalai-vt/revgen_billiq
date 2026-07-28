@@ -1,8 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Minus, Plus, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { NumericInput } from '@/components/ui/numeric-input';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import type { CartLine } from '@/features/pos/hooks/useCart';
 import { effectivePrice } from '@/features/pos/lib/pricing';
 
@@ -23,13 +24,12 @@ export function CartLineItem({
 }: CartLineItemProps) {
   const priceInputRef = useRef<HTMLInputElement>(null);
   const lineTotal = effectivePrice(line) * line.quantity;
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
   function applyQuantity(next: number | null) {
     const quantity = next ?? 0;
     if (quantity <= 0) {
-      if (window.confirm('Remove this item from the cart?')) {
-        onRemove();
-      }
+      setConfirmRemoveOpen(true);
       return;
     }
     onQuantityChange(quantity);
@@ -47,7 +47,8 @@ export function CartLineItem({
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-center gap-1">
-          <Button
+          <IconButton
+            tooltip="Decrease quantity"
             variant="outline"
             size="icon"
             className="size-7 rounded-full"
@@ -55,7 +56,7 @@ export function CartLineItem({
             onClick={() => applyQuantity(line.quantity - 1)}
           >
             <Minus className="size-3" />
-          </Button>
+          </IconButton>
           <NumericInput
             allowDecimal={false}
             min={0}
@@ -68,7 +69,8 @@ export function CartLineItem({
             className="h-8 w-14 px-1.5 text-center text-sm"
             aria-label={`Quantity for ${line.product.name}`}
           />
-          <Button
+          <IconButton
+            tooltip="Increase quantity"
             variant="outline"
             size="icon"
             className="size-7 rounded-full"
@@ -76,7 +78,7 @@ export function CartLineItem({
             onClick={() => applyQuantity(line.quantity + 1)}
           >
             <Plus className="size-3" />
-          </Button>
+          </IconButton>
         </div>
       </TableCell>
       <TableCell className="text-right">
@@ -96,7 +98,8 @@ export function CartLineItem({
       </TableCell>
       <TableCell className="text-right font-medium">{lineTotal.toFixed(2)}</TableCell>
       <TableCell>
-        <Button
+        <IconButton
+          tooltip="Remove from cart"
           variant="ghost"
           size="icon"
           className="size-7 text-muted-foreground hover:text-destructive"
@@ -104,8 +107,21 @@ export function CartLineItem({
           onClick={onRemove}
         >
           <X className="size-4" />
-        </Button>
+        </IconButton>
       </TableCell>
+
+      <ConfirmationDialog
+        open={confirmRemoveOpen}
+        onOpenChange={setConfirmRemoveOpen}
+        title="Remove Item?"
+        description={`Remove "${line.product.name}" from the cart?`}
+        confirmLabel="Remove"
+        destructive
+        onConfirm={() => {
+          onRemove();
+          setConfirmRemoveOpen(false);
+        }}
+      />
     </TableRow>
   );
 }
