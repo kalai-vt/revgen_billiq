@@ -89,7 +89,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
         {"key": "analytics_dashboard", "label": "Analytics dashboard", "type": "boolean", "default": True},
     ]),
     _m("settings", "Settings", "Tenant business settings and preferences.", "core", is_implemented=True, always_on=True),
-    _m("payments_credit", "Payments & Credit", "Outstanding balances and credit collection.", "core", is_implemented=True, requires=["pos_billing"]),
+    _m("payments_credit", "Outstanding", "Outstanding balances and credit collection.", "core", is_implemented=True, requires=["pos_billing"]),
     _m("analytics", "Analytics", "Sales performance and business intelligence dashboards.", "core", is_implemented=True),
 
     # ---- Business Modules (roadmap) ----

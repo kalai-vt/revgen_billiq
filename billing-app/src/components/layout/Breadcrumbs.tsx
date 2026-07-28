@@ -10,11 +10,12 @@ interface RouteMeta {
 }
 
 const ROUTE_LABELS: Record<string, RouteMeta> = {
-  '/dashboard': { label: 'Overview' },
-  '/analytics': { label: 'Analytics' },
-  '/pos': { label: 'Billing / POS', group: 'Sales' },
+  '/dashboard': { label: 'Dashboard' },
+  '/analytics/advanced': { label: 'Advanced Analytics', group: 'Analytics' },
+  '/analytics/trends': { label: 'Trend Comparison', group: 'Analytics' },
+  '/pos': { label: 'Billing', group: 'Sales' },
   '/invoices': { label: 'Invoices', group: 'Sales' },
-  '/returns': { label: 'Returns', group: 'Sales' },
+  '/returns': { label: 'Returns & Refunds', group: 'Sales' },
   '/categories': { label: 'Categories', group: 'Catalog' },
   '/products': { label: 'Products', group: 'Catalog' },
   '/products/import': { label: 'Import Products', group: 'Catalog' },

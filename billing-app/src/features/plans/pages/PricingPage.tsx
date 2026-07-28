@@ -27,7 +27,7 @@ const FEATURE_ROWS: FeatureRow[] = [
   { label: 'Customers', basic: '500', explore: 'Unlimited', advance: 'Unlimited' },
   { label: 'Monthly Invoices', basic: '1,000', explore: 'Unlimited', advance: 'Unlimited' },
   { label: 'Product Categories', basic: true, explore: true, advance: true },
-  { label: 'Billing / POS', basic: true, explore: true, advance: true },
+  { label: 'Billing', basic: true, explore: true, advance: true },
   { label: 'Invoice Generation', basic: true, explore: true, advance: true },
   { label: 'GST Invoice', basic: true, explore: true, advance: true },
   { label: 'PDF Invoice', basic: true, explore: true, advance: true },

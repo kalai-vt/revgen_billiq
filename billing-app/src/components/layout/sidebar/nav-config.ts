@@ -45,14 +45,14 @@ export function isGroup(entry: NavEntry): entry is NavGroup {
 }
 
 export const NAV_ENTRIES: NavEntry[] = [
-  { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, roles: ['owner', 'manager'], moduleKey: 'reports_analytics' },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['owner', 'manager'], moduleKey: 'reports_analytics' },
   {
     label: 'Sales',
     icon: ShoppingCart,
     children: [
-      { to: '/pos', label: 'Billing / POS', icon: ShoppingCart, roles: ['owner', 'manager', 'staff'], moduleKey: 'pos_billing' },
+      { to: '/pos', label: 'Billing', icon: ShoppingCart, roles: ['owner', 'manager', 'staff'], moduleKey: 'pos_billing' },
       { to: '/invoices', label: 'Invoices', icon: Receipt, roles: ['owner', 'manager', 'staff'], moduleKey: 'pos_billing' },
-      { to: '/returns', label: 'Returns', icon: Undo2, roles: ['owner', 'manager', 'staff'], moduleKey: 'returns' },
+      { to: '/returns', label: 'Returns & Refunds', icon: Undo2, roles: ['owner', 'manager', 'staff'], moduleKey: 'returns' },
       { to: '/outstanding', label: 'Outstanding', icon: Wallet, roles: ['owner', 'manager'], moduleKey: 'payments_credit' },
     ],
   },

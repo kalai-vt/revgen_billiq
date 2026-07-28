@@ -163,7 +163,7 @@ export function ReturnHistoryPage() {
         header={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Returns</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Returns & Refunds</h1>
               <p className="text-sm text-muted-foreground">Every return and refund processed against an invoice.</p>
             </div>
             <ExportDropdown onExport={handleExport} />

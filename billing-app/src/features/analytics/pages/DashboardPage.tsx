@@ -4,7 +4,7 @@ import { OVERVIEW_PRESETS } from '@/lib/date-range';
 export function DashboardPage() {
   return (
     <DashboardShell
-      title="Overview"
+      title="Dashboard"
       description="Your business performance at a glance."
       defaultPreset="this_month"
       advanced={false}
