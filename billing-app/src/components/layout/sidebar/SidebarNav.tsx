@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getFeatureFlags } from '@/features/settings/api';
@@ -131,7 +132,7 @@ function ModuleGroup({
 
 export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpand }: SidebarNavProps) {
   const { user, plan } = useAuth();
-  const { data: featureFlags } = useQuery({
+  const { data: featureFlags, isLoading: flagsLoading } = useQuery({
     queryKey: ['feature-flags'],
     queryFn: getFeatureFlags,
     staleTime: 60_000,
@@ -151,6 +152,21 @@ export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpa
   function handleGroupIconClick(groupLabel: string) {
     setExpanded((prev) => (prev.includes(groupLabel) ? prev : [...prev, groupLabel]));
     onRequestSidebarExpand?.();
+  }
+
+  // Feature flags default to "visible" once loaded (see isLeafVisible) so an unrecognized/absent
+  // key never hides a module — but on a cold load (fresh login, hard refresh) that same default
+  // would flash every disabled module on-screen for the one round-trip before this query
+  // resolves. Rendering a skeleton instead until the fetch completes is what actually prevents
+  // that flash — the "optimistic default" alone only avoids it on cached in-app navigations.
+  if (flagsLoading) {
+    return (
+      <nav aria-label="Main navigation" className={cn('flex flex-col gap-1.5', collapsed ? 'items-center px-2' : 'px-2.5')}>
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Skeleton key={i} className={collapsed ? 'size-10 shrink-0 rounded-md' : 'h-9 w-full rounded-md'} />
+        ))}
+      </nav>
+    );
   }
 
   const entries = NAV_ENTRIES.map((entry) => {

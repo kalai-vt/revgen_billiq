@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 Category = Literal["core", "business", "ai", "premium"]
-Domain = Literal["customers", "templates", "analytics", "general"]
+Domain = Literal["customers", "templates", "analytics", "general", "procurement", "commerce"]
 FlagStatus = Literal["enabled", "disabled", "suspended"]
 AccessLevel = Literal["full_access", "read_only"]
 

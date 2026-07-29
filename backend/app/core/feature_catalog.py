@@ -10,7 +10,7 @@ from typing import Literal, TypedDict
 
 Category = Literal["core", "business", "ai", "premium"]
 ConfigFieldType = Literal["number", "boolean", "text"]
-Domain = Literal["customers", "templates", "analytics", "general"]
+Domain = Literal["customers", "templates", "analytics", "general", "procurement", "commerce"]
 
 
 class ConfigField(TypedDict):
@@ -95,6 +95,24 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("settings", "Settings", "Tenant business settings and preferences.", "core", is_implemented=True, always_on=True),
     _m("payments_credit", "Outstanding", "Outstanding balances and credit collection.", "core", is_implemented=True, requires=["pos_billing"]),
     _m("analytics", "Analytics", "Sales performance and business intelligence dashboards.", "core", domain="analytics", is_implemented=True),
+
+    # ---- Procurement Management (implemented in phases; sub-keys pre-registered so the admin
+    # portal's Procurement tab is complete from day one — flip is_implemented as each phase ships) ----
+    _m("procurement", "Procurement", "Vendor purchasing, costs, and payables.", "business", domain="procurement", is_implemented=True),
+    _m("vendors", "Vendors", "Vendor directory and outstanding balances.", "business", domain="procurement", is_implemented=True, requires=["procurement"]),
+    _m("purchase_entries", "Purchase Entry", "Record vendor purchases; updates stock and cost price.", "business", domain="procurement", is_implemented=True, requires=["procurement", "vendors"]),
+    _m("purchase_returns", "Purchase Returns", "Return purchased stock to a vendor.", "business", domain="procurement", is_implemented=True, requires=["procurement", "purchase_entries"]),
+    _m("vendor_payments", "Vendor Payments", "Record payments made against vendor purchases.", "business", domain="procurement", is_implemented=True, requires=["procurement", "vendors"]),
+    _m("procurement_analytics", "Procurement Analytics", "Purchase trends, vendor and cost analysis, margin.", "business", domain="procurement", is_implemented=True, requires=["procurement"]),
+    _m("procurement_reports", "Procurement Reports", "Purchase, vendor, and GST reports with export.", "business", domain="procurement", is_implemented=True, requires=["procurement"]),
+
+    # ---- Commerce Integrations (Swiggy/Zomato online-order sync). Real platform connectivity
+    # requires each platform's POS-partner approval — until then, integrations run in "mock"
+    # mode so the full order -> auto-invoice -> dashboard pipeline is genuinely usable today. ----
+    _m("commerce", "Commerce Integrations", "Online-order sync from delivery platforms.", "business", domain="commerce", is_implemented=True),
+    _m("commerce_swiggy", "Swiggy Integration", "Import and auto-bill Swiggy orders.", "business", domain="commerce", is_implemented=True, requires=["commerce"]),
+    _m("commerce_zomato", "Zomato Integration", "Import and auto-bill Zomato orders.", "business", domain="commerce", is_implemented=True, requires=["commerce"]),
+    _m("commerce_analytics", "Commerce Analytics", "Online order revenue, channel, and product analytics.", "business", domain="commerce", is_implemented=True, requires=["commerce"]),
 
     # ---- Business Modules (roadmap) ----
     _m("purchase", "Purchase", "Purchase order management.", "business"),

@@ -74,9 +74,11 @@ function Workspace({ initialTenantId }: { initialTenantId: string | null }) {
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="procurement">Procurement</TabsTrigger>
+          <TabsTrigger value="commerce">Commerce</TabsTrigger>
         </TabsList>
 
-        {(['all', 'customers', 'templates', 'analytics'] as const).map((tab) => (
+        {(['all', 'customers', 'templates', 'analytics', 'procurement', 'commerce'] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="mt-3">
             <ModuleDomainTab
               tenantId={selectedTenantId}

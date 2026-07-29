@@ -35,12 +35,22 @@ from app.modules.auth.router import router as auth_router
 from app.modules.billing_plans.router import router as billing_plans_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.categories.router import router as categories_router
+from app.modules.commerce.config_router import router as commerce_config_router
+from app.modules.commerce.dashboard_router import router as commerce_dashboard_router
+from app.modules.commerce.orders_router import router as commerce_orders_router
+from app.modules.commerce.webhooks_router import router as commerce_webhooks_router
 from app.modules.customers.router import router as customers_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.invoice_designer.router import router as invoice_designer_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.payments.router import router as payments_router
 from app.modules.pos.router import router as pos_router
+from app.modules.procurement.analytics_router import router as procurement_analytics_router
+from app.modules.procurement.dashboard_router import router as procurement_dashboard_router
+from app.modules.procurement.purchases_router import router as procurement_purchases_router
+from app.modules.procurement.returns_router import router as procurement_returns_router
+from app.modules.procurement.vendor_payments_router import router as procurement_vendor_payments_router
+from app.modules.procurement.vendors_router import router as procurement_vendors_router
 from app.modules.sales.router import router as sales_router
 from app.modules.search.router import router as search_router
 from app.modules.settings.router import router as settings_router
@@ -114,9 +124,19 @@ app.include_router(admin_system_router)
 app.include_router(billing_plans_router)
 app.include_router(categories_router)
 app.include_router(catalog_router)
+app.include_router(commerce_config_router)
+app.include_router(commerce_orders_router)
+app.include_router(commerce_webhooks_router)
+app.include_router(commerce_dashboard_router)
 app.include_router(customers_router)
 app.include_router(payments_router)
 app.include_router(inventory_router)
+app.include_router(procurement_vendors_router)
+app.include_router(procurement_purchases_router)
+app.include_router(procurement_returns_router)
+app.include_router(procurement_vendor_payments_router)
+app.include_router(procurement_dashboard_router)
+app.include_router(procurement_analytics_router)
 app.include_router(pos_router)
 app.include_router(sales_router)
 app.include_router(invoice_designer_router)

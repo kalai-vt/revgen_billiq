@@ -11,7 +11,7 @@ export interface ConfigFieldSchema {
   default: unknown;
 }
 
-export type FeatureDomain = 'customers' | 'templates' | 'analytics' | 'general';
+export type FeatureDomain = 'customers' | 'templates' | 'analytics' | 'general' | 'procurement' | 'commerce';
 
 export interface TenantFeatureItem {
   module_key: string;

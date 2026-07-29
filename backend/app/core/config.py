@@ -7,6 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET = "dev-secret-change-me"
 DEFAULT_ADMIN_JWT_SECRET = "dev-admin-secret-change-me"
+# Must be a valid Fernet key (32 url-safe base64-encoded bytes) — used only to encrypt Commerce
+# Integration credentials (Swiggy/Zomato API keys) at rest, see app/core/crypto.py.
+DEFAULT_COMMERCE_ENCRYPTION_KEY = "S40qXQRZk1f2WcBLZm-NmtYFNEPMck6khtLR9M_RoHc="
 
 
 class Settings(BaseSettings):
@@ -20,6 +23,7 @@ class Settings(BaseSettings):
     # Billing app, so a leak of one credential store can't be used to forge tokens for the other.
     admin_database_url: str = "sqlite:///./admin.db"
     admin_jwt_secret: str = DEFAULT_ADMIN_JWT_SECRET
+    commerce_encryption_key: str = DEFAULT_COMMERCE_ENCRYPTION_KEY
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
     remember_me_refresh_token_expire_days: int = 30
@@ -63,6 +67,12 @@ class Settings(BaseSettings):
                     "when REVGENIQ_ENVIRONMENT=production. Generate one with: "
                     'python -c "import secrets; print(secrets.token_hex(32))"'
                 )
+            if self.commerce_encryption_key == DEFAULT_COMMERCE_ENCRYPTION_KEY:
+                raise ValueError(
+                    "REVGENIQ_COMMERCE_ENCRYPTION_KEY must be set to a unique Fernet key when "
+                    "REVGENIQ_ENVIRONMENT=production. Generate one with: "
+                    'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+                )
             if self.email_provider == "console":
                 # The console provider only prints emails to stdout — nothing is actually
                 # delivered. This is the #1 cause of "verification/reset emails never arrive"
@@ -85,6 +95,13 @@ class Settings(BaseSettings):
                     "Using the default REVGENIQ_ADMIN_JWT_SECRET. This is only safe for local "
                     "development — set REVGENIQ_ADMIN_JWT_SECRET to a real secret before deploying "
                     "anywhere reachable.",
+                    stacklevel=2,
+                )
+            if self.commerce_encryption_key == DEFAULT_COMMERCE_ENCRYPTION_KEY:
+                warnings.warn(
+                    "Using the default REVGENIQ_COMMERCE_ENCRYPTION_KEY. This is only safe for local "
+                    "development — set REVGENIQ_COMMERCE_ENCRYPTION_KEY to a real Fernet key before "
+                    "deploying anywhere reachable.",
                     stacklevel=2,
                 )
         return self

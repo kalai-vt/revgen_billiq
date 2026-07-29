@@ -69,6 +69,44 @@ const TrendComparisonPage = lazy(() =>
 );
 const PricingPage = lazy(() => import('@/features/plans/pages/PricingPage').then((m) => ({ default: m.PricingPage })));
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const VendorsPage = lazy(() => import('@/features/procurement/pages/VendorsPage').then((m) => ({ default: m.VendorsPage })));
+const PurchaseEntriesPage = lazy(() =>
+  import('@/features/procurement/pages/PurchaseEntriesPage').then((m) => ({ default: m.PurchaseEntriesPage })),
+);
+const PurchaseEntryDetailPage = lazy(() =>
+  import('@/features/procurement/pages/PurchaseEntryDetailPage').then((m) => ({ default: m.PurchaseEntryDetailPage })),
+);
+const ProcurementDashboardPage = lazy(() =>
+  import('@/features/procurement/pages/ProcurementDashboardPage').then((m) => ({ default: m.ProcurementDashboardPage })),
+);
+const PurchaseReturnsPage = lazy(() =>
+  import('@/features/procurement/pages/PurchaseReturnsPage').then((m) => ({ default: m.PurchaseReturnsPage })),
+);
+const VendorPaymentsPage = lazy(() =>
+  import('@/features/procurement/pages/VendorPaymentsPage').then((m) => ({ default: m.VendorPaymentsPage })),
+);
+const VendorLedgerPage = lazy(() =>
+  import('@/features/procurement/pages/VendorLedgerPage').then((m) => ({ default: m.VendorLedgerPage })),
+);
+const ProcurementAnalyticsPage = lazy(() =>
+  import('@/features/procurement/pages/ProcurementAnalyticsPage').then((m) => ({ default: m.ProcurementAnalyticsPage })),
+);
+const ProcurementReportsPage = lazy(() =>
+  import('@/features/procurement/pages/ProcurementReportsPage').then((m) => ({ default: m.ProcurementReportsPage })),
+);
+const CommerceDashboardPage = lazy(() =>
+  import('@/features/commerce/pages/CommerceDashboardPage').then((m) => ({ default: m.CommerceDashboardPage })),
+);
+const CommerceIntegrationPage = lazy(() =>
+  import('@/features/commerce/pages/CommerceIntegrationPage').then((m) => ({ default: m.CommerceIntegrationPage })),
+);
+const CommerceOrdersPage = lazy(() => import('@/features/commerce/pages/CommerceOrdersPage').then((m) => ({ default: m.CommerceOrdersPage })));
+const CommerceOrderDetailPage = lazy(() =>
+  import('@/features/commerce/pages/CommerceOrderDetailPage').then((m) => ({ default: m.CommerceOrderDetailPage })),
+);
+const ProductMappingPage = lazy(() =>
+  import('@/features/commerce/pages/ProductMappingPage').then((m) => ({ default: m.ProductMappingPage })),
+);
 const InvoiceDesignerPage = lazy(() =>
   import('@/features/invoice-designer/pages/InvoiceDesignerPage').then((m) => ({ default: m.InvoiceDesignerPage })),
 );
@@ -109,6 +147,38 @@ export const router = createBrowserRouter([
                 element: (
                   <RequireModule moduleKey="reports_analytics" label="Overview">
                     <DashboardPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/procurement/dashboard',
+                element: (
+                  <RequireModule moduleKey="procurement" label="Procurement">
+                    <ProcurementDashboardPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/procurement/analytics',
+                element: (
+                  <RequireModule moduleKey="procurement_analytics" label="Procurement Analytics">
+                    <ProcurementAnalyticsPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/procurement/reports',
+                element: (
+                  <RequireModule moduleKey="procurement_reports" label="Procurement Reports">
+                    <ProcurementReportsPage />
+                  </RequireModule>
+                ),
+              },
+              {
+                path: '/commerce/dashboard',
+                element: (
+                  <RequireModule moduleKey="commerce_analytics" label="Commerce Dashboard">
+                    <CommerceDashboardPage />
                   </RequireModule>
                 ),
               },
@@ -227,6 +297,94 @@ export const router = createBrowserRouter([
             element: (
               <RequireModule moduleKey="customers" label="Customers">
                 <CustomerDetailPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/procurement/vendors',
+            element: (
+              <RequireModule moduleKey="vendors" label="Vendors">
+                <VendorsPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/procurement/purchases',
+            element: (
+              <RequireModule moduleKey="purchase_entries" label="Purchase Entry">
+                <PurchaseEntriesPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/procurement/purchases/:id',
+            element: (
+              <RequireModule moduleKey="purchase_entries" label="Purchase Entry">
+                <PurchaseEntryDetailPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/procurement/returns',
+            element: (
+              <RequireModule moduleKey="purchase_returns" label="Purchase Returns">
+                <PurchaseReturnsPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/procurement/vendor-payments',
+            element: (
+              <RequireModule moduleKey="vendor_payments" label="Vendor Payments">
+                <VendorPaymentsPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/procurement/vendors/:id/ledger',
+            element: (
+              <RequireModule moduleKey="vendor_payments" label="Vendor Payments">
+                <VendorLedgerPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/commerce/swiggy',
+            element: (
+              <RequireModule moduleKey="commerce_swiggy" label="Swiggy">
+                <CommerceIntegrationPage platform="swiggy" />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/commerce/zomato',
+            element: (
+              <RequireModule moduleKey="commerce_zomato" label="Zomato">
+                <CommerceIntegrationPage platform="zomato" />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/commerce/orders',
+            element: (
+              <RequireModule moduleKey="commerce" label="Commerce">
+                <CommerceOrdersPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/commerce/orders/:id',
+            element: (
+              <RequireModule moduleKey="commerce" label="Commerce">
+                <CommerceOrderDetailPage />
+              </RequireModule>
+            ),
+          },
+          {
+            path: '/commerce/product-mapping',
+            element: (
+              <RequireModule moduleKey="commerce" label="Commerce">
+                <ProductMappingPage />
               </RequireModule>
             ),
           },
