@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.limits import FeatureNotAvailableError, LimitExceededError
+from app.core.migrate import apply_pending_migrations
 from app.core.responses import make_response
 from app.modules.activity.router import router as activity_router
 from app.modules.admin_audit.router import router as admin_audit_router
@@ -45,6 +46,10 @@ from app.modules.search.router import router as search_router
 from app.modules.settings.router import router as settings_router
 
 app = FastAPI(title="RevGen BillIQ API", version="1.0.0")
+
+# Runs on every cold start (and every local `uvicorn --reload`) so the schema never drifts from
+# the code again — see app/core/migrate.py for why this exists.
+apply_pending_migrations()
 
 if not os.environ.get("VERCEL"):
     # Local dev only: uploads live on disk. In production the filesystem is read-only and
