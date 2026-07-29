@@ -6,6 +6,7 @@ export type ThemeChoice = 'light' | 'dark' | 'system';
 export type PrimarySearchField = 'name' | 'identifier_value' | 'barcode' | 'category';
 export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type DefaultPaymentMethod = 'cash' | 'card' | 'upi';
+export type AutoPrintPaperSize = '58mm' | '80mm' | 'A5' | 'A4' | 'letter' | 'legal';
 
 export interface Settings {
   id: string;
@@ -28,6 +29,8 @@ export interface Settings {
   default_tax_percent: number;
   allow_discounts: boolean;
   auto_print_after_checkout: boolean;
+  auto_print_printer_name: string | null;
+  auto_print_paper_size: AutoPrintPaperSize;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   allow_negative_stock: boolean;
@@ -67,6 +70,8 @@ export interface SettingsUpdatePayload {
   default_tax_percent?: number;
   allow_discounts?: boolean;
   auto_print_after_checkout?: boolean;
+  auto_print_printer_name?: string | null;
+  auto_print_paper_size?: AutoPrintPaperSize;
   enable_barcode?: boolean;
   enable_customer_selection?: boolean;
   allow_negative_stock?: boolean;
@@ -97,6 +102,8 @@ export interface BusinessPreferences {
   default_tax_percent: number;
   allow_discounts: boolean;
   auto_print_after_checkout: boolean;
+  auto_print_printer_name: string | null;
+  auto_print_paper_size: AutoPrintPaperSize;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   default_payment_method: DefaultPaymentMethod;

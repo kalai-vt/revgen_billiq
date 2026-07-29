@@ -15,6 +15,7 @@ import { TeamMemberTable } from '@/features/auth/components/TeamMemberTable';
 import { stripCountryCode, withCountryCode } from '@/features/auth/lib/phone';
 import { hasFeature } from '@/features/plans/lib/planConfig';
 import { PlanUsageCard } from '@/features/plans/components/PlanUsageCard';
+import { AutoPrintSettingsForm } from '@/features/settings/components/AutoPrintSettingsForm';
 import { AvatarUploadControl } from '@/features/settings/components/AvatarUploadControl';
 import { BillingSettingsForm } from '@/features/settings/components/BillingSettingsForm';
 import { BusinessPreferencesForm } from '@/features/settings/components/BusinessPreferencesForm';
@@ -102,6 +103,7 @@ export function SettingsPage() {
     { id: 'billing', label: 'Billing Settings', visible: isOwner },
     { id: 'product-config', label: 'Product Configuration', visible: isOwner },
     { id: 'invoice-settings', label: 'Invoice Settings', visible: isOwner },
+    { id: 'auto-print', label: 'Automatic Printing', visible: isOwner },
     { id: 'invoice-designer', label: 'Invoice Designer', visible: isOwner && invoiceDesignerEnabled },
     { id: 'business-preferences', label: 'Business Preferences', visible: isOwner },
     { id: 'team', label: 'Team', visible: isOwner || isManager },
@@ -286,6 +288,20 @@ export function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <InvoiceSettingsForm />
+              </CardContent>
+            </Card>
+          )}
+
+          {isOwner && (
+            <Card id="auto-print" className="scroll-mt-4">
+              <CardHeader>
+                <CardTitle>Automatic Printing</CardTitle>
+                <CardDescription>
+                  Print receipts automatically after checkout, with no dialog, via QZ Tray.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AutoPrintSettingsForm />
               </CardContent>
             </Card>
           )}

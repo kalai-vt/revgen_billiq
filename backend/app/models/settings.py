@@ -43,6 +43,8 @@ class Settings(Base):
     default_tax_percent: Mapped[float] = mapped_column(Float, default=0.0)
     allow_discounts: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_print_after_checkout: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_print_printer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    auto_print_paper_size: Mapped[str] = mapped_column(String(10), default="80mm")
     enable_barcode: Mapped[bool] = mapped_column(Boolean, default=True)
     enable_customer_selection: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_negative_stock: Mapped[bool] = mapped_column(Boolean, default=True)

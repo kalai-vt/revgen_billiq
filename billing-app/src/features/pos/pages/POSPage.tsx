@@ -239,6 +239,8 @@ export function POSPage() {
         invoice={completedInvoice}
         onClose={resetForNewSale}
         autoPrint={preferences?.auto_print_after_checkout ?? false}
+        autoPrintPrinterName={preferences?.auto_print_printer_name ?? null}
+        autoPrintPaperSize={preferences?.auto_print_paper_size ?? '80mm'}
       />
       <HeldBillsDialog open={heldBillsOpen} onClose={() => setHeldBillsOpen(false)} onResume={resumeHeldBill} />
     </div>

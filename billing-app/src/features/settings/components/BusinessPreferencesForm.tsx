@@ -19,7 +19,6 @@ export function BusinessPreferencesForm() {
   const [form, setForm] = useState({
     default_tax_percent: 0,
     allow_discounts: true,
-    auto_print_after_checkout: false,
     enable_barcode: true,
     enable_customer_selection: false,
     allow_negative_stock: true,
@@ -33,7 +32,6 @@ export function BusinessPreferencesForm() {
       setForm({
         default_tax_percent: settings.default_tax_percent,
         allow_discounts: settings.allow_discounts,
-        auto_print_after_checkout: settings.auto_print_after_checkout,
         enable_barcode: settings.enable_barcode,
         enable_customer_selection: settings.enable_customer_selection,
         allow_negative_stock: settings.allow_negative_stock,
@@ -132,7 +130,6 @@ export function BusinessPreferencesForm() {
 
       <div className="space-y-3 sm:col-span-2">
         {toggle('allow_discounts', 'Allow discounts during billing')}
-        {toggle('auto_print_after_checkout', 'Automatically print receipt after checkout')}
         {toggle('enable_barcode', 'Enable barcode on products')}
         {toggle('enable_customer_selection', 'Allow selecting an existing customer at checkout')}
         {toggle('allow_negative_stock', 'Allow sales that would take stock below zero')}

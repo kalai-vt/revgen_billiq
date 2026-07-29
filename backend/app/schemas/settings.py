@@ -9,6 +9,7 @@ from app.schemas.catalog import IdentifierType
 PrimarySearchField = Literal["name", "identifier_value", "barcode", "category"]
 DateFormat = Literal["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]
 DefaultPaymentMethod = Literal["cash", "card", "upi"]
+AutoPrintPaperSize = Literal["58mm", "80mm", "A5", "A4", "letter", "legal"]
 
 
 class SettingsOut(BaseModel):
@@ -34,6 +35,8 @@ class SettingsOut(BaseModel):
     default_tax_percent: float
     allow_discounts: bool
     auto_print_after_checkout: bool
+    auto_print_printer_name: str | None = None
+    auto_print_paper_size: AutoPrintPaperSize
     enable_barcode: bool
     enable_customer_selection: bool
     allow_negative_stock: bool
@@ -73,6 +76,8 @@ class SettingsUpdate(BaseModel):
     default_tax_percent: float | None = Field(default=None, ge=0, le=100)
     allow_discounts: bool | None = None
     auto_print_after_checkout: bool | None = None
+    auto_print_printer_name: str | None = None
+    auto_print_paper_size: AutoPrintPaperSize | None = None
     enable_barcode: bool | None = None
     enable_customer_selection: bool | None = None
     allow_negative_stock: bool | None = None
@@ -126,6 +131,8 @@ class BusinessPreferencesOut(BaseModel):
     default_tax_percent: float
     allow_discounts: bool
     auto_print_after_checkout: bool
+    auto_print_printer_name: str | None = None
+    auto_print_paper_size: AutoPrintPaperSize
     enable_barcode: bool
     enable_customer_selection: bool
     default_payment_method: DefaultPaymentMethod
