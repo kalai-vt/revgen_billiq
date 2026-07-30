@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import uuid
+from datetime import date
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -14,7 +17,7 @@ def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
         "company_name": "Acme Retail",
         "legal_name": "Acme Retail Ltd",
         "email": email,
-        "phone": "+15551234567",
+        "phone": f"+1555{uuid.uuid4().int % 10_000_000:07d}",
         "password": "StrongPass!123",
         "first_name": "Ada",
         "last_name": "Lovelace",
@@ -142,14 +145,15 @@ def test_advanced_analytics_requires_explore_plan(client: TestClient, admin_db_s
     owner = _register(client)
     headers = _headers(owner["access_token"])
 
-    basic_dashboard = client.get("/api/analytics/dashboard?days=7", headers=headers)
+    today = date.today().isoformat()
+    basic_dashboard = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}", headers=headers)
     assert basic_dashboard.status_code == 200
 
-    denied = client.get("/api/analytics/dashboard?days=14&advanced=true", headers=headers)
+    denied = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}&advanced=true", headers=headers)
     assert denied.status_code == 402
 
     _set_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
-    allowed = client.get("/api/analytics/dashboard?days=14&advanced=true", headers=headers)
+    allowed = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}&advanced=true", headers=headers)
     assert allowed.status_code == 200
 
 

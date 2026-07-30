@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -26,7 +28,7 @@ def _register_tenant(client: TestClient, email: str = "owner@acme.test", company
             "company_name": company,
             "legal_name": f"{company} Ltd",
             "email": email,
-            "phone": "+15551234567",
+            "phone": f"+1555{uuid.uuid4().int % 10_000_000:07d}",
             "password": "StrongPass!123",
             "first_name": "Ada",
             "last_name": "Lovelace",

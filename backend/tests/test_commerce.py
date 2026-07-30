@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import uuid
+from datetime import date
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -11,7 +14,7 @@ def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
         "company_name": "Acme Retail",
         "legal_name": "Acme Retail Ltd",
         "email": email,
-        "phone": "+15551234567",
+        "phone": f"+1555{uuid.uuid4().int % 10_000_000:07d}",
         "password": "StrongPass!123",
         "first_name": "Ada",
         "last_name": "Lovelace",
@@ -256,15 +259,16 @@ def test_analytics_dashboard_reflects_activity(client: TestClient) -> None:
         headers=headers,
     )
 
-    dashboard = client.get("/api/analytics/dashboard?days=7", headers=headers)
+    today = date.today().isoformat()
+    dashboard = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}", headers=headers)
     assert dashboard.status_code == 200
     data = dashboard.json()["data"]
-    assert data["kpis"]["today_bill_count"] == 1
-    assert data["kpis"]["today_revenue"] == 20.0
-    assert data["kpis"]["today_units_sold"] == 2.0
+    assert data["kpis"]["total_orders"] == 1
+    assert data["kpis"]["total_sales"] == 20.0
+    assert data["kpis"]["total_units_sold"] == 2.0
     assert data["kpis"]["total_products"] == 1
     assert data["kpis"]["total_customers"] == 0
-    assert len(data["daily_sales"]) == 7
+    assert len(data["sales_trend"]) == 1
     assert data["top_products"][0]["identifier_value"] == "WID-1"
     assert data["payment_methods"][0]["method"] == "cash"
     assert len(data["recent_invoices"]) == 1

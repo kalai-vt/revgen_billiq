@@ -288,6 +288,9 @@ def update_tenant_feature(
     if status is not None and status != "enabled" and module["always_on"]:
         raise AdminFeatureError(422, f"{module['label']} is a core module and can't be disabled.")
 
+    if status == "enabled" and not module["is_implemented"]:
+        raise AdminFeatureError(422, f"{module['label']} isn't built yet and can't be enabled for a tenant.")
+
     settings = _get_settings(db, tenant_id)
     app_version = settings.app_version if settings else "1.0.0"
     if status == "enabled" and not version_gte(app_version, module["min_version"]):
