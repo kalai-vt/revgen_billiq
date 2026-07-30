@@ -87,6 +87,10 @@ export interface ReceiptBusinessInfo {
   /** Only passed when the tenant's Invoice Designer template has branding.show_phone enabled —
    * see InvoiceSuccessDialog.tsx. */
   phone?: string | null;
+  /** Pre-rendered ESC/POS raster bit-image command for the tenant's logo — see
+   * `escposLogo.ts::buildLogoCommand`. Built separately (it's async; loads and rasterizes an
+   * image) and passed in already-built, so this function itself stays synchronous. */
+  logoCommand?: string | null;
 }
 
 export interface ReceiptFooterSection {
@@ -153,7 +157,11 @@ export function buildReceiptCommands(
   const out: string[] = [];
   const createdAt = new Date(data.createdAt);
 
-  out.push(init(), align('center'), bold(true), doubleSize(true));
+  out.push(init());
+  if (business.logoCommand) {
+    out.push(align('center'), business.logoCommand, feed(1));
+  }
+  out.push(align('center'), bold(true), doubleSize(true));
   out.push(`${business.companyName}\n`);
   out.push(doubleSize(false), bold(false));
 

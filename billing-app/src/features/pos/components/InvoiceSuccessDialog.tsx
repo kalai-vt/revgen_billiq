@@ -17,6 +17,7 @@ import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { loadDeviceMode } from '@/lib/printing/deviceProfile';
 import { buildReceiptCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
+import { buildLogoCommand } from '@/lib/printing/escposLogo';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
 
@@ -75,7 +76,7 @@ export function InvoiceSuccessDialog({
     const invoiceId = invoice.id;
     const currentInvoice = invoice;
 
-    function buildCommands(paperSize: ThermalPaperSize) {
+    function buildCommands(paperSize: ThermalPaperSize, logoCommand: string | null) {
       if (!settings) return null;
       const companyName = tenant?.company_name ?? 'Receipt';
       const config = taxInvoiceTemplate?.config;
@@ -117,6 +118,7 @@ export function InvoiceSuccessDialog({
           pincode: settings.pincode,
           gstNumber: settings.gst_number,
           phone: config?.branding.show_phone ? tenant?.phone : null,
+          logoCommand,
         },
         {
           invoiceNumber: currentInvoice.invoice_number,
@@ -150,8 +152,14 @@ export function InvoiceSuccessDialog({
     }
 
     (async () => {
-      if (usesWebTransport && isThermalPaperSize(autoPrintPaperSize)) {
-        const commands = buildCommands(autoPrintPaperSize);
+      const thermal = isThermalPaperSize(autoPrintPaperSize);
+      const logoCommand =
+        thermal && settings && taxInvoiceTemplate?.config.branding.show_logo && settings.logo_url
+          ? await buildLogoCommand(settings.logo_url, autoPrintPaperSize)
+          : null;
+
+      if (usesWebTransport && thermal) {
+        const commands = buildCommands(autoPrintPaperSize, logoCommand);
         if (commands) {
           try {
             if (deviceMode === 'web-usb') await webUsbPrinter.printRaw(commands);
@@ -164,8 +172,8 @@ export function InvoiceSuccessDialog({
         }
       } else if (deviceMode === 'qz' && autoPrintPrinterName) {
         try {
-          if (isThermalPaperSize(autoPrintPaperSize)) {
-            const commands = buildCommands(autoPrintPaperSize);
+          if (thermal) {
+            const commands = buildCommands(autoPrintPaperSize, logoCommand);
             if (!commands) throw new Error('Business settings were not available for the receipt.');
             await qzTray.printRaw(autoPrintPrinterName, commands);
           } else {
