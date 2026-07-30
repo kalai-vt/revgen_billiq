@@ -57,6 +57,7 @@ from app.modules.pos.router import router as pos_router
 from app.modules.procurement.analytics_router import router as procurement_analytics_router
 from app.modules.procurement.dashboard_router import router as procurement_dashboard_router
 from app.modules.procurement.purchases_router import router as procurement_purchases_router
+from app.modules.printing.router import router as printing_router
 from app.modules.procurement.returns_router import router as procurement_returns_router
 from app.modules.procurement.vendor_payments_router import router as procurement_vendor_payments_router
 from app.modules.procurement.vendors_router import router as procurement_vendors_router
@@ -166,6 +167,7 @@ app.include_router(procurement_vendor_payments_router)
 app.include_router(procurement_dashboard_router)
 app.include_router(procurement_analytics_router)
 app.include_router(pos_router)
+app.include_router(printing_router)
 app.include_router(sales_router)
 app.include_router(invoice_designer_router)
 app.include_router(analytics_router)

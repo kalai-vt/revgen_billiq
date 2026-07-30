@@ -36,6 +36,23 @@ function divider(width: number): string {
   return `${'-'.repeat(width)}\n`;
 }
 
+const QR_ERROR_CORRECTION = { L: 48, M: 49, Q: 50, H: 51 } as const;
+
+/** Standard ESC/POS "GS ( k" QR code sequence (select model 2 → set module size → set error
+ * correction → store data → print), supported across most modern ESC/POS thermal printers —
+ * renders the QR on the printer itself, no bitmap/image library needed. `data` is written as raw
+ * bytes (QR byte mode), same convention as the rest of this file. */
+function qrCode(data: string, moduleSize = 6, errorCorrection: keyof typeof QR_ERROR_CORRECTION = 'M'): string {
+  const GSk = `${GS}(k`;
+  const selectModel = `${GSk}\x04\x00\x31\x41\x32\x00`;
+  const setSize = `${GSk}\x03\x00\x31\x43${String.fromCharCode(moduleSize)}`;
+  const setErrorCorrection = `${GSk}\x03\x00\x31\x45${String.fromCharCode(QR_ERROR_CORRECTION[errorCorrection])}`;
+  const storeLength = data.length + 3;
+  const storeData = `${GSk}${String.fromCharCode(storeLength & 0xff)}${String.fromCharCode((storeLength >> 8) & 0xff)}\x31\x50\x30${data}`;
+  const printSymbol = `${GSk}\x03\x00\x31\x51\x30`;
+  return selectModel + setSize + setErrorCorrection + storeData + printSymbol;
+}
+
 function wrapText(text: string, width: number): string[] {
   const words = text.split(' ').filter(Boolean);
   if (words.length === 0) return [''];
@@ -67,6 +84,18 @@ export interface ReceiptBusinessInfo {
   state?: string | null;
   pincode?: string | null;
   gstNumber?: string | null;
+  /** Only passed when the tenant's Invoice Designer template has branding.show_phone enabled —
+   * see InvoiceSuccessDialog.tsx. */
+  phone?: string | null;
+}
+
+export interface ReceiptFooterSection {
+  text: string;
+}
+
+export interface ReceiptQrCode {
+  caption: string;
+  data: string;
 }
 
 export interface ReceiptItem {
@@ -94,6 +123,18 @@ export interface ReceiptData {
   footer?: string | null;
   currency: string;
   decimalPrecision: number;
+  /** From the tenant's Invoice Designer tax_summary.fields.round_off toggle — always 0 for
+   * regular invoices today (see backend document_data.py), but a real, tenant-enabled line item
+   * rather than a fabricated one, so it's shown when enabled for parity with the on-screen/PDF
+   * receipt. */
+  roundOff?: number;
+  /** Enabled sections from the Designer template's footer.sections, already filtered/ordered by
+   * the caller. Printed before the legacy single `footer` string above, so tenants using either
+   * or both fields see everything they've configured. */
+  footerSections?: ReceiptFooterSection[];
+  /** Enabled QR codes from the Designer template's qr_barcode.* flags, already built by the
+   * caller (see InvoiceSuccessDialog.tsx for the exact payload per QR type). */
+  qrCodes?: ReceiptQrCode[];
 }
 
 function money(value: number, data: ReceiptData): string {
@@ -120,6 +161,7 @@ export function buildReceiptCommands(
     business.addressLine1,
     [business.addressLine2, business.city, business.state, business.pincode].filter(Boolean).join(', '),
     business.gstNumber ? `GSTIN: ${business.gstNumber}` : null,
+    business.phone ? `Ph: ${business.phone}` : null,
   ].filter((line): line is string => Boolean(line && line.trim()));
   for (const line of addressLines) {
     for (const wrapped of wrapText(line, width)) out.push(`${wrapped}\n`);
@@ -145,6 +187,7 @@ export function buildReceiptCommands(
   out.push(twoCol('Subtotal', money(data.subtotal, data), width));
   if (data.discountAmount > 0) out.push(twoCol('Discount', `-${money(data.discountAmount, data)}`, width));
   if (data.taxAmount > 0) out.push(twoCol(`Tax (${data.taxPercentage}%)`, money(data.taxAmount, data), width));
+  if (data.roundOff != null) out.push(twoCol('Round Off', money(data.roundOff, data), width));
   out.push(bold(true));
   out.push(twoCol('TOTAL', money(data.totalAmount, data), width));
   out.push(bold(false));
@@ -152,9 +195,22 @@ export function buildReceiptCommands(
   if (data.amountTendered != null) out.push(twoCol('Tendered', money(data.amountTendered, data), width));
   if (data.changeDue != null && data.changeDue > 0) out.push(twoCol('Change', money(data.changeDue, data), width));
 
-  if (data.footer && data.footer.trim()) {
+  const footerLines = [
+    ...(data.footerSections ?? []).map((section) => section.text),
+    data.footer,
+  ].filter((text): text is string => Boolean(text && text.trim()));
+  if (footerLines.length > 0) {
     out.push(divider(width), align('center'));
-    for (const wrapped of wrapText(data.footer, width)) out.push(`${wrapped}\n`);
+    for (const text of footerLines) {
+      for (const wrapped of wrapText(text, width)) out.push(`${wrapped}\n`);
+    }
+  }
+
+  if (data.qrCodes && data.qrCodes.length > 0) {
+    out.push(align('center'));
+    for (const { caption, data: qrData } of data.qrCodes) {
+      out.push(feed(1), `${caption}\n`, qrCode(qrData), feed(1));
+    }
   }
 
   out.push(feed(3), cut());

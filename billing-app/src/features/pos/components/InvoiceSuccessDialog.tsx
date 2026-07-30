@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,11 @@ import { WhatsAppShareButton } from '@/features/pos/components/WhatsAppShareButt
 import * as settingsApi from '@/features/settings/api';
 import type { AutoPrintPaperSize } from '@/features/settings/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import * as qzTray from '@/lib/printing/qzTray';
+import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
+import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
+import { loadDeviceMode } from '@/lib/printing/deviceProfile';
 import { buildReceiptCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
@@ -43,12 +47,24 @@ export function InvoiceSuccessDialog({
 }: InvoiceSuccessDialogProps) {
   const autoPrintedFor = useRef<string | null>(null);
   const { tenant } = useAuth();
-  const needsThermalSettings = autoPrint && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
+  // Which transport *this device* prints through — see deviceProfile.ts. QZ Tray keeps using the
+  // tenant-wide printer name from Settings; the Web USB/Bluetooth transports pair per-device and
+  // always print thermal ESC/POS, since neither can render the Invoice Designer PDF the way QZ's
+  // printPdf can for non-thermal paper sizes.
+  const [deviceMode] = useState(() => loadDeviceMode());
+  const usesQzThermal = deviceMode === 'qz' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
+  const usesWebTransport =
+    (deviceMode === 'web-usb' || deviceMode === 'web-bluetooth') && isThermalPaperSize(autoPrintPaperSize);
+  const needsThermalSettings = autoPrint && (usesQzThermal || usesWebTransport);
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: settingsApi.getSettings,
     enabled: needsThermalSettings,
   });
+  // The tenant's tax_invoice template drives which phone/round-off/footer/QR elements the
+  // thermal receipt shows — same template AutoPrintSettingsForm.tsx already checks paper size
+  // against, so thermal output stays in sync with what's actually configured in Designer.
+  const { template: taxInvoiceTemplate } = useTemplateForDocument('tax_invoice');
 
   useEffect(() => {
     if (!invoice || !autoPrint || autoPrintedFor.current === invoice.id) return;
@@ -59,46 +75,98 @@ export function InvoiceSuccessDialog({
     const invoiceId = invoice.id;
     const currentInvoice = invoice;
 
+    function buildCommands(paperSize: ThermalPaperSize) {
+      if (!settings) return null;
+      const companyName = tenant?.company_name ?? 'Receipt';
+      const config = taxInvoiceTemplate?.config;
+
+      // Mirrors backend/app/modules/invoice_designer/pdf_renderer.py's QR payloads exactly, so
+      // thermal, on-screen, and PDF receipts encode the same data for each QR type.
+      const qrCodes: { caption: string; data: string }[] = [];
+      if (config?.qr_barcode.invoice_qr) {
+        qrCodes.push({
+          caption: 'Invoice QR',
+          data: `Invoice:${currentInvoice.invoice_number}|Amount:${currentInvoice.total_amount.toFixed(2)}`,
+        });
+      }
+      if (config?.qr_barcode.payment_qr) {
+        qrCodes.push({ caption: 'Scan to Pay', data: `upi://pay?pn=${companyName}&am=${currentInvoice.total_amount.toFixed(2)}` });
+      }
+      if (config?.qr_barcode.business_qr) {
+        qrCodes.push({ caption: 'Business Card', data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}` });
+      }
+      if (config?.qr_barcode.website_qr && settings.website) {
+        qrCodes.push({ caption: 'Visit Us', data: settings.website });
+      }
+      if (config?.qr_barcode.feedback_qr && settings.feedback_url) {
+        qrCodes.push({ caption: 'Feedback', data: settings.feedback_url });
+      }
+
+      const footerSections = (config?.footer.sections ?? [])
+        .filter((section) => section.enabled)
+        .sort((a, b) => a.order - b.order)
+        .map((section) => ({ text: section.text }));
+
+      return buildReceiptCommands(
+        {
+          companyName,
+          addressLine1: settings.address_line1,
+          addressLine2: settings.address_line2,
+          city: settings.city,
+          state: settings.state,
+          pincode: settings.pincode,
+          gstNumber: settings.gst_number,
+          phone: config?.branding.show_phone ? tenant?.phone : null,
+        },
+        {
+          invoiceNumber: currentInvoice.invoice_number,
+          createdAt: currentInvoice.created_at,
+          cashierName: currentInvoice.created_by_name,
+          customerName: currentInvoice.customer_name,
+          customerPhone: currentInvoice.customer_phone,
+          items: currentInvoice.items.map((item) => ({
+            name: item.product_name,
+            quantity: item.quantity,
+            unitPrice: item.unit_price,
+            lineTotal: item.line_total,
+          })),
+          subtotal: currentInvoice.subtotal,
+          discountAmount: currentInvoice.discount_amount,
+          taxAmount: currentInvoice.tax_amount,
+          taxPercentage: currentInvoice.tax_percentage,
+          totalAmount: currentInvoice.total_amount,
+          paymentMethod: currentInvoice.payment_method,
+          amountTendered: currentInvoice.amount_tendered,
+          changeDue: currentInvoice.change_due,
+          footer: settings.receipt_footer,
+          currency: settings.currency,
+          decimalPrecision: settings.decimal_precision,
+          roundOff: config?.tax_summary.fields.round_off ? 0 : undefined,
+          footerSections,
+          qrCodes,
+        },
+        paperSize,
+      );
+    }
+
     (async () => {
-      if (autoPrintPrinterName) {
+      if (usesWebTransport && isThermalPaperSize(autoPrintPaperSize)) {
+        const commands = buildCommands(autoPrintPaperSize);
+        if (commands) {
+          try {
+            if (deviceMode === 'web-usb') await webUsbPrinter.printRaw(commands);
+            else await webBluetoothPrinter.printRaw(commands);
+            toast.success('Receipt sent to printer');
+            return;
+          } catch (err) {
+            console.warn(`Silent print via ${deviceMode} failed, falling back to the print dialog:`, err);
+          }
+        }
+      } else if (deviceMode === 'qz' && autoPrintPrinterName) {
         try {
-          if (isThermalPaperSize(autoPrintPaperSize) && settings) {
-            const commands = buildReceiptCommands(
-              {
-                companyName: tenant?.company_name ?? 'Receipt',
-                addressLine1: settings.address_line1,
-                addressLine2: settings.address_line2,
-                city: settings.city,
-                state: settings.state,
-                pincode: settings.pincode,
-                gstNumber: settings.gst_number,
-              },
-              {
-                invoiceNumber: currentInvoice.invoice_number,
-                createdAt: currentInvoice.created_at,
-                cashierName: currentInvoice.created_by_name,
-                customerName: currentInvoice.customer_name,
-                customerPhone: currentInvoice.customer_phone,
-                items: currentInvoice.items.map((item) => ({
-                  name: item.product_name,
-                  quantity: item.quantity,
-                  unitPrice: item.unit_price,
-                  lineTotal: item.line_total,
-                })),
-                subtotal: currentInvoice.subtotal,
-                discountAmount: currentInvoice.discount_amount,
-                taxAmount: currentInvoice.tax_amount,
-                taxPercentage: currentInvoice.tax_percentage,
-                totalAmount: currentInvoice.total_amount,
-                paymentMethod: currentInvoice.payment_method,
-                amountTendered: currentInvoice.amount_tendered,
-                changeDue: currentInvoice.change_due,
-                footer: settings.receipt_footer,
-                currency: settings.currency,
-                decimalPrecision: settings.decimal_precision,
-              },
-              autoPrintPaperSize,
-            );
+          if (isThermalPaperSize(autoPrintPaperSize)) {
+            const commands = buildCommands(autoPrintPaperSize);
+            if (!commands) throw new Error('Business settings were not available for the receipt.');
             await qzTray.printRaw(autoPrintPrinterName, commands);
           } else {
             const pdf = await posApi.downloadInvoicePdf(invoiceId);
@@ -112,7 +180,18 @@ export function InvoiceSuccessDialog({
       }
       window.open(appPath(`/invoices/${invoiceId}/print`), '_blank', 'noopener,noreferrer');
     })();
-  }, [invoice, autoPrint, autoPrintPrinterName, autoPrintPaperSize, needsThermalSettings, settings, tenant]);
+  }, [
+    invoice,
+    autoPrint,
+    autoPrintPrinterName,
+    autoPrintPaperSize,
+    needsThermalSettings,
+    settings,
+    tenant,
+    deviceMode,
+    usesWebTransport,
+    taxInvoiceTemplate,
+  ]);
 
   if (!invoice) return null;
 

@@ -1,11 +1,33 @@
 import qz from 'qz-tray';
+import { getCertificate, sign } from '@/lib/printing/qzTraySigning';
 
-/** Thin wrapper around the QZ Tray browser SDK (unsigned mode — see Settings > Invoice Settings
- * for the one-time "Allow" prompt QZ Tray shows per session). QZ Tray is a locally-installed
- * desktop app; when it isn't running, every call here rejects and callers should fall back to
- * the existing browser print-dialog flow. */
+/** Thin wrapper around the QZ Tray browser SDK. QZ Tray is a locally-installed desktop app; when
+ * it isn't running, every call here rejects and callers should fall back to the existing browser
+ * print-dialog flow.
+ *
+ * Requests are signed (see configureSigning below) when the backend has
+ * REVGENIQ_QZ_TRAY_PRIVATE_KEY/REVGENIQ_QZ_TRAY_CERTIFICATE configured. Signing gives the app a
+ * stable identity, so checking "Remember this decision" on QZ Tray's one-time trust prompt
+ * actually persists across future sessions — without it, QZ Tray treats every connection as a
+ * new anonymous identity and re-prompts on every single print. When those env vars aren't set,
+ * qzTraySigning's calls resolve to an empty string and QZ Tray falls back to today's unsigned
+ * behavior (still fully functional, just re-prompts each time). */
 
 export class QzTrayError extends Error {}
+
+let signingConfigured = false;
+
+function configureSigning(): void {
+  if (signingConfigured) return;
+  signingConfigured = true;
+  qz.security.setSignatureAlgorithm('SHA512');
+  qz.security.setCertificatePromise((resolve: (cert: string) => void, reject: (err: unknown) => void) => {
+    getCertificate().then(resolve, reject);
+  });
+  qz.security.setSignaturePromise((toSign: string) => (resolve: (sig: string) => void, reject: (err: unknown) => void) => {
+    sign(toSign).then(resolve, reject);
+  });
+}
 
 function isActive(): boolean {
   try {
@@ -18,6 +40,7 @@ function isActive(): boolean {
 let connecting: Promise<void> | null = null;
 
 async function connectOnce(): Promise<void> {
+  configureSigning();
   try {
     await qz.websocket.connect();
   } catch (err) {

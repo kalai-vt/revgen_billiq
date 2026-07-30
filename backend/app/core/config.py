@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     razorpay_key_secret: str = ""
     razorpay_webhook_secret: str = ""
 
+    # QZ Tray request signing (silent thermal printing — see app/modules/printing). Both empty
+    # (the default) means QZ Tray connections stay unsigned/anonymous: printing still works, but
+    # QZ Tray can't remember a stable identity, so its "Action Required" trust prompt reappears
+    # on every print. Set both to give the app a persistent signed identity instead.
+    qz_tray_private_key: str = ""
+    qz_tray_certificate: str = ""
+
     @model_validator(mode="after")
     def _guard_insecure_settings(self) -> "Settings":
         origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
