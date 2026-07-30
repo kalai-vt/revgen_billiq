@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as settingsApi from '@/features/settings/api';
 import * as invoiceDesignerApi from '@/features/invoice-designer/api';
-import { VISIBLE_DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, type DocumentType, type InvoiceTemplate, type InvoiceTemplateConfig } from '@/features/invoice-designer/api';
+import type { DocumentType, InvoiceTemplateConfig } from '@/features/invoice-designer/api';
 import { BrandingPanel } from '@/features/invoice-designer/components/panels/BrandingPanel';
 import { HeaderLayoutPanel } from '@/features/invoice-designer/components/panels/HeaderLayoutPanel';
 import { InvoiceInfoPanel } from '@/features/invoice-designer/components/panels/InvoiceInfoPanel';
@@ -20,7 +17,9 @@ import { FooterPanel } from '@/features/invoice-designer/components/panels/Foote
 import { QrBarcodePanel } from '@/features/invoice-designer/components/panels/QrBarcodePanel';
 import { ThemePanel } from '@/features/invoice-designer/components/panels/ThemePanel';
 import { PaperSizePanel } from '@/features/invoice-designer/components/panels/PaperSizePanel';
-import { TemplatePreview, PREVIEW_MODES, type PreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
+import { TemplatePreview, type PreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
+import { TemplateToolbar, type AutosaveStatus } from '@/features/invoice-designer/components/TemplateToolbar';
+import { PreviewControls, ZOOM_DEFAULT } from '@/features/invoice-designer/components/PreviewControls';
 import { buildSamplePreviewData } from '@/features/invoice-designer/lib/sampleData';
 import { ApiError } from '@/lib/api-client';
 
@@ -37,6 +36,8 @@ const CONFIG_TABS: { id: string; label: string; Panel: (props: { config: Invoice
   { id: 'paper', label: 'Paper & Printing', Panel: PaperSizePanel },
 ];
 
+const AUTOSAVE_DEBOUNCE_MS = 1500;
+
 export function InvoiceDesignerPage() {
   const { tenant } = useAuth();
   const queryClient = useQueryClient();
@@ -44,7 +45,12 @@ export function InvoiceDesignerPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftConfig, setDraftConfig] = useState<InvoiceTemplateConfig | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [activeTab, setActiveTab] = useState('branding');
   const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
+  const [previewZoom, setPreviewZoom] = useState(ZOOM_DEFAULT);
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const configPanelRef = useRef<HTMLDivElement | null>(null);
 
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
 
@@ -63,6 +69,7 @@ export function InvoiceDesignerPage() {
   });
 
   const selected = useMemo(() => templates?.find((t) => t.id === selectedId) ?? null, [templates, selectedId]);
+  const loadingInitial = !seeded || isLoading;
 
   useEffect(() => {
     if (!templates || templates.length === 0) {
@@ -84,6 +91,7 @@ export function InvoiceDesignerPage() {
 
   const isDirty =
     !!selected && !!draftConfig && (JSON.stringify(draftConfig) !== JSON.stringify(selected.config) || draftName !== selected.name);
+  const canSave = isDirty && !!selected && !selected.is_builtin;
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -92,23 +100,82 @@ export function InvoiceDesignerPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoice-templates', documentType] });
-      toast.success('Template saved');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Failed to save template'),
   });
+
+  function saveNow() {
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+    if (canSave) saveMutation.mutate();
+  }
+
+  // Debounced autosave: every draft edit resets the timer, so a save only actually fires once
+  // the user pauses for a moment — matches the explicit "Save changes" button remaining as a
+  // manual "save right now" escape hatch rather than the only way to persist.
+  useEffect(() => {
+    if (!canSave) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      saveMutation.mutate();
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+    // Only the draft content should reset the debounce timer — re-running this on every
+    // saveMutation identity change would fight the timer it itself schedules.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftConfig, draftName, canSave]);
+
+  // Ctrl/Cmd+S saves immediately, bypassing the autosave debounce.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveNow();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSave, selected, draftConfig, draftName]);
+
+  // Warn before leaving the tab/window with unsaved edits still pending (autosave hasn't caught
+  // up yet, or the save itself failed).
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  const autosaveStatus: AutosaveStatus = saveMutation.isPending
+    ? 'saving'
+    : saveMutation.isError
+      ? 'error'
+      : isDirty
+        ? 'unsaved'
+        : selected && draftConfig
+          ? 'saved'
+          : 'idle';
 
   const createMutation = useMutation({
     mutationFn: () =>
       invoiceDesignerApi.createTemplate({
         document_type: documentType,
-        name: `${DOCUMENT_TYPE_LABELS[documentType]} ${(templates?.length ?? 0) + 1}`,
+        name: `${invoiceDesignerApi.DOCUMENT_TYPE_LABELS[documentType]} ${(templates?.length ?? 0) + 1}`,
       }),
-    onSuccess: (created: InvoiceTemplate) => {
+    onSuccess: (created) => {
       // Seed the cache directly (rather than just invalidating) so the newly created template
       // is present in `templates` in the same render where `selectedId` switches to it —
       // otherwise the auto-select effect below sees a stale list without it and reverts the
       // selection back to the previous template before the refetch lands.
-      queryClient.setQueryData<InvoiceTemplate[]>(['invoice-templates', documentType], (old) =>
+      queryClient.setQueryData<invoiceDesignerApi.InvoiceTemplate[]>(['invoice-templates', documentType], (old) =>
         old ? [...old, created] : [created],
       );
       setSelectedId(created.id);
@@ -122,8 +189,8 @@ export function InvoiceDesignerPage() {
       if (!selected) throw new Error('Nothing to duplicate');
       return invoiceDesignerApi.duplicateTemplate(selected.id);
     },
-    onSuccess: (copy: InvoiceTemplate) => {
-      queryClient.setQueryData<InvoiceTemplate[]>(['invoice-templates', documentType], (old) =>
+    onSuccess: (copy) => {
+      queryClient.setQueryData<invoiceDesignerApi.InvoiceTemplate[]>(['invoice-templates', documentType], (old) =>
         old ? [...old, copy] : [copy],
       );
       setSelectedId(copy.id);
@@ -179,136 +246,106 @@ export function InvoiceDesignerPage() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex flex-col gap-4 xl:h-full xl:min-h-0">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Invoice Designer</h1>
         <p className="text-sm text-muted-foreground">Customize branding, layout, fields, and paper size — no code required.</p>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[200px_1fr_1.15fr]">
-        <aside className="min-h-0 space-y-3 overflow-y-auto rounded-xl border p-3">
-          <div className="space-y-1.5">
-            <Label>Document type</Label>
-            <Select value={documentType} onValueChange={(v) => setDocumentType(v as DocumentType)}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {VISIBLE_DOCUMENT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>{DOCUMENT_TYPE_LABELS[type]}</SelectItem>
+      {loadingInitial ? (
+        <Skeleton className="h-16 w-full rounded-xl" />
+      ) : (
+        <TemplateToolbar
+          documentType={documentType}
+          onDocumentTypeChange={setDocumentType}
+          templates={templates}
+          selected={selected}
+          selectedId={selectedId}
+          onSelectTemplate={setSelectedId}
+          draftName={draftName}
+          onDraftNameChange={setDraftName}
+          autosaveStatus={autosaveStatus}
+          onSaveNow={saveNow}
+          isSaving={saveMutation.isPending}
+          canSave={canSave}
+          onCreate={() => createMutation.mutate()}
+          isCreating={createMutation.isPending}
+          onDuplicate={() => duplicateMutation.mutate()}
+          isDuplicating={duplicateMutation.isPending}
+          onDelete={() => deleteMutation.mutate()}
+          isDeleting={deleteMutation.isPending}
+          onSetDefault={() => setDefaultMutation.mutate()}
+          isSettingDefault={setDefaultMutation.isPending}
+        />
+      )}
+
+      {loadingInitial ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr] xl:min-h-0 xl:flex-1">
+          <Skeleton className="h-64 rounded-xl" />
+          <div className="grid grid-cols-1 gap-4 xl:min-h-0 xl:grid-cols-[1fr_1.15fr]">
+            <Skeleton className="h-96 rounded-xl" />
+            <Skeleton className="h-96 rounded-xl" />
+          </div>
+        </div>
+      ) : selected && draftConfig ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr] xl:min-h-0 xl:flex-1">
+          <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="contents">
+            {/* At `xl` (the true 3/4-column desktop layout), the config/preview panels below
+                scroll independently within a fixed-height row, so this nav is never scrolled
+                out of view on its own there — no `position: sticky` needed. Below `xl`, nothing
+                here forces a height/scroll constraint; the page grows to its natural content
+                height and the app shell's own `<main>` (AppShell.tsx) scrolls it, same as any
+                other page — the `min-h-0`/`overflow-y-auto` below are XL-only for exactly this
+                reason: applying them unconditionally previously caused the stacked/tablet layout
+                to squeeze columns to equal shrunk heights and overlap. */}
+            <aside className="self-start rounded-xl border p-3 xl:min-h-0">
+              <TabsList className="h-fit w-full shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-0">
+                {CONFIG_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id} className="px-2.5 py-1.5 text-left">
+                    {tab.label}
+                  </TabsTrigger>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
+              </TabsList>
+            </aside>
 
-          <Button size="sm" variant="outline" className="w-full" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-            + New template
-          </Button>
-
-          <div className="space-y-1">
-            {isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
-            {templates?.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => setSelectedId(template.id)}
-                className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted ${
-                  template.id === selectedId ? 'border-primary bg-primary/5 font-medium' : ''
-                }`}
-              >
-                <span className="block truncate">{template.name}</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {template.is_default ? 'Default' : ''}{template.is_default && template.is_builtin ? ' · ' : ''}{template.is_builtin ? 'Built-in' : ''}
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <section className="min-h-0 overflow-y-auto rounded-xl border p-4">
-          {selected && draftConfig ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  disabled={selected.is_builtin}
-                  className="max-w-xs"
-                />
-                {!selected.is_default && (
-                  <Button size="sm" variant="outline" onClick={() => setDefaultMutation.mutate()} disabled={setDefaultMutation.isPending}>
-                    Set as default
-                  </Button>
-                )}
-                <Button size="sm" variant="outline" onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending}>
-                  Duplicate
-                </Button>
-                {!selected.is_builtin && (
-                  <Button size="sm" variant="destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
-                    Delete
-                  </Button>
-                )}
-                <div className="ml-auto">
-                  {selected.is_builtin ? (
-                    <p className="text-xs text-muted-foreground">Built-in template — duplicate it to customize.</p>
-                  ) : (
-                    <Button size="sm" onClick={() => saveMutation.mutate()} disabled={!isDirty || saveMutation.isPending}>
-                      {saveMutation.isPending ? 'Saving…' : 'Save changes'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Vertical section nav: with 10 sections, a horizontal tab bar wraps onto
-                  multiple rows but the tab list's height stays fixed to one row, so wrapped
-                  rows visually overlap the panel content below. A vertical list has no such
-                  height constraint — it simply grows, so this layout can never overlap. */}
-              <Tabs defaultValue="branding" orientation="vertical" className="items-start">
-                <TabsList className="h-fit w-40 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-0">
-                  {CONFIG_TABS.map((tab) => (
-                    <TabsTrigger key={tab.id} value={tab.id} className="px-2.5 py-1.5 text-left">
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                {CONFIG_TABS.map(({ id, Panel }) => (
-                  <TabsContent key={id} value={id} className="min-w-0 flex-1 border-l pl-5">
-                    <fieldset disabled={selected.is_builtin} className="disabled:opacity-60">
+            <div className="grid grid-cols-1 gap-4 xl:min-h-0 xl:grid-cols-[1fr_1.15fr]">
+              <section ref={configPanelRef} className="rounded-xl border p-4 xl:min-h-0 xl:overflow-y-auto">
+                <fieldset disabled={selected.is_builtin} className="disabled:opacity-60">
+                  {CONFIG_TABS.map(({ id, Panel }) => (
+                    <TabsContent key={id} value={id}>
                       <Panel config={draftConfig} onChange={(updater) => setDraftConfig((prev) => (prev ? updater(prev) : prev))} />
-                    </fieldset>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </div>
-          ) : !seeded || isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">No template yet — create one to get started.</p>
-          )}
-        </section>
+                    </TabsContent>
+                  ))}
+                </fieldset>
+              </section>
 
-        <section className="min-h-0 space-y-3 overflow-y-auto rounded-xl border bg-muted/30 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium">Live preview</p>
-            <Select value={previewMode} onValueChange={(v) => setPreviewMode(v as PreviewMode)}>
-              <SelectTrigger size="sm" className="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {PREVIEW_MODES.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="overflow-x-auto pb-4">
-            {draftConfig && (
-              <TemplatePreview
-                config={draftConfig}
-                branding={branding}
-                mode={previewMode}
-                data={buildSamplePreviewData(documentType)}
-              />
-            )}
-          </div>
-        </section>
-      </div>
+              <section className="space-y-3 rounded-xl border bg-muted/30 p-4 xl:min-h-0 xl:overflow-y-auto">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Live preview</p>
+                  <PreviewControls
+                    mode={previewMode}
+                    onModeChange={setPreviewMode}
+                    zoom={previewZoom}
+                    onZoomChange={setPreviewZoom}
+                    onRefresh={() => setPreviewRefreshKey((k) => k + 1)}
+                  />
+                </div>
+                <div className="overflow-x-auto pb-4" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top center' }}>
+                  <TemplatePreview
+                    key={previewRefreshKey}
+                    config={draftConfig}
+                    branding={branding}
+                    mode={previewMode}
+                    data={buildSamplePreviewData(documentType)}
+                  />
+                </div>
+              </section>
+            </div>
+          </Tabs>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No template yet — create one to get started.</p>
+      )}
     </div>
   );
 }
