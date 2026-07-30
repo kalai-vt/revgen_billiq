@@ -33,6 +33,7 @@ def test_production_accepts_strong_jwt_secret() -> None:
         jwt_secret="a" * 40,
         admin_jwt_secret="b" * 40,
         commerce_encryption_key="c" * 44,
+        email_provider="resend",
     )
     assert settings.jwt_secret == "a" * 40
     assert settings.admin_jwt_secret == "b" * 40
@@ -47,6 +48,7 @@ def test_production_requires_non_default_admin_jwt_secret() -> None:
             jwt_secret="a" * 40,
             admin_jwt_secret=DEFAULT_ADMIN_JWT_SECRET,
             commerce_encryption_key="c" * 44,
+            email_provider="resend",
         )
 
 
@@ -58,6 +60,7 @@ def test_production_requires_sufficiently_long_admin_jwt_secret() -> None:
             jwt_secret="a" * 40,
             admin_jwt_secret="too-short",
             commerce_encryption_key="c" * 44,
+            email_provider="resend",
         )
 
 
@@ -69,7 +72,32 @@ def test_production_requires_non_default_commerce_encryption_key() -> None:
             jwt_secret="a" * 40,
             admin_jwt_secret="b" * 40,
             commerce_encryption_key=DEFAULT_COMMERCE_ENCRYPTION_KEY,
+            email_provider="resend",
         )
+
+
+def test_production_requires_real_email_provider() -> None:
+    with pytest.raises(ValidationError, match="REVGENIQ_EMAIL_PROVIDER"):
+        Settings(
+            _env_file=None,
+            environment="production",
+            jwt_secret="a" * 40,
+            admin_jwt_secret="b" * 40,
+            commerce_encryption_key="c" * 44,
+            email_provider="console",
+        )
+
+
+def test_production_accepts_smtp_email_provider() -> None:
+    settings = Settings(
+        _env_file=None,
+        environment="production",
+        jwt_secret="a" * 40,
+        admin_jwt_secret="b" * 40,
+        commerce_encryption_key="c" * 44,
+        email_provider="smtp",
+    )
+    assert settings.email_provider == "smtp"
 
 
 def test_development_allows_default_commerce_encryption_key_with_warning() -> None:

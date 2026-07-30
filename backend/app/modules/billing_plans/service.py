@@ -46,6 +46,15 @@ def get_usage(db: Session, tenant: Tenant) -> dict[str, Any]:
     user_count = db.query(func.count(User.id)).filter(User.tenant_id == tenant_id).scalar() or 0
     product_count = db.query(func.count(Product.id)).filter(Product.tenant_id == tenant_id).scalar() or 0
     customer_count = db.query(func.count(Customer.id)).filter(Customer.tenant_id == tenant_id).scalar() or 0
+    # The only two upload types that exist in this app today are user avatars and the tenant
+    # logo — both capture their real size at upload time (see auth/service.py::save_avatar and
+    # settings/service.py::save_logo). Summed live rather than kept as a running counter, same
+    # "no drift possible" reasoning as every other usage figure here.
+    avatar_bytes = (
+        db.query(func.coalesce(func.sum(User.avatar_size_bytes), 0)).filter(User.tenant_id == tenant_id).scalar() or 0
+    )
+    logo_bytes = settings.logo_size_bytes if settings and settings.logo_size_bytes else 0
+    storage_used_mb = round((avatar_bytes + logo_bytes) / (1024 * 1024), 2)
     month_start = _month_start_utc(tenant)
     month_end = _month_end_utc(month_start)
     monthly_invoice_count = (
@@ -72,8 +81,9 @@ def get_usage(db: Session, tenant: Tenant) -> dict[str, Any]:
             # fixed at 1 while the limit itself stays admin-configurable ahead of that capability.
             "branches": {"used": 1, "limit": limits["max_branches"]},
             "warehouses": {"used": 1, "limit": limits["max_warehouses"]},
-            # Storage usage isn't tracked anywhere yet (no file-size capture at upload time) —
-            # `used: None` signals "not tracked" to the frontend rather than a fabricated number.
-            "storage": {"used": None, "limit": limits["max_storage_mb"]},
+            # Covers avatars + tenant logo, the only uploads this app has. Not a complete picture
+            # of "everything Vercel Blob is storing for this tenant" if other upload types are
+            # ever added without updating this — but it's a real, non-fabricated number today.
+            "storage": {"used": storage_used_mb, "limit": limits["max_storage_mb"]},
         },
     }

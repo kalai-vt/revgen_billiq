@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { queryClient } from '@/lib/query-client';
 import { router } from '@/routes/router';
 
@@ -21,9 +22,11 @@ export default function App() {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delay={200} closeDelay={0}>
-          <Suspense fallback={<FullPageLoader />}>
-            <RouterProvider router={router} />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<FullPageLoader />}>
+              <RouterProvider router={router} />
+            </Suspense>
+          </ErrorBoundary>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

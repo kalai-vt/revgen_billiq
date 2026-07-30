@@ -3,11 +3,16 @@ import { ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RegisterForm } from '@/features/auth/components/RegisterForm';
 import { BrandLogo } from '@/components/shared/BrandLogo';
+import { PageMeta } from '@/components/PageMeta';
 import { AuthLayout } from '@/features/auth/components/AuthLayout';
 
 export function RegisterPage() {
   return (
     <AuthLayout>
+      <PageMeta
+        title="Start Your Free Trial — RevGen BillIQ"
+        description="Create your RevGen BillIQ account and get full access to billing, inventory, and POS free for 14 days."
+      />
       <Card className="w-full max-w-sm">
         <CardHeader className="justify-items-center gap-3 text-center">
           <BrandLogo size="lg" />

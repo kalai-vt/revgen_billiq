@@ -1,4 +1,4 @@
-import { request } from '@/lib/api-client';
+import { request, requestBlob } from '@/lib/api-client';
 import type { PlanId } from '@/features/auth/api';
 import type { IdentifierType } from '@/features/products/api';
 
@@ -159,4 +159,12 @@ export type FeatureFlags = Record<string, boolean>;
 
 export function getFeatureFlags(): Promise<FeatureFlags> {
   return request('/api/feature-flags');
+}
+
+export function exportData(): Promise<Blob> {
+  return requestBlob('/api/settings/export-data');
+}
+
+export function deleteAccount(password: string): Promise<null> {
+  return request('/api/settings/delete-account', { method: 'POST', body: JSON.stringify({ password }) });
 }

@@ -367,6 +367,46 @@ export function CustomerProfilePage() {
         </Card>
       )}
 
+      {subscription && (
+        <Card>
+          <CardHeader>
+            <p className="text-sm font-medium">Payment history</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {subscription.payments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No online payments recorded yet.</p>
+            ) : (
+              subscription.payments.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between text-sm">
+                  <span className="capitalize">
+                    {payment.plan} — {formatCurrency(payment.amount_inr)}
+                  </span>
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Badge
+                      variant="outline"
+                      className={
+                        payment.status === 'paid'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : payment.status === 'failed'
+                            ? 'text-destructive'
+                            : ''
+                      }
+                    >
+                      {payment.status}
+                    </Badge>
+                    {new Date(payment.paid_at ?? payment.created_at).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Dialog open={subscriptionOpen} onOpenChange={setSubscriptionOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

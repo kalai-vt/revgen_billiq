@@ -24,6 +24,15 @@ export interface SubscriptionEvent {
   created_at: string;
 }
 
+export interface SubscriptionPayment {
+  id: string;
+  plan: string;
+  amount_inr: number;
+  status: 'created' | 'paid' | 'failed';
+  created_at: string;
+  paid_at: string | null;
+}
+
 export interface SubscriptionDetail {
   tenant_id: string;
   company_name: string;
@@ -31,6 +40,7 @@ export interface SubscriptionDetail {
   price_inr: number;
   subscription_status: SubscriptionStatus;
   trial_ends_at: string | null;
+  payments: SubscriptionPayment[];
   history: SubscriptionEvent[];
 }
 

@@ -9,6 +9,14 @@
           "destination": "/assets/$1"
         },
         {
+          "source": "/billiq/robots.txt",
+          "destination": "/robots.txt"
+        },
+        {
+          "source": "/billiq/sitemap.xml",
+          "destination": "/sitemap.xml"
+        },
+        {
           "source": "/(.*)",
           "destination": "/index.html"
         }
@@ -71,6 +79,12 @@
       "source": "/reset-password",
       "destination": "/billiq/reset-password",
       "permanent": false
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/internal/cron/subscription-check",
+      "schedule": "0 3 * * *"
     }
   ]
 }

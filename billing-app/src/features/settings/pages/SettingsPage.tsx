@@ -20,6 +20,7 @@ import { AvatarUploadControl } from '@/features/settings/components/AvatarUpload
 import { BillingSettingsForm } from '@/features/settings/components/BillingSettingsForm';
 import { BusinessPreferencesForm } from '@/features/settings/components/BusinessPreferencesForm';
 import { ChangePasswordForm } from '@/features/settings/components/ChangePasswordForm';
+import { DataPrivacyCard } from '@/features/settings/components/DataPrivacyCard';
 import { InvoiceSettingsForm } from '@/features/settings/components/InvoiceSettingsForm';
 import { LoginHistoryTable } from '@/features/settings/components/LoginHistoryTable';
 import { ProductConfigurationForm } from '@/features/settings/components/ProductConfigurationForm';
@@ -351,6 +352,8 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           )}
+
+          {isOwner && <DataPrivacyCard />}
         </div>
       </div>
     </div>

@@ -187,6 +187,7 @@ def test_usage_endpoint_reports_plan_and_counts(client: TestClient) -> None:
     assert data["features"]["barcode_support"] is True
     assert data["usage"]["branches"] == {"used": 1, "limit": 1}
     assert data["usage"]["warehouses"] == {"used": 1, "limit": 1}
-    assert data["usage"]["storage"] == {"used": None, "limit": 1024}
+    # No avatar/logo uploaded in this test, so storage usage is a real (zero) number, not null.
+    assert data["usage"]["storage"] == {"used": 0.0, "limit": 1024}
     assert data["subscription_status"] == "active"
     assert "billing_cycle" in data

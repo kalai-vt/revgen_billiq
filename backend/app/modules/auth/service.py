@@ -22,7 +22,7 @@ from app.core.audit import (
     count_recent_events,
     log_event,
 )
-from app.core.blob import upload_file
+from app.core.blob import UploadValidationError, upload_file
 from app.core.config import settings
 from app.core.email.protocol import EmailSendError
 from app.core.email.service import send_password_reset_email, send_verification_email
@@ -307,15 +307,20 @@ def change_password(db: Session, user: User, current_password: str, new_password
 
 
 def save_avatar(db: Session, user: User, content: bytes, content_type: str) -> User:
-    if content_type not in ALLOWED_AVATAR_CONTENT_TYPES:
-        raise AuthError(400, "Avatar must be a JPEG, PNG, or WebP image")
-    if len(content) > MAX_AVATAR_SIZE_BYTES:
-        raise AuthError(400, "Avatar must be smaller than 2MB")
-
-    ext = ALLOWED_AVATAR_CONTENT_TYPES[content_type]
-    url = upload_file(f"avatars/{user.id}.{ext}", content, content_type)
+    ext = ALLOWED_AVATAR_CONTENT_TYPES.get(content_type, "")
+    try:
+        url = upload_file(
+            f"avatars/{user.id}.{ext}",
+            content,
+            content_type,
+            allowed_content_types=ALLOWED_AVATAR_CONTENT_TYPES,
+            max_size_bytes=MAX_AVATAR_SIZE_BYTES,
+        )
+    except UploadValidationError as exc:
+        raise AuthError(400, exc.message) from exc
 
     user.avatar_url = f"{url}?v={int(utc_now().timestamp())}"
+    user.avatar_size_bytes = len(content)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -387,7 +392,25 @@ def issue_tokens(db: Session, user: User, remember_me: bool = False) -> tuple[st
 def rotate_refresh_token(db: Session, refresh_token: str) -> tuple[User, str, str]:
     token_hash = hash_refresh_token(refresh_token)
     record = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
-    if not record or record.revoked or as_aware_utc(record.expires_at) < utc_now():
+
+    if record and record.revoked:
+        # A refresh token is only ever marked revoked by being rotated away from (below) or by an
+        # explicit logout/password-change — a legitimate client never presents one a second time.
+        # Seeing it again means either the token leaked and the thief is racing the real owner, or
+        # the owner's own request retried after a dropped response; either way the safe response is
+        # the same one `change_password` already uses: kill every other session for this user, not
+        # just reject this one request.
+        user = db.get(User, record.user_id)
+        if user:
+            user.session_invalidated_at = utc_now()
+            db.add(user)
+            db.query(RefreshToken).filter(RefreshToken.user_id == user.id, RefreshToken.revoked.is_(False)).update(
+                {"revoked": True}
+            )
+            db.commit()
+        raise AuthError(401, "This session was already used elsewhere and has been signed out for safety. Please sign in again.")
+
+    if not record or as_aware_utc(record.expires_at) < utc_now():
         raise AuthError(401, "Invalid or expired refresh token")
 
     user = db.get(User, record.user_id)

@@ -14,7 +14,14 @@ from app.core import admin_db as admin_db_module
 from app.core import db as db_module
 from app.core.email import factory as email_factory
 from app.core.email.protocol import EmailMessage
+from app.core.rate_limit import limiter
 from app.main import app
+
+# The rate limiter's default in-memory storage is process-global, not per-test — without this,
+# tests that call /register, /login, etc. many times in a row (entirely normal across a suite
+# this size) start tripping real 429s on unrelated tests. Rate-limiting behavior itself, if it
+# needs a test, should explicitly re-enable this and reset `limiter._storage` around it.
+limiter.enabled = False
 
 
 class FakeEmailProvider:

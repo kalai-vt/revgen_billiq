@@ -19,6 +19,7 @@ class Settings(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), unique=True, index=True)
     logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    logo_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     gst_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     invoice_prefix: Mapped[str] = mapped_column(String(20), default="INV")
     currency: Mapped[str] = mapped_column(String(3), default="INR")

@@ -29,6 +29,17 @@ class SubscriptionEventOut(BaseModel):
     created_at: datetime
 
 
+class SubscriptionPaymentOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: str
+    plan: str
+    amount_inr: int
+    status: str
+    created_at: datetime
+    paid_at: datetime | None
+
+
 class SubscriptionDetail(BaseModel):
     tenant_id: str
     company_name: str
@@ -36,6 +47,7 @@ class SubscriptionDetail(BaseModel):
     price_inr: int
     subscription_status: str
     trial_ends_at: datetime | None
+    payments: list[SubscriptionPaymentOut] = []
     history: list[SubscriptionEventOut]
 
 

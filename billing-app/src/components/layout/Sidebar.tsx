@@ -75,7 +75,14 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
       <div className={cn('shrink-0 border-b px-4 py-3.5', isCollapsed && 'flex justify-center px-2')}>
         {isCollapsed ? (
           <Tooltip>
-            <TooltipTrigger render={<div tabIndex={0} className="outline-none"><BrandLogo logoUrl={null} size="sm" iconOnly /></div>} />
+            <TooltipTrigger
+              // Intentional: focusing this non-interactive wrapper is how keyboard users reveal
+              // the tooltip; there is no click/activation behavior to mislead assistive tech about.
+              render={
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                <div tabIndex={0} className="outline-none"><BrandLogo logoUrl={null} size="sm" iconOnly /></div>
+              }
+            />
             <TooltipContent side="right">RevGen BillIQ</TooltipContent>
           </Tooltip>
         ) : (
@@ -96,6 +103,10 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
               <Tooltip>
                 <TooltipTrigger
                   render={
+                    // Intentional: focusing this non-interactive wrapper is how keyboard users
+                    // reveal the tooltip; there is no click/activation behavior to mislead
+                    // assistive tech about.
+                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                     <p tabIndex={0} className="truncate text-sm font-semibold tracking-tight text-foreground outline-none">
                       {tenant.company_name}
                     </p>

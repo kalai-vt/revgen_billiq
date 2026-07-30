@@ -5,15 +5,23 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Awaitable, Callable
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.db import get_db
 from app.core.limits import FeatureNotAvailableError, LimitExceededError
-from app.core.migrate import apply_pending_migrations
+from app.core.migrate import apply_pending_admin_migrations, apply_pending_migrations
+from app.core.observability import init_sentry
+from app.core.rate_limit import limiter
 from app.core.responses import make_response
 from app.modules.activity.router import router as activity_router
 from app.modules.admin_audit.router import router as admin_audit_router
@@ -40,6 +48,7 @@ from app.modules.commerce.dashboard_router import router as commerce_dashboard_r
 from app.modules.commerce.orders_router import router as commerce_orders_router
 from app.modules.commerce.webhooks_router import router as commerce_webhooks_router
 from app.modules.customers.router import router as customers_router
+from app.modules.internal_cron.router import router as internal_cron_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.invoice_designer.router import router as invoice_designer_router
 from app.modules.notifications.router import router as notifications_router
@@ -54,12 +63,29 @@ from app.modules.procurement.vendors_router import router as procurement_vendors
 from app.modules.sales.router import router as sales_router
 from app.modules.search.router import router as search_router
 from app.modules.settings.router import router as settings_router
+from app.modules.subscription_billing.router import router as subscription_billing_router
 
-app = FastAPI(title="RevGen BillIQ API", version="1.0.0")
+# Before the app exists so as much of the request lifecycle as possible is instrumented — a
+# no-op unless REVGENIQ_SENTRY_DSN is set (see app/core/observability.py).
+init_sentry()
+
+app = FastAPI(
+    title="RevGen BillIQ API",
+    version="1.0.0",
+    # Swagger/ReDoc load their JS/CSS from a CDN and expose the full schema publicly — fine for
+    # a dev/staging API explored by the team, not something a production API should serve.
+    docs_url="/docs" if settings.environment != "production" else None,
+    redoc_url="/redoc" if settings.environment != "production" else None,
+    openapi_url="/openapi.json" if settings.environment != "production" else None,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Runs on every cold start (and every local `uvicorn --reload`) so the schema never drifts from
 # the code again — see app/core/migrate.py for why this exists.
 apply_pending_migrations()
+apply_pending_admin_migrations()
 
 if not os.environ.get("VERCEL"):
     # Local dev only: uploads live on disk. In production the filesystem is read-only and
@@ -122,6 +148,7 @@ app.include_router(admin_communications_router)
 app.include_router(admin_support_router)
 app.include_router(admin_system_router)
 app.include_router(billing_plans_router)
+app.include_router(subscription_billing_router)
 app.include_router(categories_router)
 app.include_router(catalog_router)
 app.include_router(commerce_config_router)
@@ -131,6 +158,7 @@ app.include_router(commerce_dashboard_router)
 app.include_router(customers_router)
 app.include_router(payments_router)
 app.include_router(inventory_router)
+app.include_router(internal_cron_router)
 app.include_router(procurement_vendors_router)
 app.include_router(procurement_purchases_router)
 app.include_router(procurement_returns_router)
@@ -151,6 +179,7 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     version: str
+    database: str
 
 
 @app.get("/", include_in_schema=False)
@@ -159,8 +188,17 @@ def root() -> dict[str, Any]:
 
 
 @app.get("/api/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(status="ok", service="billing-api", version="1.0.0")
+def health(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
+    # This is the endpoint a deploy platform's readiness probe hits — returning a static "ok"
+    # regardless of DB state meant a database outage was indistinguishable from "everything's
+    # fine" to anything watching this route. Now it actually checks.
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception:  # noqa: BLE001 — any DB failure means "not ready", detail isn't needed here
+        db_status = "unreachable"
+        response.status_code = 503
+    return HealthResponse(status="ok" if db_status == "ok" else "degraded", service="billing-api", version="1.0.0", database=db_status)
 
 
 @app.get("/api/modules")

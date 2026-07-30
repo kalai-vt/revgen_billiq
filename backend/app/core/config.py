@@ -42,6 +42,18 @@ class Settings(BaseSettings):
     password_reset_expiry_minutes: int = 15
     support_email: str = "support@revgeniq.com"
 
+    # Error tracking. Empty string (the default) means Sentry is never initialized — see
+    # app/core/observability.py. No account/DSN required to run this app; set this to activate.
+    sentry_dsn: str = ""
+
+    # Razorpay subscription billing. All three empty (the default) means the checkout/webhook
+    # endpoints return a clear "billing isn't configured" error instead of calling Razorpay — see
+    # app/core/payments/razorpay_client.py. Subscriptions keep working in the existing
+    # admin-managed-only mode until these are set.
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+
     @model_validator(mode="after")
     def _guard_insecure_settings(self) -> "Settings":
         origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -73,15 +85,17 @@ class Settings(BaseSettings):
                     "REVGENIQ_ENVIRONMENT=production. Generate one with: "
                     'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
                 )
-            if self.email_provider == "console":
-                # The console provider only prints emails to stdout — nothing is actually
-                # delivered. This is the #1 cause of "verification/reset emails never arrive"
-                # reports in production.
-                warnings.warn(
-                    "REVGENIQ_EMAIL_PROVIDER is 'console' (the default) while REVGENIQ_ENVIRONMENT=production — "
-                    "verification and password-reset emails will NOT be delivered, only printed to logs. "
-                    "Set REVGENIQ_EMAIL_PROVIDER to 'resend' or 'smtp' with matching credentials.",
-                    stacklevel=2,
+            if self.email_provider not in ("resend", "smtp"):
+                # `app/core/email/factory.py` falls back to the no-op console provider for
+                # *anything* that isn't "resend" or "smtp" — including "console" itself, an unset
+                # value, or a typo'd one. This used to only warn on the literal "console" case,
+                # which is exactly how "verification/reset emails never arrive" reports happened
+                # in practice: an empty/misspelled value warned about nothing and still silently
+                # dropped every email. Now any non-real provider hard-fails, like the checks above.
+                raise ValueError(
+                    f"REVGENIQ_EMAIL_PROVIDER={self.email_provider!r} while REVGENIQ_ENVIRONMENT=production — "
+                    "verification and password-reset emails would NOT be delivered, only printed to logs. "
+                    "Set REVGENIQ_EMAIL_PROVIDER to 'resend' or 'smtp' with matching credentials."
                 )
         else:
             if self.jwt_secret == DEFAULT_JWT_SECRET:

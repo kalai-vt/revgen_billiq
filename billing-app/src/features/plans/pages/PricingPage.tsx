@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
+import { PageMeta } from '@/components/PageMeta';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -71,6 +72,10 @@ const BRANDING_ITEMS = [
 export function PricingPage() {
   return (
     <div className="min-h-screen bg-muted/20">
+      <PageMeta
+        title="Pricing — RevGen BillIQ"
+        description="Simple, transparent pricing for RevGen BillIQ's multi-tenant billing, inventory, and POS platform."
+      />
       <header className="border-b bg-background px-4 py-4 sm:px-8">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <p className="text-sm font-semibold tracking-tight">RevGen BillIQ</p>
@@ -158,6 +163,23 @@ export function PricingPage() {
           </CardContent>
         </Card>
       </main>
+
+      <footer className="border-t bg-background px-4 py-6 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-sm text-muted-foreground sm:flex-row">
+          <p>&copy; {new Date().getFullYear()} RevGen BillIQ. All rights reserved.</p>
+          <div className="flex gap-4">
+            <Link to="/privacy" className="hover:text-foreground hover:underline">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="hover:text-foreground hover:underline">
+              Terms of Service
+            </Link>
+            <Link to="/cookies" className="hover:text-foreground hover:underline">
+              Cookie Policy
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

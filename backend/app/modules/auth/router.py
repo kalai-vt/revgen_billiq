@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_role
+from app.core.rate_limit import limiter
 from app.core.responses import make_response
 from app.modules.auth.service import (
     AuthError,
@@ -52,7 +53,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/register")
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
+@limiter.limit("10/hour")
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
     try:
         tenant, user = register_tenant(db, payload)
     except AuthError as exc:
@@ -78,7 +80,10 @@ def verify_email_route(payload: VerifyEmailRequest, db: Session = Depends(get_db
 
 
 @router.post("/resend-verification")
-def resend_verification_route(payload: ResendVerificationRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
+@limiter.limit("5/hour")
+def resend_verification_route(
+    request: Request, payload: ResendVerificationRequest, db: Session = Depends(get_db)
+) -> dict[str, Any]:
     try:
         resend_verification(db, payload.email)
     except AuthError as exc:
@@ -87,7 +92,8 @@ def resend_verification_route(payload: ResendVerificationRequest, db: Session = 
 
 
 @router.post("/forgot-password")
-def forgot_password_route(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
+@limiter.limit("5/hour")
+def forgot_password_route(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
     request_password_reset(db, payload.email)
     return make_response(True, "If an account exists for this email, a password reset link has been sent.", {})
 
@@ -102,7 +108,8 @@ def reset_password_route(payload: ResetPasswordRequest, db: Session = Depends(ge
 
 
 @router.post("/login")
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
+@limiter.limit("20/minute")
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
     try:
         user = authenticate(db, payload.email, payload.password)
     except AuthError as exc:

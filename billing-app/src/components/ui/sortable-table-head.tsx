@@ -23,11 +23,13 @@ function SortableTableHead<T extends string>({
   const Icon = isActive ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown
 
   return (
-    <TableHead className={cn("relative p-0", className)}>
+    <TableHead
+      className={cn("relative p-0", className)}
+      aria-sort={isActive ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+    >
       <button
         type="button"
         onClick={() => onSort(field)}
-        aria-sort={isActive ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
         className="flex h-10 w-full items-center gap-1 px-2 text-left font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {children}

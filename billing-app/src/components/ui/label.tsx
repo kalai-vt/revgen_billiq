@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils"
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
+    // This is the generic primitive; every call site is responsible for passing `htmlFor` (or
+    // wrapping a control), which the linter can't see through a spread `...props` on a shared
+    // component.
+    // eslint-disable-next-line jsx-a11y/label-has-associated-control
     <label
       data-slot="label"
       className={cn(

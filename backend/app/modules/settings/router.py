@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -10,10 +10,18 @@ from app.core.deps import get_current_user, require_role
 from app.core.limits import assert_feature
 from app.core.responses import make_response
 from app.models.user import User
+from app.modules.auth.service import get_tenant
 from app.modules.admin_features.service import get_effective_flags_for_tenant
 from app.modules.settings import service
-from app.modules.settings.service import SettingsError
-from app.schemas.settings import BrandingOut, BusinessPreferencesOut, ProductConfigOut, SettingsOut, SettingsUpdate
+from app.modules.settings.service import AccountDeletionError, SettingsError
+from app.schemas.settings import (
+    BrandingOut,
+    BusinessPreferencesOut,
+    DeleteAccountRequest,
+    ProductConfigOut,
+    SettingsOut,
+    SettingsUpdate,
+)
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -101,3 +109,31 @@ async def post_settings_logo(
     except SettingsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return make_response(True, "Logo updated", SettingsOut.model_validate(settings).model_dump(mode="json"))
+
+
+@router.get("/settings/export-data")
+def get_export_data(
+    current_user: User = Depends(require_role("owner")), db: Session = Depends(get_db)
+) -> Response:
+    archive = service.export_tenant_data(db, current_user.tenant_id)
+    return Response(
+        content=archive,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="revgen-billiq-data-export.zip"'},
+    )
+
+
+@router.post("/settings/delete-account")
+def post_delete_account(
+    payload: DeleteAccountRequest,
+    current_user: User = Depends(require_role("owner")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    tenant = get_tenant(db, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    try:
+        service.delete_account(db, current_user, tenant, payload.password)
+    except AccountDeletionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return make_response(True, "Account deleted. You have been signed out.", None)

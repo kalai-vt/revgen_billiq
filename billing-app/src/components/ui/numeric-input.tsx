@@ -71,7 +71,6 @@ export const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps
 
   React.useEffect(() => {
     if (!focused) setText(formatValue(value, decimalPlaces, allowDecimal))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, focused, decimalPlaces, allowDecimal])
 
   const allowNegative = min < 0

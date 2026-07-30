@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@shared/components/ui/sonner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { queryClient } from '@/lib/query-client';
 import { router } from '@/routes/router';
 
@@ -19,9 +20,11 @@ export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <Suspense fallback={<FullPageLoader />}>
-          <RouterProvider router={router} />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<FullPageLoader />}>
+            <RouterProvider router={router} />
+          </Suspense>
+        </ErrorBoundary>
         <Toaster />
       </QueryClientProvider>
     </ThemeProvider>

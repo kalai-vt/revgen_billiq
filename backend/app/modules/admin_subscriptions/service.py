@@ -11,6 +11,7 @@ from app.core.timeutils import as_aware_utc
 from app.models.settings import Settings
 from app.models.subscription_event import SubscriptionEvent
 from app.models.tenant import Tenant
+from app.models.subscription_payment import SubscriptionPayment
 from app.models.tenant_limit import TenantLimitOverride
 
 SUBSCRIPTION_STATUSES = ("trialing", "active", "suspended", "expired", "cancelled")
@@ -66,12 +67,20 @@ def get_subscription(db: Session, tenant_id: str) -> dict[str, Any]:
         .order_by(SubscriptionEvent.created_at.desc())
         .all()
     )
+    payments = (
+        db.query(SubscriptionPayment)
+        .filter(SubscriptionPayment.tenant_id == tenant_id)
+        .order_by(SubscriptionPayment.created_at.desc())
+        .limit(20)
+        .all()
+    )
     return {
         "tenant_id": tenant.id,
         "company_name": tenant.company_name,
         "plan": settings_row.plan,
         "price_inr": _price_for(settings_row.plan),
         "subscription_status": settings_row.subscription_status,
+        "payments": payments,
         "trial_ends_at": settings_row.trial_ends_at,
         "history": history,
     }

@@ -188,7 +188,8 @@ export function ReturnDialog({ invoiceId, onClose, onSuccess }: ReturnDialogProp
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Reason</label>
+                        {/* Plain caption, not a form <label>: the Select below already carries its own aria-label. */}
+                        <span className="text-xs text-muted-foreground">Reason</span>
                         <Select
                           value={line?.reason ?? 'other'}
                           onValueChange={(value) => updateLine(item.id, { reason: value as ReturnReason })}

@@ -63,6 +63,9 @@ export function TenantSearchSelect({ selectedTenantId, selectedTenant, onSelect 
       <PopoverContent align="start" initialFocus={false} className="w-96 p-0">
         <div className="border-b p-2">
           <Input
+            // Intentional: this input only mounts once the popover is explicitly opened by the
+            // user, so autofocus doesn't steal focus unexpectedly on page load.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             placeholder="Search company or email…"
             value={input}

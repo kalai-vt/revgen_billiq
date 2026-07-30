@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /billiq/pricing
+Allow: /billiq/privacy
+Allow: /billiq/terms
+Allow: /billiq/cookies
+Disallow: /billiq/
+Sitemap: https://revgenai.in/billiq/sitemap.xml

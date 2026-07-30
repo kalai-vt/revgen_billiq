@@ -97,6 +97,10 @@ class SettingsUpdate(BaseModel):
     feedback_url: str | None = None
 
 
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
 class ProductConfigOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

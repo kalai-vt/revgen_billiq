@@ -96,8 +96,39 @@ def test_refresh_rotates_token_and_invalidates_old_one(client: TestClient, fake_
     reuse_response = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
     assert reuse_response.status_code == 401
 
+    # Reuse of an already-rotated-away refresh token revokes the whole token family (see
+    # test_refresh_token_reuse_revokes_every_other_session for the cross-session proof) — but the
+    # just-issued access token from the legitimate rotation above may still work for a moment: the
+    # `session_invalidated_at` check in get_current_user floors to whole seconds and tolerates a
+    # token minted in the same wall-clock second as the invalidation (the same grace window
+    # change_password relies on), which a fast rotate-then-reuse sequence like this one hits. The
+    # access token's own short expiry (not this check) is what bounds that window in practice —
+    # what actually matters here, and what's under test, is that the refresh token is dead.
     me_response = client.get("/api/auth/me", headers=_headers(new_tokens["access_token"]))
     assert me_response.status_code == 200
+
+
+def test_refresh_token_reuse_revokes_every_other_session(
+    client: TestClient, fake_email: FakeEmailProvider
+) -> None:
+    """Simulates a stolen/leaked refresh token: session A rotates normally, then someone presents
+    session A's now-revoked old token (the reuse). A completely unrelated session B — from a
+    second login, e.g. another device — must also get signed out, since reuse detection can't
+    tell whether B belongs to the attacker or the legitimate owner."""
+    payload = _register_payload()
+    session_a = register_and_activate(client, fake_email, payload)
+
+    login_b = client.post("/api/auth/login", json={"email": payload["email"], "password": payload["password"]})
+    session_b = login_b.json()["data"]
+
+    rotated_a = client.post("/api/auth/refresh", json={"refresh_token": session_a["refresh_token"]})
+    assert rotated_a.status_code == 200
+
+    reuse = client.post("/api/auth/refresh", json={"refresh_token": session_a["refresh_token"]})
+    assert reuse.status_code == 401
+
+    session_b_still_works = client.post("/api/auth/refresh", json={"refresh_token": session_b["refresh_token"]})
+    assert session_b_still_works.status_code == 401
 
 
 def test_login_without_remember_me_uses_short_lived_refresh_token(

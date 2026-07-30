@@ -1,8 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as plansApi from '@/features/plans/api';
 import type { SubscriptionStatus } from '@/features/plans/api';
+import { openRazorpayCheckout, RazorpayDismissedError } from '@/lib/razorpay';
+import { ApiError } from '@/lib/api-client';
+
+const PAYABLE_STATUSES: SubscriptionStatus[] = ['trialing', 'suspended', 'expired'];
 
 const STATUS_BADGE: Record<SubscriptionStatus, { label: string; className: string }> = {
   trialing: { label: 'Trialing', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
@@ -33,7 +39,33 @@ function UsageTile({ label, used, limit }: { label: string; used: number | null;
 }
 
 export function PlanUsageCard() {
+  const queryClient = useQueryClient();
   const { data: usage, isLoading } = useQuery({ queryKey: ['billing-usage'], queryFn: plansApi.getUsage });
+
+  const payMutation = useMutation({
+    mutationFn: async () => {
+      const order = await plansApi.createCheckoutOrder();
+      const payment = await openRazorpayCheckout({
+        keyId: order.razorpay_key_id,
+        amountInr: order.amount_inr,
+        orderId: order.order_id,
+        description: `${order.plan_label} plan`,
+      });
+      return plansApi.verifyPayment({
+        razorpay_order_id: payment.razorpay_order_id,
+        razorpay_payment_id: payment.razorpay_payment_id,
+        razorpay_signature: payment.razorpay_signature,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Payment received — your subscription is active.');
+      queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
+    },
+    onError: (err) => {
+      if (err instanceof RazorpayDismissedError) return;
+      toast.error(err instanceof ApiError ? err.message : 'Payment failed. Please try again.');
+    },
+  });
 
   if (isLoading || !usage) {
     return (
@@ -65,6 +97,11 @@ export function PlanUsageCard() {
             {status.label}
           </Badge>
         </div>
+        {PAYABLE_STATUSES.includes(usage.subscription_status) && (
+          <Button size="sm" onClick={() => payMutation.mutate()} disabled={payMutation.isPending}>
+            {payMutation.isPending ? 'Processing…' : `Pay ₹${usage.price_inr.toLocaleString()} now`}
+          </Button>
+        )}
         <div className="text-sm">
           <span className="text-muted-foreground">Billing cycle: </span>
           <span className="font-medium">
@@ -86,7 +123,7 @@ export function PlanUsageCard() {
         <UsageTile label="Invoices this month" used={usage.usage.monthly_invoices.used} limit={usage.usage.monthly_invoices.limit} />
         <UsageTile label="Branches" used={usage.usage.branches.used} limit={usage.usage.branches.limit} />
         <UsageTile label="Warehouses" used={usage.usage.warehouses.used} limit={usage.usage.warehouses.limit} />
-        <UsageTile label="Storage" used={usage.usage.storage.used} limit={usage.usage.storage.limit} />
+        <UsageTile label="Storage (MB)" used={usage.usage.storage.used} limit={usage.usage.storage.limit} />
       </div>
 
       <p className="text-xs text-muted-foreground">

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.admin_db import get_admin_db
 from app.core.admin_deps import get_current_admin_user
+from app.core.rate_limit import limiter
 from app.core.responses import make_response
 from app.models_admin.admin_user import AdminUser
 from app.modules.admin_auth import service
@@ -25,7 +26,8 @@ router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
 
 
 @router.post("/login")
-def post_admin_login(payload: AdminLoginRequest, db: Session = Depends(get_admin_db)) -> dict[str, Any]:
+@limiter.limit("20/minute")
+def post_admin_login(request: Request, payload: AdminLoginRequest, db: Session = Depends(get_admin_db)) -> dict[str, Any]:
     try:
         admin = service.authenticate_admin(db, payload.email, payload.password)
     except AdminAuthError as exc:

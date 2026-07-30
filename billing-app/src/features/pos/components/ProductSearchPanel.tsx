@@ -36,6 +36,9 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          // Intentional: this is the primary POS search box and the page exists to be
+          // typed/scanned into immediately at checkout.
+          // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           placeholder={SEARCH_PLACEHOLDER[productConfig?.primary_search_field ?? 'identifier_value']}
           className="pl-8"

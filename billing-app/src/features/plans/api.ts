@@ -7,7 +7,8 @@ interface UsageEntry {
 }
 
 interface StorageUsageEntry {
-  used: null;
+  /** Megabytes used across avatars + tenant logo — the only uploads this app has today. */
+  used: number;
   limit: number | null;
 }
 
@@ -39,4 +40,40 @@ export interface BillingUsage {
 
 export function getUsage(): Promise<BillingUsage> {
   return request('/api/billing/usage');
+}
+
+export interface CheckoutOrder {
+  order_id: string;
+  amount_inr: number;
+  currency: string;
+  razorpay_key_id: string;
+  plan: string;
+  plan_label: string;
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export interface SubscriptionPayment {
+  id: string;
+  plan: string;
+  amount_inr: number;
+  status: 'created' | 'paid' | 'failed';
+  created_at: string;
+  paid_at: string | null;
+}
+
+export function createCheckoutOrder(): Promise<CheckoutOrder> {
+  return request('/api/billing/checkout', { method: 'POST' });
+}
+
+export function verifyPayment(payload: VerifyPaymentPayload): Promise<{ status: string }> {
+  return request('/api/billing/verify', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function listPayments(): Promise<SubscriptionPayment[]> {
+  return request('/api/billing/payments');
 }

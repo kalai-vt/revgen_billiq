@@ -1,6 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -12,27 +15,46 @@ import { ApiError } from '@/lib/api-client';
 
 const REMEMBERED_EMAIL_KEY = 'revgeniq_remembered_email';
 
+// Login only needs "did you fill this in correctly" checks — no password-complexity
+// re-validation here, that's the server's job when checking credentials.
+const loginSchema = z.object({
+  email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
 export function LoginForm() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const rememberedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
-  const [email, setEmail] = useState(rememberedEmail ?? '');
-  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(!!rememberedEmail);
   const [error, setError] = useState<string | null>(null);
   const [showResend, setShowResend] = useState(false);
   const [resending, setResending] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: rememberedEmail ?? '',
+      password: '',
+    },
+  });
+
+  async function onSubmit(values: LoginFormValues) {
     setError(null);
     setShowResend(false);
     setLoading(true);
     try {
-      await login(email, password, rememberMe);
+      await login(values.email, values.password, rememberMe);
       if (rememberMe) {
-        localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+        localStorage.setItem(REMEMBERED_EMAIL_KEY, values.email);
       } else {
         localStorage.removeItem(REMEMBERED_EMAIL_KEY);
       }
@@ -52,7 +74,7 @@ export function LoginForm() {
   async function handleResend() {
     setResending(true);
     try {
-      await resendVerification(email);
+      await resendVerification(getValues('email'));
       toast.success('Verification email sent. Please check your inbox.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Something went wrong');
@@ -62,18 +84,11 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <Input id="email" type="email" autoComplete="email" {...register('email')} />
+        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
       </div>
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
@@ -82,14 +97,8 @@ export function LoginForm() {
             Forgot password?
           </Link>
         </div>
-        <PasswordInput
-          id="password"
-          name="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <PasswordInput id="password" autoComplete="current-password" {...register('password')} />
+        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
       </div>
       <div className="flex items-center gap-2">
         <Checkbox id="remember-me" checked={rememberMe} onCheckedChange={setRememberMe} />

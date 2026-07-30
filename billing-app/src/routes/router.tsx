@@ -68,6 +68,15 @@ const TrendComparisonPage = lazy(() =>
   import('@/features/analytics/pages/TrendComparisonPage').then((m) => ({ default: m.TrendComparisonPage })),
 );
 const PricingPage = lazy(() => import('@/features/plans/pages/PricingPage').then((m) => ({ default: m.PricingPage })));
+const PrivacyPolicyPage = lazy(() =>
+  import('@/features/legal/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
+);
+const TermsOfServicePage = lazy(() =>
+  import('@/features/legal/pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })),
+);
+const CookiePolicyPage = lazy(() =>
+  import('@/features/legal/pages/CookiePolicyPage').then((m) => ({ default: m.CookiePolicyPage })),
+);
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const VendorsPage = lazy(() => import('@/features/procurement/pages/VendorsPage').then((m) => ({ default: m.VendorsPage })));
 const PurchaseEntriesPage = lazy(() =>
@@ -125,6 +134,9 @@ export const router = createBrowserRouter([
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/signed-out', element: <SignedOutPage /> },
   { path: '/pricing', element: <PricingPage /> },
+  { path: '/privacy', element: <PrivacyPolicyPage /> },
+  { path: '/terms', element: <TermsOfServicePage /> },
+  { path: '/cookies', element: <CookiePolicyPage /> },
   {
     element: <ProtectedRoute />,
     children: [
