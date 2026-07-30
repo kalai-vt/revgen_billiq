@@ -76,6 +76,47 @@ function twoCol(left: string, right: string, width: number): string {
   return `${left}${' '.repeat(gap)}${right}\n`;
 }
 
+const ONES = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+  'Seventeen', 'Eighteen', 'Nineteen',
+];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+function underThousand(n: number): string {
+  if (n === 0) return '';
+  if (n < 20) return ONES[n];
+  if (n < 100) return (TENS[Math.floor(n / 10)] + (n % 10 ? ` ${ONES[n % 10]}` : '')).trim();
+  return (ONES[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ` and ${underThousand(n % 100)}` : '')).trim();
+}
+
+function integerToWordsIndian(n: number): string {
+  if (n === 0) return 'Zero';
+  const parts: string[] = [];
+  const crore = Math.floor(n / 10_000_000);
+  n %= 10_000_000;
+  const lakh = Math.floor(n / 100_000);
+  n %= 100_000;
+  const thousand = Math.floor(n / 1_000);
+  n %= 1_000;
+  if (crore) parts.push(`${underThousand(crore)} Crore`);
+  if (lakh) parts.push(`${underThousand(lakh)} Lakh`);
+  if (thousand) parts.push(`${underThousand(thousand)} Thousand`);
+  if (n) parts.push(underThousand(n));
+  return parts.join(' ');
+}
+
+/** Ports `backend/app/modules/invoice_designer/amount_words.py::amount_in_words_inr` so the
+ * "Amount in Words" line reads identically whether it came from the thermal or PDF path — Indian
+ * numbering (lakh/crore) regardless of tenant currency, matching that function's own tradeoff. */
+export function numberToWordsInr(amount: number, currencyLabel = 'Rupees'): string {
+  const rupees = Math.trunc(amount);
+  const paise = Math.round((amount - rupees) * 100);
+  let words = `${currencyLabel} ${integerToWordsIndian(rupees)}`;
+  if (paise) words += ` and ${underThousand(paise)} Paise`;
+  return `${words} Only`;
+}
+
 export interface ReceiptBusinessInfo {
   companyName: string;
   addressLine1?: string | null;
@@ -109,6 +150,54 @@ export interface ReceiptItem {
   lineTotal: number;
 }
 
+/** Mirrors the checkbox fields under Invoice Designer's Invoice Info / Customer Details / Tax &
+ * Summary sections (`InvoiceInfoConfig.fields`, `CustomerDetailsConfig.fields`,
+ * `TaxSummaryConfig.fields`) — every field here has real backing data on `Invoice`; fields with
+ * no backing data anywhere in the system (counter, order_number, customer email/address,
+ * cess/shipping/packing — see escpos.ts's module comment) aren't represented here since there's
+ * nothing to gate. Defaults to all-`true` when omitted, matching this file's pre-toggle behavior. */
+export interface ReceiptFieldVisibility {
+  invoiceNumber: boolean;
+  date: boolean;
+  time: boolean;
+  dueDate: boolean;
+  cashier: boolean;
+  customerId: boolean;
+  paymentMethod: boolean;
+  paymentStatus: boolean;
+  invoiceStatus: boolean;
+  customerName: boolean;
+  customerMobile: boolean;
+  customerGstin: boolean;
+  subtotal: boolean;
+  discount: boolean;
+  grandTotal: boolean;
+  paid: boolean;
+  outstanding: boolean;
+  amountInWords: boolean;
+}
+
+const DEFAULT_VISIBILITY: ReceiptFieldVisibility = {
+  invoiceNumber: true,
+  date: true,
+  time: true,
+  dueDate: true,
+  cashier: true,
+  customerId: true,
+  paymentMethod: true,
+  paymentStatus: true,
+  invoiceStatus: true,
+  customerName: true,
+  customerMobile: true,
+  customerGstin: true,
+  subtotal: true,
+  discount: true,
+  grandTotal: true,
+  paid: true,
+  outstanding: true,
+  amountInWords: true,
+};
+
 export interface ReceiptData {
   invoiceNumber: string;
   createdAt: string;
@@ -139,6 +228,27 @@ export interface ReceiptData {
   /** Enabled QR codes from the Designer template's qr_barcode.* flags, already built by the
    * caller (see InvoiceSuccessDialog.tsx for the exact payload per QR type). */
   qrCodes?: ReceiptQrCode[];
+  dueDate?: string | null;
+  customerId?: string | null;
+  /** Already formatted ("Partially Paid", "Paid" — title-cased, underscores replaced), matching
+   * backend document_data.py's own formatting so thermal/PDF read identically. */
+  paymentStatus?: string | null;
+  invoiceStatus?: string | null;
+  /** Same value as `ReceiptBusinessInfo.gstNumber` — the backend's own document_data.py labels
+   * this "customer_gstin" but sources it from the business's own GST snapshot on the invoice
+   * (there's no separate customer-GSTIN concept in the data model); kept faithful to that
+   * existing PDF behavior rather than diverging on thermal. */
+  customerGstin?: string | null;
+  paidAmount?: number | null;
+  outstandingAmount?: number | null;
+  /** CGST/SGST/IGST are a derived 50/50 (or full) split of the single stored `taxAmount`, not a
+   * real stored breakdown — same convention backend document_data.py already uses. When any of
+   * these are present, they replace the combined "Tax (X%)" line. */
+  cgst?: number | null;
+  sgst?: number | null;
+  igst?: number | null;
+  amountInWords?: string | null;
+  visibility?: Partial<ReceiptFieldVisibility>;
 }
 
 function money(value: number, data: ReceiptData): string {
@@ -156,6 +266,7 @@ export function buildReceiptCommands(
   const width = CHARS_PER_LINE[paperSize];
   const out: string[] = [];
   const createdAt = new Date(data.createdAt);
+  const v: ReceiptFieldVisibility = { ...DEFAULT_VISIBILITY, ...data.visibility };
 
   out.push(init());
   if (business.logoCommand) {
@@ -176,12 +287,21 @@ export function buildReceiptCommands(
   }
 
   out.push(align('left'), divider(width));
-  out.push(twoCol(`Bill: ${data.invoiceNumber}`, createdAt.toLocaleDateString(), width));
-  out.push(`${createdAt.toLocaleTimeString()}\n`);
-  out.push(`Cashier: ${data.cashierName}\n`);
-  if (data.customerName) {
-    out.push(`Customer: ${data.customerName}${data.customerPhone ? ` (${data.customerPhone})` : ''}\n`);
+  if (v.invoiceNumber || v.date) {
+    out.push(twoCol(v.invoiceNumber ? `Bill: ${data.invoiceNumber}` : '', v.date ? createdAt.toLocaleDateString() : '', width));
   }
+  if (v.time) out.push(`${createdAt.toLocaleTimeString()}\n`);
+  if (v.dueDate && data.dueDate) out.push(`Due: ${new Date(data.dueDate).toLocaleDateString()}\n`);
+  if (v.cashier) out.push(`Cashier: ${data.cashierName}\n`);
+  if (v.customerId && data.customerId) out.push(`Customer ID: ${data.customerId}\n`);
+  {
+    const name = v.customerName ? data.customerName : null;
+    const phone = v.customerMobile ? data.customerPhone : null;
+    if (name || phone) out.push(`Customer: ${[name, phone ? `(${phone})` : null].filter(Boolean).join(' ')}\n`);
+  }
+  if (v.customerGstin && data.customerGstin) out.push(`Customer GSTIN: ${data.customerGstin}\n`);
+  if (v.paymentStatus && data.paymentStatus) out.push(`Payment Status: ${data.paymentStatus}\n`);
+  if (v.invoiceStatus && data.invoiceStatus) out.push(`Status: ${data.invoiceStatus}\n`);
   out.push(divider(width));
 
   for (const item of data.items) {
@@ -192,16 +312,34 @@ export function buildReceiptCommands(
   }
   out.push(divider(width));
 
-  out.push(twoCol('Subtotal', money(data.subtotal, data), width));
-  if (data.discountAmount > 0) out.push(twoCol('Discount', `-${money(data.discountAmount, data)}`, width));
-  if (data.taxAmount > 0) out.push(twoCol(`Tax (${data.taxPercentage}%)`, money(data.taxAmount, data), width));
+  if (v.subtotal) out.push(twoCol('Subtotal', money(data.subtotal, data), width));
+  if (v.discount && data.discountAmount > 0) out.push(twoCol('Discount', `-${money(data.discountAmount, data)}`, width));
+
+  const hasGstSplit = data.cgst != null || data.sgst != null || data.igst != null;
+  if (hasGstSplit) {
+    if (data.cgst != null) out.push(twoCol('CGST', money(data.cgst, data), width));
+    if (data.sgst != null) out.push(twoCol('SGST', money(data.sgst, data), width));
+    if (data.igst != null) out.push(twoCol('IGST', money(data.igst, data), width));
+  } else if (data.taxAmount > 0) {
+    out.push(twoCol(`Tax (${data.taxPercentage}%)`, money(data.taxAmount, data), width));
+  }
+
   if (data.roundOff != null) out.push(twoCol('Round Off', money(data.roundOff, data), width));
-  out.push(bold(true));
-  out.push(twoCol('TOTAL', money(data.totalAmount, data), width));
-  out.push(bold(false));
-  out.push(`Payment: ${data.paymentMethod.toUpperCase()}\n`);
+  if (v.grandTotal) {
+    out.push(bold(true));
+    out.push(twoCol('TOTAL', money(data.totalAmount, data), width));
+    out.push(bold(false));
+  }
+  if (v.paymentMethod) out.push(`Payment: ${data.paymentMethod.toUpperCase()}\n`);
   if (data.amountTendered != null) out.push(twoCol('Tendered', money(data.amountTendered, data), width));
   if (data.changeDue != null && data.changeDue > 0) out.push(twoCol('Change', money(data.changeDue, data), width));
+  if (v.paid && data.paidAmount != null) out.push(twoCol('Paid', money(data.paidAmount, data), width));
+  if (v.outstanding && data.outstandingAmount != null && data.outstandingAmount > 0) {
+    out.push(twoCol('Outstanding', money(data.outstandingAmount, data), width));
+  }
+  if (v.amountInWords && data.amountInWords) {
+    for (const wrapped of wrapText(data.amountInWords, width)) out.push(`${wrapped}\n`);
+  }
 
   const footerLines = [
     ...(data.footerSections ?? []).map((section) => section.text),
