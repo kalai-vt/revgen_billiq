@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
-def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
+def _register(client: TestClient, admin_db_session: Session, email: str = "owner@acme.test") -> dict:
     payload = {
         "company_name": "Acme Retail",
         "legal_name": "Acme Retail Ltd",
@@ -19,10 +20,11 @@ def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
         "timezone": "UTC",
     }
     owner = register_and_activate_standalone(client, payload)
-    # Invoice Designer is an "explore"+ catalog module (see feature_catalog.py's
-    # PLAN_DEFAULT_MODULES) — this file exercises custom invoice templates, so the fixture
-    # tenant needs it enabled.
-    client.put("/api/settings", json={"plan": "explore"}, headers=_headers(owner["access_token"]))
+    # Invoice Designer is an "advance"-only catalog module (see feature_catalog.py's
+    # PLAN_DEFAULT_MODULES — it's a premium module only in `_EXPLORE_MODULES`'s complement, i.e.
+    # only "advance" grants it by default) — this file exercises custom invoice templates, so the
+    # fixture tenant needs it enabled.
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     return owner
 
 
@@ -54,8 +56,8 @@ def _create_invoice(client: TestClient, headers: dict, product: dict) -> dict:
     return response.json()["data"]
 
 
-def test_invoice_pdf_uses_customized_default_template(client: TestClient) -> None:
-    owner = _register(client)
+def test_invoice_pdf_uses_customized_default_template(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product)
@@ -82,8 +84,8 @@ def test_invoice_pdf_uses_customized_default_template(client: TestClient) -> Non
     assert pdf_response.content.startswith(b"%PDF")
 
 
-def test_invoice_pdf_with_hidden_item_columns(client: TestClient) -> None:
-    owner = _register(client)
+def test_invoice_pdf_with_hidden_item_columns(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product)
@@ -109,8 +111,8 @@ def test_invoice_pdf_with_hidden_item_columns(client: TestClient) -> None:
     assert pdf_response.content.startswith(b"%PDF")
 
 
-def test_invoice_pdf_reflects_alternate_template_selection(client: TestClient) -> None:
-    owner = _register(client)
+def test_invoice_pdf_reflects_alternate_template_selection(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product)
@@ -132,8 +134,8 @@ def test_invoice_pdf_reflects_alternate_template_selection(client: TestClient) -
     assert pdf_response.content.startswith(b"%PDF")
 
 
-def test_return_pdf_uses_credit_note_template(client: TestClient) -> None:
-    owner = _register(client)
+def test_return_pdf_uses_credit_note_template(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product)

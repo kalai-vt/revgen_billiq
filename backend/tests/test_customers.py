@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -74,10 +75,10 @@ def test_customer_is_tenant_scoped(client: TestClient) -> None:
     assert client.delete(f"/api/customers/{customer['id']}", headers=headers_b).status_code == 404
 
 
-def test_customer_delete_requires_owner(client: TestClient) -> None:
+def test_customer_delete_requires_owner(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     customer = client.post("/api/customers", json={"name": "Test Buyer"}, headers=owner_headers).json()["data"]
 
     client.post(

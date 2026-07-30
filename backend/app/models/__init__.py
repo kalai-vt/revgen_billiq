@@ -18,6 +18,7 @@ from app.models.invoice_template import InvoiceTemplate
 from app.models.feature_flag import FeatureSchedule, TenantFeatureFlag, TenantFeatureFlagHistory
 from app.models.subscription_event import SubscriptionEvent
 from app.models.support_ticket import SupportTicket, SupportTicketMessage
+from app.models.tenant_limit import TenantLimitOverride
 
 __all__ = [
     "Tenant",
@@ -57,4 +58,5 @@ __all__ = [
     "SubscriptionEvent",
     "SupportTicket",
     "SupportTicketMessage",
+    "TenantLimitOverride",
 ]

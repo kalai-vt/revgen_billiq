@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -27,9 +28,8 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _enable_commerce(client: TestClient, headers: dict) -> None:
-    response = client.put("/api/settings", json={"plan": "advance"}, headers=headers)
-    assert response.status_code == 200
+def _enable_commerce(client: TestClient, admin_db_session: Session, owner: dict) -> None:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
 
 def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
@@ -47,10 +47,10 @@ def test_commerce_endpoints_blocked_without_feature(client: TestClient) -> None:
     assert response.status_code == 402
 
 
-def test_config_update_encrypts_and_hides_secret(client: TestClient) -> None:
+def test_config_update_encrypts_and_hides_secret(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_commerce(client, headers)
+    _enable_commerce(client, admin_db_session, owner)
 
     get_response = client.get("/api/commerce/configs/swiggy", headers=headers)
     assert get_response.status_code == 200
@@ -72,10 +72,12 @@ def test_config_update_encrypts_and_hides_secret(client: TestClient) -> None:
     assert data["store_name"] == "Downtown Store"
 
 
-def test_mock_order_creates_unmapped_order_with_sync_error(client: TestClient) -> None:
+def test_mock_order_creates_unmapped_order_with_sync_error(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_commerce(client, headers)
+    _enable_commerce(client, admin_db_session, owner)
     client.put("/api/commerce/configs/swiggy", json={"is_enabled": True}, headers=headers)
 
     response = client.post("/api/commerce/orders/mock-trigger", json={"platform": "swiggy", "item_count": 2}, headers=headers)
@@ -91,10 +93,12 @@ def test_mock_order_creates_unmapped_order_with_sync_error(client: TestClient) -
     assert len(unmapped.json()["data"]) > 0
 
 
-def test_product_mapping_backfills_and_retry_billing_succeeds(client: TestClient) -> None:
+def test_product_mapping_backfills_and_retry_billing_succeeds(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_commerce(client, headers)
+    _enable_commerce(client, admin_db_session, owner)
     client.put("/api/commerce/configs/zomato", json={"is_enabled": True}, headers=headers)
 
     order = client.post("/api/commerce/orders/mock-trigger", json={"platform": "zomato", "item_count": 1}, headers=headers).json()["data"]
@@ -115,10 +119,10 @@ def test_product_mapping_backfills_and_retry_billing_succeeds(client: TestClient
     assert billed_order["invoice_number"]
 
 
-def test_commerce_dashboard_reflects_mock_order(client: TestClient) -> None:
+def test_commerce_dashboard_reflects_mock_order(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_commerce(client, headers)
+    _enable_commerce(client, admin_db_session, owner)
     client.put("/api/commerce/configs/swiggy", json={"is_enabled": True}, headers=headers)
     client.post("/api/commerce/orders/mock-trigger", json={"platform": "swiggy", "item_count": 1}, headers=headers)
 
@@ -131,10 +135,12 @@ def test_commerce_dashboard_reflects_mock_order(client: TestClient) -> None:
     assert kpis["unmapped_sku_count"] >= 1
 
 
-def test_webhook_receiver_ingests_order_with_valid_token(client: TestClient) -> None:
+def test_webhook_receiver_ingests_order_with_valid_token(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_commerce(client, headers)
+    _enable_commerce(client, admin_db_session, owner)
     config = client.put("/api/commerce/configs/swiggy", json={"is_enabled": True}, headers=headers).json()["data"]
     webhook_path = config["webhook_path"]
 
@@ -162,10 +168,10 @@ def test_webhook_receiver_rejects_unknown_token(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_staff_cannot_update_commerce_config(client: TestClient) -> None:
+def test_staff_cannot_update_commerce_config(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_commerce(client, headers)
+    _enable_commerce(client, admin_db_session, owner)
 
     client.post(
         "/api/auth/team",

@@ -63,7 +63,6 @@ class SettingsUpdate(BaseModel):
     invoice_prefix: str | None = None
     currency: str | None = None
     theme: Literal["light", "dark", "system"] | None = None
-    plan: Literal["basic", "explore", "advance"] | None = None
     allow_manager_price_override: bool | None = None
     primary_search_field: PrimarySearchField | None = None
     default_identifier_type: IdentifierType | None = None

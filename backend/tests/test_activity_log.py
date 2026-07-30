@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -108,10 +109,10 @@ def test_sale_also_logs_inventory_activity(client: TestClient) -> None:
     assert "sale" in data["items"][0]["description"].lower()
 
 
-def test_activity_log_role_gating(client: TestClient) -> None:
+def test_activity_log_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     client.post(
         "/api/auth/team",

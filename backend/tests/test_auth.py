@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.security import hash_refresh_token
 from app.core.timeutils import as_aware_utc, utc_now
 from app.models.token import RefreshToken
-from tests.conftest import FakeEmailProvider, register_and_activate
+from tests.conftest import FakeEmailProvider, register_and_activate, set_tenant_plan
 
 
 def _register_payload(email: str = "owner@acme.test") -> dict:
@@ -180,10 +180,12 @@ def test_tenant_profile_update_owner_only(client: TestClient, fake_email: FakeEm
     assert response.json()["data"]["company_name"] == "Acme Retail Group"
 
 
-def test_team_member_create_and_list(client: TestClient, fake_email: FakeEmailProvider) -> None:
+def test_team_member_create_and_list(
+    client: TestClient, fake_email: FakeEmailProvider, admin_db_session: Session
+) -> None:
     owner = register_and_activate(client, fake_email, _register_payload())
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     create_response = client.post(
         "/api/auth/team",

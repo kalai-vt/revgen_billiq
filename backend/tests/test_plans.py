@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.core import plans as plans_module
+from app.core.security import hash_password
+from app.models_admin.admin_user import AdminUser
 from tests.conftest import register_and_activate_standalone
 
 
@@ -24,6 +27,26 @@ def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
 
 def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
+
+
+def _admin_headers(client: TestClient, admin_db_session: Session) -> dict:
+    admin = AdminUser(
+        first_name="Riya", last_name="Nair", email="owner@revgeniq.com",
+        password_hash=hash_password("AdminPass!123"), role="super_admin", status="active",
+    )
+    admin_db_session.add(admin)
+    admin_db_session.commit()
+    login = client.post("/api/admin/auth/login", json={"email": "owner@revgeniq.com", "password": "AdminPass!123"})
+    return {"Authorization": f"Bearer {login.json()['data']['access_token']}"}
+
+
+def _set_plan(client: TestClient, admin_db_session: Session, tenant_id: str, plan: str) -> None:
+    """Plan assignment is Super-Admin-only (tenants can no longer self-upgrade via
+    `PUT /api/settings` — see `test_plan_field_ignored_via_settings_update` below), so tests that
+    need a tenant on a specific plan go through the same admin endpoint a real Super Admin uses."""
+    headers = _admin_headers(client, admin_db_session)
+    response = client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": plan}, headers=headers)
+    assert response.status_code == 200, response.text
 
 
 def test_product_limit_enforced(client: TestClient, monkeypatch) -> None:
@@ -50,7 +73,7 @@ def test_customer_limit_enforced(client: TestClient, monkeypatch) -> None:
     assert second.status_code == 402
 
 
-def test_team_member_blocked_on_basic_then_allowed_on_explore(client: TestClient) -> None:
+def test_team_member_blocked_on_basic_then_allowed_on_explore(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
 
@@ -61,7 +84,7 @@ def test_team_member_blocked_on_basic_then_allowed_on_explore(client: TestClient
     )
     assert denied.status_code == 402
 
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    _set_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     allowed = client.post(
         "/api/auth/team",
         json={"first_name": "S", "last_name": "T", "email": "s2@acme.test", "password": "StaffPass!123", "role": "staff"},
@@ -93,7 +116,19 @@ def test_monthly_invoice_limit_enforced(client: TestClient, monkeypatch) -> None
     assert second.status_code == 402
 
 
-def test_barcode_requires_explore_plan(client: TestClient) -> None:
+def test_barcode_available_on_basic_plan(client: TestClient) -> None:
+    # Barcode Printing is one of Basic's included modules per the current plan matrix.
+    owner = _register(client)
+    headers = _headers(owner["access_token"])
+
+    allowed = client.post(
+        "/api/products", json={"name": "AA", "identifier_value": "A-1", "selling_price": 10, "barcode": "123"}, headers=headers
+    )
+    assert allowed.status_code == 200
+
+
+def test_barcode_requires_barcode_support_feature(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setitem(plans_module.PLANS["basic"]["features"], "barcode_support", False)
     owner = _register(client)
     headers = _headers(owner["access_token"])
 
@@ -102,25 +137,8 @@ def test_barcode_requires_explore_plan(client: TestClient) -> None:
     )
     assert denied.status_code == 402
 
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
-    allowed = client.post(
-        "/api/products", json={"name": "BB", "identifier_value": "B-1", "selling_price": 10, "barcode": "456"}, headers=headers
-    )
-    assert allowed.status_code == 200
 
-
-def test_barcode_rejected_on_update_too(client: TestClient) -> None:
-    owner = _register(client)
-    headers = _headers(owner["access_token"])
-    product = client.post(
-        "/api/products", json={"name": "AA", "identifier_value": "A-1", "selling_price": 10}, headers=headers
-    ).json()["data"]
-
-    denied = client.put(f"/api/products/{product['id']}", json={"barcode": "999"}, headers=headers)
-    assert denied.status_code == 402
-
-
-def test_advanced_analytics_requires_explore_plan(client: TestClient) -> None:
+def test_advanced_analytics_requires_explore_plan(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
 
@@ -130,7 +148,7 @@ def test_advanced_analytics_requires_explore_plan(client: TestClient) -> None:
     denied = client.get("/api/analytics/dashboard?days=14&advanced=true", headers=headers)
     assert denied.status_code == 402
 
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    _set_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     allowed = client.get("/api/analytics/dashboard?days=14&advanced=true", headers=headers)
     assert allowed.status_code == 200
 
@@ -166,4 +184,9 @@ def test_usage_endpoint_reports_plan_and_counts(client: TestClient) -> None:
     assert data["plan"] == "basic"
     assert data["usage"]["products"]["used"] == 1
     assert data["usage"]["products"]["limit"] == 500
-    assert data["features"]["barcode_support"] is False
+    assert data["features"]["barcode_support"] is True
+    assert data["usage"]["branches"] == {"used": 1, "limit": 1}
+    assert data["usage"]["warehouses"] == {"used": 1, "limit": 1}
+    assert data["usage"]["storage"] == {"used": None, "limit": 1024}
+    assert data["subscription_status"] == "active"
+    assert "billing_cycle" in data

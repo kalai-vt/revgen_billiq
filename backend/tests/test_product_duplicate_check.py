@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -75,10 +76,10 @@ def test_check_duplicate_detects_identifier_match(client: TestClient) -> None:
     assert response.json()["data"]["identifier_match"] is not None
 
 
-def test_check_duplicate_detects_barcode_match(client: TestClient) -> None:
+def test_check_duplicate_detects_barcode_match(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     _create_product(client, headers, barcode="1234567890123")
 
     response = client.get("/api/products/check-duplicate", params={"barcode": "1234567890123"}, headers=headers)

@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -27,9 +28,8 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _enable_procurement(client: TestClient, headers: dict) -> None:
-    response = client.put("/api/settings", json={"plan": "advance"}, headers=headers)
-    assert response.status_code == 200
+def _enable_procurement(client: TestClient, admin_db_session: Session, owner: dict) -> None:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
 
 def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
@@ -53,10 +53,12 @@ def _inventory_row(client: TestClient, headers: dict, product_id: str) -> dict:
     return next(r for r in response.json()["data"]["items"] if r["product_id"] == product_id)
 
 
-def test_purchase_entry_increases_stock_and_updates_weighted_average_cost(client: TestClient) -> None:
+def test_purchase_entry_increases_stock_and_updates_weighted_average_cost(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers, cost_price=5.0)  # starts at 0 stock
 
@@ -96,10 +98,12 @@ def test_purchase_entry_increases_stock_and_updates_weighted_average_cost(client
     assert round(inv2["cost_price"], 2) == 6.0
 
 
-def test_purchase_entry_updates_vendor_outstanding_when_unpaid(client: TestClient) -> None:
+def test_purchase_entry_updates_vendor_outstanding_when_unpaid(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 
@@ -117,10 +121,12 @@ def test_purchase_entry_updates_vendor_outstanding_when_unpaid(client: TestClien
     assert vendor_after["outstanding_amount"] == 40.0
 
 
-def test_purchase_entry_paid_immediately_does_not_add_to_outstanding(client: TestClient) -> None:
+def test_purchase_entry_paid_immediately_does_not_add_to_outstanding(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 
@@ -142,10 +148,12 @@ def test_purchase_entry_paid_immediately_does_not_add_to_outstanding(client: Tes
     assert vendor_after["outstanding_amount"] == 0.0
 
 
-def test_draft_purchase_does_not_touch_stock_until_confirmed(client: TestClient) -> None:
+def test_draft_purchase_does_not_touch_stock_until_confirmed(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 
@@ -172,10 +180,12 @@ def test_draft_purchase_does_not_touch_stock_until_confirmed(client: TestClient)
     assert inv_after["quantity"] == 10.0
 
 
-def test_cancel_received_purchase_reverses_stock_and_outstanding(client: TestClient) -> None:
+def test_cancel_received_purchase_reverses_stock_and_outstanding(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 
@@ -202,10 +212,10 @@ def test_cancel_received_purchase_reverses_stock_and_outstanding(client: TestCli
     assert vendor_after["outstanding_amount"] == 0.0
 
 
-def test_manager_cannot_cancel_purchase(client: TestClient) -> None:
+def test_manager_cannot_cancel_purchase(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 
@@ -231,10 +241,10 @@ def test_manager_cannot_cancel_purchase(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_purchase_dashboard_reflects_totals(client: TestClient) -> None:
+def test_purchase_dashboard_reflects_totals(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 

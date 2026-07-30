@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.audit import PriceOverrideAudit
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -41,8 +41,10 @@ def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
     return response.json()["data"]
 
 
-def _create_team_member(client: TestClient, owner_headers: dict, role: str, email: str) -> dict:
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+def _create_team_member(
+    client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, role: str, email: str
+) -> dict:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     response = client.post(
         "/api/auth/team",
         json={
@@ -88,11 +90,11 @@ def test_owner_can_override_price_and_audit_row_is_written(client: TestClient, d
     assert audit.created_at is not None
 
 
-def test_manager_blocked_by_default(client: TestClient) -> None:
+def test_manager_blocked_by_default(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers)
-    manager = _create_team_member(client, owner_headers, "manager", "manager@acme.test")
+    manager = _create_team_member(client, admin_db_session, owner, owner_headers, "manager", "manager@acme.test")
     manager_headers = _headers(manager["access_token"])
 
     response = client.post(
@@ -106,11 +108,11 @@ def test_manager_blocked_by_default(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_manager_allowed_after_settings_toggle(client: TestClient) -> None:
+def test_manager_allowed_after_settings_toggle(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers)
-    manager = _create_team_member(client, owner_headers, "manager", "manager2@acme.test")
+    manager = _create_team_member(client, admin_db_session, owner, owner_headers, "manager", "manager2@acme.test")
     manager_headers = _headers(manager["access_token"])
 
     toggle = client.put("/api/settings", json={"allow_manager_price_override": True}, headers=owner_headers)
@@ -129,12 +131,12 @@ def test_manager_allowed_after_settings_toggle(client: TestClient) -> None:
     assert response.json()["data"]["items"][0]["unit_price"] == 10.0
 
 
-def test_staff_always_blocked_regardless_of_setting(client: TestClient) -> None:
+def test_staff_always_blocked_regardless_of_setting(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers)
     client.put("/api/settings", json={"allow_manager_price_override": True}, headers=owner_headers)
-    staff = _create_team_member(client, owner_headers, "staff", "staff@acme.test")
+    staff = _create_team_member(client, admin_db_session, owner, owner_headers, "staff", "staff@acme.test")
     staff_headers = _headers(staff["access_token"])
 
     response = client.post(
@@ -162,18 +164,18 @@ def test_normal_checkout_without_unit_price_is_unaffected(client: TestClient) ->
     assert response.json()["data"]["items"][0]["unit_price"] == 20.0
 
 
-def test_me_reports_can_override_price_per_role(client: TestClient) -> None:
+def test_me_reports_can_override_price_per_role(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     assert client.get("/api/auth/me", headers=owner_headers).json()["data"]["can_override_price"] is True
 
-    manager = _create_team_member(client, owner_headers, "manager", "manager3@acme.test")
+    manager = _create_team_member(client, admin_db_session, owner, owner_headers, "manager", "manager3@acme.test")
     manager_headers = _headers(manager["access_token"])
     assert client.get("/api/auth/me", headers=manager_headers).json()["data"]["can_override_price"] is False
 
     client.put("/api/settings", json={"allow_manager_price_override": True}, headers=owner_headers)
     assert client.get("/api/auth/me", headers=manager_headers).json()["data"]["can_override_price"] is True
 
-    staff = _create_team_member(client, owner_headers, "staff", "staff2@acme.test")
+    staff = _create_team_member(client, admin_db_session, owner, owner_headers, "staff", "staff2@acme.test")
     staff_headers = _headers(staff["access_token"])
     assert client.get("/api/auth/me", headers=staff_headers).json()["data"]["can_override_price"] is False

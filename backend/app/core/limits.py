@@ -9,7 +9,21 @@ from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.plans import PlanConfig, get_plan
 from app.models.settings import Settings
+from app.models.tenant_limit import TenantLimitOverride
 from app.models.user import User
+
+# Numeric plan-limit keys a Super Admin can override per tenant. Mirrors the shape of
+# `get_effective_flags_for_tenant` in `app/modules/admin_features/service.py` — an override row
+# beats the plan default, and a `None`/NULL value always means unlimited.
+LIMIT_KEYS = (
+    "max_users",
+    "max_products",
+    "max_customers",
+    "max_monthly_invoices",
+    "max_branches",
+    "max_warehouses",
+    "max_storage_mb",
+)
 
 
 class LimitExceededError(Exception):
@@ -28,9 +42,21 @@ def get_plan_config(db: Session, tenant_id: str) -> PlanConfig:
     return get_plan(plan_id)
 
 
+def get_effective_limits(db: Session, tenant_id: str) -> dict[str, int | None]:
+    """Per-tenant numeric limits: a `TenantLimitOverride` row wins over the plan's default for
+    that key; keys with no override fall back to the plan's static value."""
+    plan = get_plan_config(db, tenant_id)
+    effective: dict[str, int | None] = {key: plan[key] for key in LIMIT_KEYS}  # type: ignore[literal-required]
+    overrides = db.query(TenantLimitOverride).filter(TenantLimitOverride.tenant_id == tenant_id).all()
+    for override in overrides:
+        if override.limit_key in effective:
+            effective[override.limit_key] = override.limit_value
+    return effective
+
+
 def assert_under_limit(db: Session, tenant_id: str, limit_key: str, current_count: int) -> None:
     plan = get_plan_config(db, tenant_id)
-    limit = plan[limit_key]  # type: ignore[literal-required]
+    limit = get_effective_limits(db, tenant_id)[limit_key]
     if limit is not None and current_count >= limit:
         raise LimitExceededError(
             f"{plan['label']} plan limit reached ({limit}). Upgrade your plan to add more."

@@ -96,9 +96,10 @@ export function CustomerListPanel({
           placeholder="Subscription"
           options={[
             { value: 'active', label: 'Active' },
-            { value: 'past_due', label: 'Past due' },
-            { value: 'cancelled', label: 'Cancelled' },
             { value: 'trialing', label: 'Trialing' },
+            { value: 'suspended', label: 'Suspended' },
+            { value: 'expired', label: 'Expired' },
+            { value: 'cancelled', label: 'Cancelled' },
           ]}
         />
         <FilterSelect

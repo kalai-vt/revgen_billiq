@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
-def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
+def _register(client: TestClient, admin_db_session: Session, email: str = "owner@acme.test") -> dict:
     payload = {
         "company_name": "Acme Retail",
         "legal_name": "Acme Retail Ltd",
@@ -19,10 +20,11 @@ def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
         "timezone": "UTC",
     }
     owner = register_and_activate_standalone(client, payload)
-    # Invoice Designer is an "explore"+ catalog module (see feature_catalog.py's
-    # PLAN_DEFAULT_MODULES) — every test in this file exercises that module, so it needs to be
-    # enabled for the fixture tenant, same as _manager_headers already does below.
-    client.put("/api/settings", json={"plan": "explore"}, headers=_headers(owner["access_token"]))
+    # Invoice Designer is an "advance"-only catalog module (see feature_catalog.py's
+    # PLAN_DEFAULT_MODULES — it's a premium module that only "advance" grants by default) — every
+    # test in this file exercises that module, so it needs to be enabled for the fixture tenant,
+    # same as _manager_headers already does below.
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     return owner
 
 
@@ -30,8 +32,10 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _manager_headers(client: TestClient, owner_headers: dict, email: str = "staff@acme.test") -> dict:
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+def _manager_headers(
+    client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
+) -> dict:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={
@@ -47,8 +51,8 @@ def _manager_headers(client: TestClient, owner_headers: dict, email: str = "staf
     return _headers(login.json()["data"]["access_token"])
 
 
-def test_defaults_are_lazily_seeded(client: TestClient) -> None:
-    owner = _register(client)
+def test_defaults_are_lazily_seeded(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
 
     response = client.get("/api/invoice-templates/defaults", headers=headers)
@@ -67,8 +71,8 @@ def test_defaults_are_lazily_seeded(client: TestClient) -> None:
     assert len(templates) == 1
 
 
-def test_create_duplicate_update_delete_lifecycle(client: TestClient) -> None:
-    owner = _register(client)
+def test_create_duplicate_update_delete_lifecycle(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
 
     created = client.post(
@@ -101,8 +105,8 @@ def test_create_duplicate_update_delete_lifecycle(client: TestClient) -> None:
     assert client.get(f"/api/invoice-templates/{template['id']}", headers=headers).status_code == 404
 
 
-def test_set_default_flips_exactly_one(client: TestClient) -> None:
-    owner = _register(client)
+def test_set_default_flips_exactly_one(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     client.get("/api/invoice-templates/defaults", headers=headers)  # seed builtin default
 
@@ -120,8 +124,8 @@ def test_set_default_flips_exactly_one(client: TestClient) -> None:
     assert defaults[0]["id"] == created["id"]
 
 
-def test_builtin_template_cannot_be_edited_or_deleted(client: TestClient) -> None:
-    owner = _register(client)
+def test_builtin_template_cannot_be_edited_or_deleted(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     by_type = client.get("/api/invoice-templates/defaults", headers=headers).json()["data"]
     builtin = by_type["tax_invoice"]
@@ -130,8 +134,8 @@ def test_builtin_template_cannot_be_edited_or_deleted(client: TestClient) -> Non
     assert client.delete(f"/api/invoice-templates/{builtin['id']}", headers=headers).status_code == 400
 
 
-def test_deleting_default_falls_back_to_another_template(client: TestClient) -> None:
-    owner = _register(client)
+def test_deleting_default_falls_back_to_another_template(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     headers = _headers(owner["access_token"])
     by_type = client.get("/api/invoice-templates/defaults", headers=headers).json()["data"]
     builtin = by_type["tax_invoice"]
@@ -151,9 +155,9 @@ def test_deleting_default_falls_back_to_another_template(client: TestClient) -> 
     assert templates[0]["is_default"] is True
 
 
-def test_tenant_isolation(client: TestClient) -> None:
-    owner_a = _register(client, email="owner-a@acme.test")
-    owner_b = _register(client, email="owner-b@beta.test")
+def test_tenant_isolation(client: TestClient, admin_db_session: Session) -> None:
+    owner_a = _register(client, admin_db_session, email="owner-a@acme.test")
+    owner_b = _register(client, admin_db_session, email="owner-b@beta.test")
     headers_a = _headers(owner_a["access_token"])
     headers_b = _headers(owner_b["access_token"])
 
@@ -168,10 +172,10 @@ def test_tenant_isolation(client: TestClient) -> None:
     assert client.delete(f"/api/invoice-templates/{template_a['id']}", headers=headers_b).status_code == 404
 
 
-def test_mutations_require_owner_role(client: TestClient) -> None:
-    owner = _register(client)
+def test_mutations_require_owner_role(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session)
     owner_headers = _headers(owner["access_token"])
-    manager_headers = _manager_headers(client, owner_headers)
+    manager_headers = _manager_headers(client, admin_db_session, owner, owner_headers)
 
     assert client.get("/api/invoice-templates/defaults", headers=manager_headers).status_code == 200
     assert (

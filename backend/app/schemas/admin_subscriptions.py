@@ -45,3 +45,36 @@ class SubscriptionUpdateRequest(BaseModel):
     trial_ends_at: datetime | None = None
     clear_trial: bool = False
     note: str | None = None
+
+
+class SubscriptionActionRequest(BaseModel):
+    note: str | None = None
+
+
+class ExtendTrialRequest(BaseModel):
+    days: int | None = None
+    trial_ends_at: datetime | None = None
+    note: str | None = None
+
+
+class TenantLimitItem(BaseModel):
+    limit_key: str
+    effective_value: int | None
+    plan_default: int | None
+    is_overridden: bool
+
+
+class TenantLimitsOut(BaseModel):
+    tenant_id: str
+    plan: str
+    limits: list[TenantLimitItem]
+
+
+class LimitOverrideItem(BaseModel):
+    limit_key: str
+    limit_value: int | None = None
+    reset: bool = False
+
+
+class LimitsUpdateRequest(BaseModel):
+    overrides: list[LimitOverrideItem]

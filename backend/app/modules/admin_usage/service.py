@@ -12,7 +12,8 @@ AT_RISK_THRESHOLD_PCT = 80.0
 
 def _resource_usage(entry: dict[str, Any]) -> dict[str, Any]:
     used, limit = entry["used"], entry["limit"]
-    pct = round((used / limit) * 100, 1) if limit else None
+    # `used` is None for resources that aren't tracked yet (e.g. storage) — no percentage to show.
+    pct = round((used / limit) * 100, 1) if (limit and used is not None) else None
     return {"used": used, "limit": limit, "pct_used": pct}
 
 

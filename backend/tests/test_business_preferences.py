@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -95,10 +96,12 @@ def test_default_low_stock_threshold_applied_to_new_products(client: TestClient)
     assert row["reorder_level"] == 25.0
 
 
-def test_business_preferences_endpoint_accessible_to_all_roles(client: TestClient) -> None:
+def test_business_preferences_endpoint_accessible_to_all_roles(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     client.put(
         "/api/settings",
         json={"default_tax_percent": 12.5, "allow_discounts": False, "default_payment_method": "upi"},

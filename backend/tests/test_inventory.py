@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -39,8 +40,10 @@ def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
     return response.json()["data"]
 
 
-def _create_staff(client: TestClient, owner_headers: dict, email: str = "staff@acme.test") -> dict:
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+def _create_staff(
+    client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
+) -> dict:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": email, "password": "StaffPass!123", "role": "staff"},
@@ -201,11 +204,11 @@ def test_pos_sale_auto_deducts_stock_and_records_history(client: TestClient) -> 
     assert void_row["current_stock"] == 20
 
 
-def test_staff_can_view_but_not_adjust(client: TestClient) -> None:
+def test_staff_can_view_but_not_adjust(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers)
-    staff = _create_staff(client, owner_headers)
+    staff = _create_staff(client, admin_db_session, owner, owner_headers)
     staff_headers = _headers(staff["access_token"])
 
     assert client.get("/api/inventory/dashboard", headers=staff_headers).status_code == 200

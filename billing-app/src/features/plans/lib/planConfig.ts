@@ -15,6 +15,8 @@ export interface PlanConfig {
   maxCustomers: number | null;
   maxMonthlyInvoices: number | null;
   maxBranches: number | null;
+  maxWarehouses: number | null;
+  maxStorageMb: number | null;
   features: PlanFeatures;
 }
 
@@ -28,18 +30,22 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     maxUsers: 1,
     maxProducts: 500,
     maxCustomers: 500,
-    maxMonthlyInvoices: 1000,
+    maxMonthlyInvoices: null,
     maxBranches: 1,
-    features: { whatsapp_invoice: false, advanced_analytics: false, user_management: false, barcode_support: false },
+    maxWarehouses: 1,
+    maxStorageMb: 1024,
+    features: { whatsapp_invoice: false, advanced_analytics: false, user_management: false, barcode_support: true },
   },
   explore: {
     label: 'Explore',
     priceInr: 1999,
-    maxUsers: 10,
-    maxProducts: 10000,
+    maxUsers: 5,
+    maxProducts: null,
     maxCustomers: null,
     maxMonthlyInvoices: null,
     maxBranches: 3,
+    maxWarehouses: 3,
+    maxStorageMb: 10240,
     features: { whatsapp_invoice: true, advanced_analytics: true, user_management: true, barcode_support: true },
   },
   advance: {
@@ -50,6 +56,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     maxCustomers: null,
     maxMonthlyInvoices: null,
     maxBranches: null,
+    maxWarehouses: null,
+    maxStorageMb: null,
     features: { whatsapp_invoice: true, advanced_analytics: true, user_management: true, barcode_support: true },
   },
 };

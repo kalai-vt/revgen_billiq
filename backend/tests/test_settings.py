@@ -1,8 +1,22 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
+from app.models_admin.admin_user import AdminUser
 from tests.conftest import register_and_activate_standalone
+
+
+def _admin_headers(client: TestClient, admin_db_session: Session) -> dict:
+    admin = AdminUser(
+        first_name="Riya", last_name="Nair", email="owner@revgeniq.com",
+        password_hash=hash_password("AdminPass!123"), role="super_admin", status="active",
+    )
+    admin_db_session.add(admin)
+    admin_db_session.commit()
+    login = client.post("/api/admin/auth/login", json={"email": "owner@revgeniq.com", "password": "AdminPass!123"})
+    return {"Authorization": f"Bearer {login.json()['data']['access_token']}"}
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -54,10 +68,11 @@ def test_settings_update(client: TestClient) -> None:
     assert data["theme"] == "dark"
 
 
-def test_settings_owner_only(client: TestClient) -> None:
+def test_settings_owner_only(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    admin_headers = _admin_headers(client, admin_db_session)
+    client.put(f"/api/admin/customers/{owner['tenant']['id']}/subscription", json={"plan": "explore"}, headers=admin_headers)
 
     client.post(
         "/api/auth/team",

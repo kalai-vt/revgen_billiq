@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -222,10 +223,10 @@ def test_return_refund_amount_includes_proportional_tax(client: TestClient) -> N
     assert response.json()["data"]["refund_amount"] == 11.0  # half of the tax-inclusive line total
 
 
-def test_return_role_gating(client: TestClient) -> None:
+def test_return_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     product = _create_product(client, owner_headers)
     invoice = _create_invoice(client, owner_headers, product, quantity=2)
     item_id = invoice["items"][0]["id"]
@@ -410,10 +411,10 @@ def test_cancel_return_does_not_touch_stock_for_non_restocked_items(client: Test
     assert _inventory_quantity(client, headers, product["id"]) == stock_before
 
 
-def test_cancel_return_role_gating(client: TestClient) -> None:
+def test_cancel_return_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     product = _create_product(client, owner_headers)
     invoice = _create_invoice(client, owner_headers, product, quantity=2)
     item_id = invoice["items"][0]["id"]

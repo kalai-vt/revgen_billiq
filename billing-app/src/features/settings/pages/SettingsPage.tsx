@@ -341,7 +341,7 @@ export function SettingsPage() {
                   <CardDescription>
                     {canManageUsers
                       ? 'Manage who has access to this organization.'
-                      : 'Upgrade to Explore plan and above to add team members.'}
+                      : 'Team member management isn’t included on your current plan. Contact your administrator if you need this enabled.'}
                   </CardDescription>
                 </div>
                 {isOwner && canManageUsers && <TeamMemberFormDialog />}

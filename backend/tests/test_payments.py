@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -43,8 +44,10 @@ def _create_customer(client: TestClient, headers: dict, **overrides) -> dict:
     return response.json()["data"]
 
 
-def _staff_headers(client: TestClient, owner_headers: dict, email: str = "staff@acme.test") -> dict:
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+def _staff_headers(
+    client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
+) -> dict:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": email, "password": "StaffPass!123", "role": "staff"},
@@ -160,12 +163,12 @@ def test_credit_limit_auto_block_blocks_everyone(client: TestClient) -> None:
     assert "blocked" in response.json()["detail"].lower()
 
 
-def test_credit_limit_blocks_staff_but_allows_owner(client: TestClient) -> None:
+def test_credit_limit_blocks_staff_but_allows_owner(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers, selling_price=100.0)
     customer = _create_customer(client, owner_headers, is_credit_enabled=True, credit_limit=50.0)
-    staff_headers = _staff_headers(client, owner_headers)
+    staff_headers = _staff_headers(client, admin_db_session, owner, owner_headers)
 
     denied = _create_invoice(client, staff_headers, product, quantity=1, payment_type="credit", customer_id=customer["id"])
     assert denied.status_code == 403
@@ -174,27 +177,29 @@ def test_credit_limit_blocks_staff_but_allows_owner(client: TestClient) -> None:
     assert allowed.status_code == 200
 
 
-def test_credit_limit_allow_beyond_limit_permits_staff(client: TestClient) -> None:
+def test_credit_limit_allow_beyond_limit_permits_staff(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers, selling_price=100.0)
     customer = _create_customer(
         client, owner_headers, is_credit_enabled=True, credit_limit=50.0, allow_credit_beyond_limit=True
     )
-    staff_headers = _staff_headers(client, owner_headers)
+    staff_headers = _staff_headers(client, admin_db_session, owner, owner_headers)
 
     response = _create_invoice(client, staff_headers, product, quantity=1, payment_type="credit", customer_id=customer["id"])
     assert response.status_code == 200
 
 
-def test_credit_limit_require_manager_approval_blocks_staff_even_within_limit(client: TestClient) -> None:
+def test_credit_limit_require_manager_approval_blocks_staff_even_within_limit(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     product = _create_product(client, owner_headers, selling_price=10.0)
     customer = _create_customer(
         client, owner_headers, is_credit_enabled=True, credit_limit=1000.0, require_manager_approval=True
     )
-    staff_headers = _staff_headers(client, owner_headers)
+    staff_headers = _staff_headers(client, admin_db_session, owner, owner_headers)
 
     response = _create_invoice(client, staff_headers, product, quantity=1, payment_type="credit", customer_id=customer["id"])
     assert response.status_code == 403
@@ -354,11 +359,11 @@ def test_partial_sale_records_initial_payment_and_reconciles_ledger(client: Test
     assert payments.json()["data"]["total"] == 1
 
 
-def test_ledger_adjustment_owner_only(client: TestClient) -> None:
+def test_ledger_adjustment_owner_only(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     customer = _create_customer(client, owner_headers, is_credit_enabled=True)
-    staff_headers = _staff_headers(client, owner_headers)
+    staff_headers = _staff_headers(client, admin_db_session, owner, owner_headers)
 
     denied = client.post(
         f"/api/customers/{customer['id']}/ledger/adjustments",

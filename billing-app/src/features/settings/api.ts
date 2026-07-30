@@ -57,7 +57,6 @@ export interface SettingsUpdatePayload {
   invoice_prefix?: string;
   currency?: string;
   theme?: ThemeChoice;
-  plan?: PlanId;
   allow_manager_price_override?: boolean;
   primary_search_field?: PrimarySearchField;
   default_identifier_type?: IdentifierType;

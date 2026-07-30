@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.core.barcode import _check_digit, generate_ean13
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -46,10 +47,10 @@ def test_generate_ean13_is_13_digits_and_valid_checksum(client: TestClient) -> N
     assert _check_digit(barcode[:12]) == int(barcode[12])
 
 
-def test_generate_barcode_endpoint_returns_unique_values(client: TestClient) -> None:
+def test_generate_barcode_endpoint_returns_unique_values(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     first = client.get("/api/catalog/barcode/generate", headers=headers)
     second = client.get("/api/catalog/barcode/generate", headers=headers)
@@ -58,10 +59,13 @@ def test_generate_barcode_endpoint_returns_unique_values(client: TestClient) -> 
     assert first.json()["data"]["barcode"] != second.json()["data"]["barcode"]
 
 
-def test_create_product_auto_generates_barcode_when_enabled_and_blank(client: TestClient) -> None:
+def test_create_product_auto_generates_barcode_when_enabled_and_blank(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore", "enable_barcode": True}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    client.put("/api/settings", json={"enable_barcode": True}, headers=headers)
 
     product = client.post(
         "/api/products",
@@ -72,10 +76,13 @@ def test_create_product_auto_generates_barcode_when_enabled_and_blank(client: Te
     assert len(product["barcode"]) == 13
 
 
-def test_create_product_does_not_generate_barcode_when_disabled(client: TestClient) -> None:
+def test_create_product_does_not_generate_barcode_when_disabled(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore", "enable_barcode": False}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    client.put("/api/settings", json={"enable_barcode": False}, headers=headers)
 
     product = client.post(
         "/api/products",
@@ -85,10 +92,13 @@ def test_create_product_does_not_generate_barcode_when_disabled(client: TestClie
     assert product["barcode"] is None
 
 
-def test_manual_barcode_still_respected_when_auto_generate_enabled(client: TestClient) -> None:
+def test_manual_barcode_still_respected_when_auto_generate_enabled(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore", "enable_barcode": True}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    client.put("/api/settings", json={"enable_barcode": True}, headers=headers)
 
     product = client.post(
         "/api/products",

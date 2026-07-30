@@ -67,6 +67,33 @@ def register_and_activate(
     return {**data, **login_data}
 
 
+def set_tenant_plan(client: TestClient, admin_db_session: Session, tenant_id: str, plan: str) -> None:
+    """Plan assignment is Super-Admin-only — `PUT /api/settings` no longer accepts a `plan`
+    field (tenants can't self-upgrade). Tests that need a tenant on a specific plan go through
+    the same admin endpoint a real Super Admin uses, via a throwaway admin account scoped to
+    this call."""
+    import uuid
+
+    from app.core.security import hash_password
+    from app.models_admin.admin_user import AdminUser
+
+    admin = AdminUser(
+        first_name="Test",
+        last_name="Admin",
+        email=f"test-admin-{uuid.uuid4().hex[:12]}@revgeniq.com",
+        password_hash=hash_password("AdminPass!123"),
+        role="super_admin",
+        status="active",
+    )
+    admin_db_session.add(admin)
+    admin_db_session.commit()
+    login = client.post("/api/admin/auth/login", json={"email": admin.email, "password": "AdminPass!123"})
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['data']['access_token']}"}
+    response = client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": plan}, headers=headers)
+    assert response.status_code == 200, response.text
+
+
 def register_and_activate_standalone(client: TestClient, payload: dict) -> dict:
     """Same as register_and_activate, but self-contained (no `fake_email`/`monkeypatch` fixture
     needed) — saves and restores `email_factory.get_email_provider` manually. Used by the

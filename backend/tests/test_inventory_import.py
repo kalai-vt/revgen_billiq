@@ -4,8 +4,9 @@ import io
 
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -42,8 +43,10 @@ def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
     return response.json()["data"]
 
 
-def _create_staff(client: TestClient, owner_headers: dict, email: str = "staff@acme.test") -> dict:
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+def _create_staff(
+    client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
+) -> dict:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": email, "password": "StaffPass!123", "role": "staff"},
@@ -342,10 +345,10 @@ def test_error_report_download_lists_failed_rows(client: TestClient) -> None:
     assert "MISSING-1" in report.text
 
 
-def test_staff_cannot_upload_import(client: TestClient) -> None:
+def test_staff_cannot_upload_import(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    staff = _create_staff(client, owner_headers)
+    staff = _create_staff(client, admin_db_session, owner, owner_headers)
     staff_headers = _headers(staff["access_token"])
 
     content = _csv_bytes(["Product ID (PID)", "Quantity"], [["WID-1", "10"]])

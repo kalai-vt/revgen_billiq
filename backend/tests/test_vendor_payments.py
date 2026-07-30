@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -25,9 +26,8 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _enable_procurement(client: TestClient, headers: dict) -> None:
-    response = client.put("/api/settings", json={"plan": "advance"}, headers=headers)
-    assert response.status_code == 200
+def _enable_procurement(client: TestClient, admin_db_session: Session, owner: dict) -> None:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
 
 def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
@@ -60,10 +60,12 @@ def _create_purchase(client: TestClient, headers: dict, vendor_id: str, product_
     return response.json()["data"]
 
 
-def test_vendor_payment_auto_allocates_and_updates_outstanding(client: TestClient) -> None:
+def test_vendor_payment_auto_allocates_and_updates_outstanding(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     purchase = _create_purchase(client, headers, vendor["id"], product["id"], quantity=10, unit_cost=4.0)  # total 40
@@ -88,10 +90,10 @@ def test_vendor_payment_auto_allocates_and_updates_outstanding(client: TestClien
     assert vendor_after["outstanding_amount"] == 15.0
 
 
-def test_vendor_payment_full_settlement_marks_purchase_paid(client: TestClient) -> None:
+def test_vendor_payment_full_settlement_marks_purchase_paid(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     purchase = _create_purchase(client, headers, vendor["id"], product["id"], quantity=10, unit_cost=4.0)
@@ -107,10 +109,10 @@ def test_vendor_payment_full_settlement_marks_purchase_paid(client: TestClient) 
     assert purchase_after["outstanding_amount"] == 0.0
 
 
-def test_vendor_payment_exceeding_outstanding_rejected(client: TestClient) -> None:
+def test_vendor_payment_exceeding_outstanding_rejected(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     _create_purchase(client, headers, vendor["id"], product["id"], quantity=10, unit_cost=4.0)
@@ -123,10 +125,10 @@ def test_vendor_payment_exceeding_outstanding_rejected(client: TestClient) -> No
     assert response.status_code == 400
 
 
-def test_vendor_ledger_reflects_purchase_and_payment(client: TestClient) -> None:
+def test_vendor_ledger_reflects_purchase_and_payment(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     _create_purchase(client, headers, vendor["id"], product["id"], quantity=10, unit_cost=4.0)
@@ -145,10 +147,10 @@ def test_vendor_ledger_reflects_purchase_and_payment(client: TestClient) -> None
     assert "payment" in types
 
 
-def test_staff_cannot_create_vendor_payment(client: TestClient) -> None:
+def test_staff_cannot_create_vendor_payment(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     _create_purchase(client, headers, vendor["id"], product["id"])

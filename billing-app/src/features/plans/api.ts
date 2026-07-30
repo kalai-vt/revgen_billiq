@@ -6,10 +6,20 @@ interface UsageEntry {
   limit: number | null;
 }
 
+interface StorageUsageEntry {
+  used: null;
+  limit: number | null;
+}
+
+export type SubscriptionStatus = 'trialing' | 'active' | 'suspended' | 'expired' | 'cancelled';
+
 export interface BillingUsage {
   plan: PlanId;
   label: string;
   price_inr: number;
+  subscription_status: SubscriptionStatus;
+  trial_ends_at: string | null;
+  billing_cycle: { start: string; end: string };
   features: {
     whatsapp_invoice: boolean;
     advanced_analytics: boolean;
@@ -21,6 +31,9 @@ export interface BillingUsage {
     products: UsageEntry;
     customers: UsageEntry;
     monthly_invoices: UsageEntry;
+    branches: UsageEntry;
+    warehouses: UsageEntry;
+    storage: StorageUsageEntry;
   };
 }
 

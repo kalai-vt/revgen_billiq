@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -25,9 +26,8 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _enable_procurement(client: TestClient, headers: dict) -> None:
-    response = client.put("/api/settings", json={"plan": "advance"}, headers=headers)
-    assert response.status_code == 200
+def _enable_procurement(client: TestClient, admin_db_session: Session, owner: dict) -> None:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
 
 def _create_vendor(client: TestClient, headers: dict, **overrides) -> dict:
@@ -45,10 +45,10 @@ def test_vendor_endpoints_blocked_when_feature_disabled(client: TestClient) -> N
     assert response.status_code == 402
 
 
-def test_vendor_crud_lifecycle(client: TestClient) -> None:
+def test_vendor_crud_lifecycle(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
 
     vendor = _create_vendor(client, headers, name="Fresh Farms", email="fresh@farms.test")
     assert vendor["name"] == "Fresh Farms"
@@ -74,10 +74,10 @@ def test_vendor_crud_lifecycle(client: TestClient) -> None:
     assert listing_after.json()["data"]["total"] == 0
 
 
-def test_vendor_search_and_filter(client: TestClient) -> None:
+def test_vendor_search_and_filter(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
 
     _create_vendor(client, headers, name="Alpha Traders", phone="1111111111")
     beta = _create_vendor(client, headers, name="Beta Distributors", phone="2222222222")
@@ -95,10 +95,10 @@ def test_vendor_search_and_filter(client: TestClient) -> None:
     assert inactive_only.json()["data"]["items"][0]["name"] == "Beta Distributors"
 
 
-def test_vendor_with_purchase_history_cannot_be_deleted(client: TestClient) -> None:
+def test_vendor_with_purchase_history_cannot_be_deleted(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
 
     product = client.post(
@@ -121,10 +121,10 @@ def test_vendor_with_purchase_history_cannot_be_deleted(client: TestClient) -> N
     assert delete.status_code == 400
 
 
-def test_staff_cannot_create_vendor_but_can_read(client: TestClient) -> None:
+def test_staff_cannot_create_vendor_but_can_read(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
 
     client.post(
         "/api/auth/team",
@@ -141,10 +141,10 @@ def test_staff_cannot_create_vendor_but_can_read(client: TestClient) -> None:
     assert read.status_code == 200
 
 
-def test_non_owner_cannot_delete_vendor(client: TestClient) -> None:
+def test_non_owner_cannot_delete_vendor(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
 
     client.post(

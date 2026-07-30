@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str, company_name: str = "Acme Retail") -> dict:
@@ -94,13 +95,13 @@ def test_identifier_type_can_be_changed_later(client: TestClient) -> None:
     assert update.json()["data"]["identifier_value"] == "MODEL-1"
 
 
-def test_barcode_uniqueness_is_global_across_tenants(client: TestClient) -> None:
+def test_barcode_uniqueness_is_global_across_tenants(client: TestClient, admin_db_session: Session) -> None:
     tenant_a = _register(client, "owner-a@acme.test", "Acme A")
     tenant_b = _register(client, "owner-b@acme.test", "Acme B")
     headers_a = _headers(tenant_a["access_token"])
     headers_b = _headers(tenant_b["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers_a)
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers_b)
+    set_tenant_plan(client, admin_db_session, tenant_a["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, tenant_b["tenant"]["id"], "explore")
 
     assert _create_product(client, headers_a, identifier_value="A-1", barcode="7770001").status_code == 200
 
@@ -167,10 +168,12 @@ def test_search_matches_category_name(client: TestClient) -> None:
     assert search["items"][0]["identifier_value"] == "BEV-1"
 
 
-def test_product_config_endpoint_accessible_to_all_roles(client: TestClient) -> None:
+def test_product_config_endpoint_accessible_to_all_roles(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client, "owner@acme.test")
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     owner_config = client.get("/api/settings/product-config", headers=owner_headers)
     assert owner_config.status_code == 200

@@ -3,8 +3,9 @@ from __future__ import annotations
 import io
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -27,10 +28,10 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def test_logo_upload_rejects_bad_content_type(client: TestClient) -> None:
+def test_logo_upload_rejects_bad_content_type(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     response = client.post(
         "/api/settings/logo",
@@ -40,10 +41,10 @@ def test_logo_upload_rejects_bad_content_type(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_logo_upload_accepts_valid_image(client: TestClient) -> None:
+def test_logo_upload_accepts_valid_image(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     tiny_png = bytes.fromhex(
         "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
@@ -64,10 +65,10 @@ def test_logo_upload_accepts_valid_image(client: TestClient) -> None:
     assert get_response.json()["data"]["logo_url"] == data["logo_url"]
 
 
-def test_logo_upload_rejects_oversized_file(client: TestClient) -> None:
+def test_logo_upload_rejects_oversized_file(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     oversized = b"\xff" * (2 * 1024 * 1024 + 1)
     response = client.post(
@@ -78,10 +79,10 @@ def test_logo_upload_rejects_oversized_file(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_staff_can_read_branding_but_not_upload_logo(client: TestClient) -> None:
+def test_staff_can_read_branding_but_not_upload_logo(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": "staff@acme.test", "password": "StaffPass!123", "role": "staff"},
@@ -100,10 +101,10 @@ def test_staff_can_read_branding_but_not_upload_logo(client: TestClient) -> None
     assert upload.status_code == 403
 
 
-def test_manager_cannot_upload_logo(client: TestClient) -> None:
+def test_manager_cannot_upload_logo(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "Mana", "last_name": "Ger", "email": "manager@acme.test", "password": "MgrPass!123", "role": "manager"},

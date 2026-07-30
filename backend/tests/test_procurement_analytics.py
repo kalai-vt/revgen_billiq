@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -27,9 +28,8 @@ def _headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _enable_procurement(client: TestClient, headers: dict) -> None:
-    response = client.put("/api/settings", json={"plan": "advance"}, headers=headers)
-    assert response.status_code == 200
+def _enable_procurement(client: TestClient, admin_db_session: Session, owner: dict) -> None:
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
 
 def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
@@ -48,10 +48,10 @@ def _create_vendor(client: TestClient, headers: dict, **overrides) -> dict:
     return response.json()["data"]
 
 
-def test_analytics_reflects_purchase(client: TestClient) -> None:
+def test_analytics_reflects_purchase(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
 
@@ -71,10 +71,10 @@ def test_analytics_reflects_purchase(client: TestClient) -> None:
     assert data["product_analysis"][0]["product_name"] == product["name"]
 
 
-def test_analytics_export_excel(client: TestClient) -> None:
+def test_analytics_export_excel(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     today = date.today().isoformat()
@@ -93,10 +93,10 @@ def test_analytics_export_excel(client: TestClient) -> None:
     assert response.headers["content-type"].startswith("application/vnd.openxmlformats")
 
 
-def test_reports_include_purchase_and_outstanding_vendor(client: TestClient) -> None:
+def test_reports_include_purchase_and_outstanding_vendor(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     vendor = _create_vendor(client, headers)
     product = _create_product(client, headers)
     today = date.today().isoformat()
@@ -115,10 +115,10 @@ def test_reports_include_purchase_and_outstanding_vendor(client: TestClient) -> 
     assert data["outstanding_vendor_report"][0]["outstanding_amount"] == 40.0
 
 
-def test_reports_export_pdf(client: TestClient) -> None:
+def test_reports_export_pdf(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    _enable_procurement(client, headers)
+    _enable_procurement(client, admin_db_session, owner)
     today = date.today().isoformat()
 
     response = client.get(

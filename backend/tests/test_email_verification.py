@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from app.core.timeutils import utc_now
 from app.models.verification import EmailVerificationToken
-from tests.conftest import FakeEmailProvider, register_and_activate
+from tests.conftest import FakeEmailProvider, register_and_activate, set_tenant_plan
 
 
 def _register_payload(email: str = "owner@acme.test") -> dict:
@@ -120,11 +120,11 @@ def test_resend_verification_for_unknown_email_returns_404(client: TestClient) -
 
 
 def test_team_member_still_auto_active_without_verification(
-    client: TestClient, fake_email: FakeEmailProvider
+    client: TestClient, fake_email: FakeEmailProvider, admin_db_session: Session
 ) -> None:
     owner = register_and_activate(client, fake_email, _register_payload())
     owner_headers = {"Authorization": f"Bearer {owner['access_token']}"}
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     create_response = client.post(
         "/api/auth/team",

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -55,10 +56,10 @@ def test_product_crud(client: TestClient) -> None:
     assert client.get("/api/products", headers=headers).json()["data"]["total"] == 0
 
 
-def test_product_barcode_must_be_unique(client: TestClient) -> None:
+def test_product_barcode_must_be_unique(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     _create_product(client, headers, identifier_value="WID-1", barcode="9999999999")
 
     duplicate = client.post(
@@ -69,10 +70,10 @@ def test_product_barcode_must_be_unique(client: TestClient) -> None:
     assert duplicate.status_code == 400
 
 
-def test_product_search_and_pagination(client: TestClient) -> None:
+def test_product_search_and_pagination(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     for i in range(25):
         _create_product(client, headers, name=f"Product {i:02d}", identifier_value=f"SKU-{i:02d}", barcode=None)
@@ -161,7 +162,7 @@ def test_invoice_pdf_download(client: TestClient) -> None:
     assert pdf_response.content.startswith(b"%PDF")
 
 
-def test_invoice_pdf_embeds_uploaded_logo(client: TestClient) -> None:
+def test_invoice_pdf_embeds_uploaded_logo(client: TestClient, admin_db_session: Session) -> None:
     import io
 
     from PIL import Image as PILImage
@@ -169,9 +170,10 @@ def test_invoice_pdf_embeds_uploaded_logo(client: TestClient) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
-    # Custom Branding is an "explore"+ catalog module (see feature_catalog.py's
-    # PLAN_DEFAULT_MODULES) — needed for logo upload to be allowed.
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    # Custom Branding is an "advance"-only catalog module (see feature_catalog.py's
+    # PLAN_DEFAULT_MODULES — it's a premium module that only "advance" grants by default) —
+    # needed for logo upload to be allowed.
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     logo_bytes = io.BytesIO()
     PILImage.new("RGB", (60, 30), color=(20, 90, 200)).save(logo_bytes, format="PNG")
@@ -205,10 +207,10 @@ def test_invoice_pdf_embeds_uploaded_logo(client: TestClient) -> None:
     assert no_logo_pdf.content.startswith(b"%PDF")
 
 
-def test_invoice_void_role_gating(client: TestClient) -> None:
+def test_invoice_void_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     product = _create_product(client, owner_headers)
 
     invoice = client.post(

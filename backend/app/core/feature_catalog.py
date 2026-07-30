@@ -196,15 +196,28 @@ PLAN_DISPLAY_NAMES: dict[str, str] = {
     "advance": "Enterprise",
 }
 
-# What a plan recommends turning on by default. Modules not listed default to disabled. This is
-# only ever a *recommendation* applied at reset/reactivation time — a tenant's live flags are
-# always what's actually stored, so a plan change never silently changes an already-configured
-# tenant's features out from under them.
+# What a plan grants by default. Modules not listed default to disabled. IMPORTANT: unlike a
+# `TenantFeatureFlag` row (which is a one-time snapshot), a tenant with no stored row for a given
+# module has its status recomputed from this list on every read (`_default_status` in
+# `app/modules/admin_features/service.py`) — so narrowing a tier's list here *retroactively*
+# disables that module for every existing tenant on that tier who never had an admin explicitly
+# touch it (which is nearly all of them). Only ever grow a tier's set with newly-added modules;
+# never remove an already-shipped core module a plan used to include.
 _CORE_KEYS = [m["key"] for m in FEATURE_CATALOG if m["category"] == "core"]
 
+_BASIC_MODULES = [*_CORE_KEYS, "barcode_printing", "expenses"]
+
+_EXPLORE_MODULES = [
+    *_BASIC_MODULES,
+    "procurement", "vendors", "purchase_entries", "purchase_returns", "vendor_payments",
+    "procurement_analytics", "procurement_reports",
+    "loyalty", "whatsapp_integration", "sms_integration",
+    "advanced_analytics", "trend_comparison",
+]
+
 PLAN_DEFAULT_MODULES: dict[str, list[str]] = {
-    "basic": [*_CORE_KEYS],
-    "explore": [*_CORE_KEYS, "invoice_designer", "custom_branding", "advanced_analytics", "trend_comparison"],
+    "basic": _BASIC_MODULES,
+    "explore": _EXPLORE_MODULES,
     "advance": [m["key"] for m in FEATURE_CATALOG],
 }
 

@@ -17,7 +17,8 @@ function formatDate(value: string | null): string {
 const STATUS_VARIANT: Record<string, 'default' | 'destructive' | 'outline'> = {
   active: 'default',
   trialing: 'outline',
-  past_due: 'destructive',
+  suspended: 'destructive',
+  expired: 'destructive',
   cancelled: 'destructive',
 };
 

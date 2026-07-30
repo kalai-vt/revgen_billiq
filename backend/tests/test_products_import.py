@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -172,10 +173,10 @@ def test_duplicate_identifier_within_file_errors(client: TestClient) -> None:
     assert rows["ready_count"] == 1
 
 
-def test_barcode_conflict_errors(client: TestClient) -> None:
+def test_barcode_conflict_errors(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     _create_product(client, headers, name="Existing", identifier_value="EX-1", barcode="1234567890123")
 
     content = _csv_bytes(
@@ -256,10 +257,10 @@ def test_error_report_csv_download(client: TestClient) -> None:
     assert b"name" in response.content.lower() or b"required" in response.content.lower()
 
 
-def test_staff_cannot_access_import_endpoints(client: TestClient) -> None:
+def test_staff_cannot_access_import_endpoints(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": "staff@acme.test", "password": "StaffPass!123", "role": "staff"},

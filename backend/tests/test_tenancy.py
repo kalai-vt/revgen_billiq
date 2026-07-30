@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str, company_name: str = "Acme Retail") -> dict:
@@ -84,10 +85,12 @@ def test_invoice_list_is_tenant_scoped(client: TestClient) -> None:
     assert client.get(f"/api/invoices/{invoice['id']}", headers=headers_b).status_code == 404
 
 
-def test_staff_role_denied_product_create_and_delete_but_allowed_view(client: TestClient) -> None:
+def test_staff_role_denied_product_create_and_delete_but_allowed_view(
+    client: TestClient, admin_db_session: Session
+) -> None:
     owner = _register(client, "owner@acme.test")
     owner_headers = _headers(owner["access_token"])
-    client.put("/api/settings", json={"plan": "explore"}, headers=owner_headers)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
 
     client.post(
         "/api/auth/team",
