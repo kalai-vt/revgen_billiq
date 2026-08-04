@@ -193,7 +193,7 @@ export function POSPage() {
 
   return (
     <div className="flex flex-col gap-3 md:h-full md:overflow-hidden">
-      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.78fr_5fr_2.42fr] md:overflow-hidden">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.78fr_5fr_2.9fr] md:overflow-hidden">
         <Card className="min-h-0 p-2">
           <ProductSearchPanel
             onAdd={cart.addProduct}
