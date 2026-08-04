@@ -112,11 +112,16 @@ export function CheckoutPanel({
                 placeholder="Walk-in Customer"
                 value={customerName}
                 onChange={(e) => onCustomerNameChange(e.target.value)}
-                className="pr-8"
+                className="pr-8 text-xs"
               />
               <User className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             </div>
-            <Input placeholder="Phone (optional)" value={customerPhone} onChange={(e) => onCustomerPhoneChange(e.target.value)} />
+            <Input
+              placeholder="Phone (optional)"
+              value={customerPhone}
+              onChange={(e) => onCustomerPhoneChange(e.target.value)}
+              className="text-xs"
+            />
           </div>
         )}
       </div>
@@ -136,7 +141,7 @@ export function CheckoutPanel({
           </div>
           <div className="rounded-lg border border-[#6C47FF]/30 bg-[#6C47FF]/5 px-1 py-1.5">
             <p className="text-xs text-muted-foreground">Total</p>
-            <p className="text-sm font-bold text-[#6C47FF]">₹{totals.total.toFixed(2)}</p>
+            <p className="text-xs font-bold text-[#6C47FF]">₹{totals.total.toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -156,19 +161,19 @@ export function CheckoutPanel({
         total={totals.total}
       />
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       <div className="mt-auto flex gap-2 border-t pt-3">
         <Button
           variant="outline"
-          className="rounded-xl border-[#6C47FF] text-[#6C47FF] hover:bg-[#6C47FF]/5"
+          className="rounded-xl border-[#6C47FF] text-xs text-[#6C47FF] hover:bg-[#6C47FF]/5"
           disabled={lines.length === 0 || isHolding || isSubmitting}
           onClick={onHold}
         >
           {isHolding ? 'Holding…' : 'Hold Bill'}
         </Button>
         <Button
-          className="h-auto min-h-9 flex-1 rounded-xl bg-[#6C47FF] py-2 text-sm leading-tight whitespace-normal text-white hover:bg-[#5b3ce6]"
+          className="h-auto min-h-9 flex-1 rounded-xl bg-[#6C47FF] py-2 text-xs leading-tight whitespace-normal text-white hover:bg-[#5b3ce6]"
           disabled={!canCheckout || isSubmitting}
           onClick={onCheckout}
         >

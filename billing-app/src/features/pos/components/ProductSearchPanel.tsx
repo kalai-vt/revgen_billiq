@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Plus } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -13,6 +14,8 @@ import { cn } from '@/lib/utils';
 
 interface ProductSearchPanelProps {
   onAdd: (product: Product) => void;
+  /** Compact action rendered alongside the search input, e.g. the Held Bills button. */
+  headerAction?: ReactNode;
 }
 
 const SEARCH_PLACEHOLDER: Record<PrimarySearchField, string> = {
@@ -22,7 +25,7 @@ const SEARCH_PLACEHOLDER: Record<PrimarySearchField, string> = {
   category: 'Search products by name or category…',
 };
 
-export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
+export function ProductSearchPanel({ onAdd, headerAction }: ProductSearchPanelProps) {
   const { qInput, setQInput, categoryId, setCategoryId, data, isLoading } = usePosProductSearch();
   const { data: productConfig } = useProductConfig();
   const { data: categoriesData } = useQuery({
@@ -34,18 +37,21 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          // Intentional: this is the primary POS search box and the page exists to be
-          // typed/scanned into immediately at checkout.
-          // eslint-disable-next-line jsx-a11y/no-autofocus
-          autoFocus
-          placeholder={SEARCH_PLACEHOLDER[productConfig?.primary_search_field ?? 'identifier_value']}
-          className="pl-8"
-          value={qInput}
-          onChange={(e) => setQInput(e.target.value)}
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            // Intentional: this is the primary POS search box and the page exists to be
+            // typed/scanned into immediately at checkout.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            placeholder={SEARCH_PLACEHOLDER[productConfig?.primary_search_field ?? 'identifier_value']}
+            className="pl-8 text-xs"
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
+          />
+        </div>
+        {headerAction}
       </div>
 
       {categories.length > 0 && (
@@ -75,11 +81,11 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
             key={product.id}
             type="button"
             onClick={() => onAdd(product)}
-            className="flex w-36 shrink-0 flex-col items-start gap-2 rounded-xl border bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-[#6C47FF] hover:bg-[#6C47FF]/5 md:w-full md:shrink md:flex-row md:items-center"
+            className="flex w-36 shrink-0 flex-col items-start gap-2 rounded-xl border bg-card px-3 py-2 text-left text-xs shadow-sm transition-colors hover:border-[#6C47FF] hover:bg-[#6C47FF]/5 md:w-full md:shrink md:flex-row md:items-center"
           >
             <span
               className={cn(
-                'flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold',
+                'flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold',
                 productAvatarClasses(product.name),
               )}
             >
@@ -87,7 +93,7 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium">{product.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="block truncate text-[11px] text-muted-foreground">
                 {product.identifier_value}
                 {product.category_name ? ` · ${product.category_name}` : ''}
               </span>

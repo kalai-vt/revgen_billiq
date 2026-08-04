@@ -45,7 +45,7 @@ export function CartLineItem({
     <div className="flex items-center gap-2 border-b py-2 last:border-0">
       <div
         className={cn(
-          'flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold',
+          'flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold',
           productAvatarClasses(line.product.name),
         )}
       >
@@ -53,14 +53,14 @@ export function CartLineItem({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{line.product.name}</p>
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="truncate text-xs font-medium">{line.product.name}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
           {line.product.identifier_value}
           {line.product.category_name ? ` · ${line.product.category_name}` : ''}
         </p>
       </div>
 
-      <div className="w-16 shrink-0 text-right text-sm">
+      <div className="w-16 shrink-0 text-right text-xs">
         {canOverridePrice ? (
           <NumericInput
             ref={priceInputRef}
@@ -96,7 +96,7 @@ export function CartLineItem({
           onEnter={() => {
             if (canOverridePrice) priceInputRef.current?.focus();
           }}
-          className="h-7 w-10 px-1 text-center text-sm"
+          className="h-7 w-10 px-1 text-center text-xs"
           aria-label={`Quantity for ${line.product.name}`}
         />
         <IconButton
@@ -111,7 +111,7 @@ export function CartLineItem({
         </IconButton>
       </div>
 
-      <div className="w-16 shrink-0 text-right text-sm font-semibold">₹{lineTotal.toFixed(2)}</div>
+      <div className="w-16 shrink-0 text-right text-xs font-semibold">₹{lineTotal.toFixed(2)}</div>
 
       <IconButton
         tooltip="Remove from cart"

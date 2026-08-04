@@ -193,18 +193,18 @@ export function POSPage() {
 
   return (
     <div className="flex flex-col gap-3 md:h-full md:overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between">
-        <h1 className="text-xl font-semibold">Billing</h1>
-        <Button variant="outline" className="gap-2" onClick={() => setHeldBillsOpen(true)}>
-          <PackageOpen className="size-4" />
-          Held Bills
-          {heldBillsCount > 0 && <Badge variant="secondary">{heldBillsCount}</Badge>}
-        </Button>
-      </div>
-
-      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.65fr_5fr_2.2fr] md:overflow-hidden">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.78fr_5fr_2.42fr] md:overflow-hidden">
         <Card className="min-h-0 p-2">
-          <ProductSearchPanel onAdd={cart.addProduct} />
+          <ProductSearchPanel
+            onAdd={cart.addProduct}
+            headerAction={
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setHeldBillsOpen(true)}>
+                <PackageOpen className="size-4" />
+                Held Bills
+                {heldBillsCount > 0 && <Badge variant="secondary">{heldBillsCount}</Badge>}
+              </Button>
+            }
+          />
         </Card>
         <Card className="min-h-0 p-2">
           <CartPanel

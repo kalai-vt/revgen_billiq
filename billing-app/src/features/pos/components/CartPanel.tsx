@@ -24,14 +24,14 @@ export function CartPanel({ lines, onQuantityChange, onPriceChange, onRemove, on
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">
+        <h2 className="text-sm font-semibold">
           Current Cart <span className="font-normal text-muted-foreground">({lines.length} item{lines.length === 1 ? '' : 's'})</span>
         </h2>
         <button
           type="button"
           onClick={handleClear}
           disabled={lines.length === 0}
-          className="flex items-center gap-1 text-sm font-medium text-destructive hover:underline disabled:pointer-events-none disabled:opacity-40"
+          className="flex items-center gap-1 text-xs font-medium text-destructive hover:underline disabled:pointer-events-none disabled:opacity-40"
         >
           Clear Cart
           <Trash2 className="size-3.5" />
@@ -42,7 +42,7 @@ export function CartPanel({ lines, onQuantityChange, onPriceChange, onRemove, on
         {lines.length === 0 ? (
           <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <ShoppingCart className="size-8" />
-            <p className="text-sm">Cart is empty. Search and add products.</p>
+            <p className="text-xs">Cart is empty. Search and add products.</p>
           </div>
         ) : (
           <div className="px-2">

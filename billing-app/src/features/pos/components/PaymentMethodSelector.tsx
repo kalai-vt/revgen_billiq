@@ -105,7 +105,7 @@ export function PaymentMethodSelector({
       {paymentType === 'paid' && method === 'cash' && (
         <div className="space-y-1 rounded-lg border bg-muted/20 p-2">
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="amount-tendered" className="text-sm text-muted-foreground">
+            <label htmlFor="amount-tendered" className="text-xs text-muted-foreground">
               Amount Tendered
             </label>
             <NumericInput
@@ -114,12 +114,12 @@ export function PaymentMethodSelector({
               required={false}
               value={amountTendered}
               onChange={onAmountTenderedChange}
-              className="h-7 w-28 border-transparent bg-transparent px-1 text-right font-medium shadow-none"
+              className="h-7 w-28 border-transparent bg-transparent px-1 text-right text-xs font-medium shadow-none"
             />
           </div>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">Change Due</p>
-            <p className={cn('text-sm font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-[#6C47FF]')}>
+            <p className="text-xs text-muted-foreground">Change Due</p>
+            <p className={cn('text-xs font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-[#6C47FF]')}>
               {change !== null ? `₹${change.toFixed(2)}` : '—'}
             </p>
           </div>
@@ -131,7 +131,7 @@ export function PaymentMethodSelector({
           {paymentType === 'partial' && (
             <>
               <div className="flex items-center justify-between gap-2">
-                <label htmlFor="paid-now" className="text-sm text-muted-foreground">
+                <label htmlFor="paid-now" className="text-xs text-muted-foreground">
                   Paid Today
                 </label>
                 <NumericInput
@@ -141,17 +141,17 @@ export function PaymentMethodSelector({
                   required={false}
                   value={paidNow}
                   onChange={onPaidNowChange}
-                  className="h-7 w-28 border-transparent bg-transparent px-1 text-right font-medium shadow-none"
+                  className="h-7 w-28 border-transparent bg-transparent px-1 text-right text-xs font-medium shadow-none"
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">Outstanding</p>
-                <p className="text-sm font-semibold text-[#6C47FF]">₹{outstanding.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Outstanding</p>
+                <p className="text-xs font-semibold text-[#6C47FF]">₹{outstanding.toFixed(2)}</p>
               </div>
             </>
           )}
           {paymentType === 'credit' && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Full amount of <span className="font-medium text-foreground">₹{total.toFixed(2)}</span> will be recorded as outstanding.
             </p>
           )}
@@ -161,6 +161,7 @@ export function PaymentMethodSelector({
             type="date"
             value={dueDate}
             onChange={(e) => onDueDateChange(e.target.value)}
+            className="text-xs"
           />
         </div>
       )}
