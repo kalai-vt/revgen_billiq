@@ -10,12 +10,12 @@ interface DiscountInputProps {
 
 export function DiscountInput({ discountType, discountValue, onChange }: DiscountInputProps) {
   return (
-    <div className="flex items-center gap-2">
+    <>
       <Select
         value={discountType ?? 'none'}
         onValueChange={(value) => onChange(value === 'none' ? null : (value as DiscountType), discountValue)}
       >
-        <SelectTrigger className="w-32 text-xs">
+        <SelectTrigger className="w-full text-xs">
           <SelectValue placeholder="Discount">
             {(value: string | null) =>
               value === 'percent' ? 'Percent %' : value === 'flat' ? 'Flat amount' : 'No discount'
@@ -33,10 +33,10 @@ export function DiscountInput({ discountType, discountValue, onChange }: Discoun
         max={discountType === 'percent' ? 100 : undefined}
         disabled={!discountType}
         placeholder="0"
-        className="w-24 text-xs"
+        className="w-full text-xs"
         value={discountType ? discountValue : 0}
         onChange={(value) => onChange(discountType, value ?? 0)}
       />
-    </div>
+    </>
   );
 }

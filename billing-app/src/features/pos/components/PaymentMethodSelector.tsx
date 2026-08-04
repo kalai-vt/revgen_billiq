@@ -82,7 +82,7 @@ export function PaymentMethodSelector({
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {showPaymentType && (
         <SegmentedButtons
           options={['paid', 'partial', 'credit']}
@@ -114,7 +114,8 @@ export function PaymentMethodSelector({
               required={false}
               value={amountTendered}
               onChange={onAmountTenderedChange}
-              className="h-7 w-28 border-transparent bg-transparent px-1 text-right text-xs font-medium shadow-none"
+              placeholder="0"
+              className="h-7 w-28 border border-input bg-background px-2 text-right text-xs font-medium"
             />
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -141,7 +142,8 @@ export function PaymentMethodSelector({
                   required={false}
                   value={paidNow}
                   onChange={onPaidNowChange}
-                  className="h-7 w-28 border-transparent bg-transparent px-1 text-right text-xs font-medium shadow-none"
+                  placeholder="0"
+                  className="h-7 w-28 border border-input bg-background px-2 text-right text-xs font-medium"
                 />
               </div>
               <div className="flex items-center justify-between gap-2">

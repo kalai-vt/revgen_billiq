@@ -87,9 +87,8 @@ export function CheckoutPanel({
     (!requiresCustomer || (!!customerId && !!dueDate));
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto scrollbar-thin">
+    <div className="flex h-full flex-col gap-2 overflow-y-auto scrollbar-thin">
       <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Customer</Label>
         {enableCustomerSelection || requiresCustomer ? (
           <>
             <CustomerPicker customerId={customerId} onSelect={onCustomerSelect} />
@@ -107,6 +106,7 @@ export function CheckoutPanel({
           </>
         ) : (
           <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Customer</Label>
             <div className="relative">
               <Input
                 placeholder="Walk-in Customer"
@@ -126,9 +126,11 @@ export function CheckoutPanel({
         )}
       </div>
 
-      <div className="space-y-2">
-        {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
-        <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
+      <div className="space-y-1.5">
+        <div className="grid grid-cols-[8rem_6rem] items-center gap-x-2 gap-y-1.5">
+          {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
+          <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
+        </div>
 
         <div className="grid grid-cols-[1fr_1fr_1.3fr] gap-1.5 text-center">
           <div className="rounded-lg border bg-muted/30 px-1 py-1.5">

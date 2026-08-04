@@ -8,7 +8,7 @@ interface TaxInputProps {
 
 export function TaxInput({ value, onChange }: TaxInputProps) {
   return (
-    <div className="flex items-center gap-2">
+    <>
       <Label htmlFor="tax-percentage" className="text-xs text-muted-foreground">
         Tax %
       </Label>
@@ -16,10 +16,10 @@ export function TaxInput({ value, onChange }: TaxInputProps) {
         id="tax-percentage"
         min={0}
         max={100}
-        className="w-24 text-xs"
+        className="w-full text-xs"
         value={value}
         onChange={(next) => onChange(next ?? 0)}
       />
-    </div>
+    </>
   );
 }
