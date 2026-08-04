@@ -192,7 +192,7 @@ export function POSPage() {
   const heldBillsCount = heldBillsData?.total ?? 0;
 
   return (
-    <div className="flex flex-col gap-3 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3 md:h-full md:overflow-hidden">
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold">Billing</h1>
         <Button variant="outline" className="gap-2" onClick={() => setHeldBillsOpen(true)}>
@@ -202,7 +202,7 @@ export function POSPage() {
         </Button>
       </div>
 
-      <div className="grid min-h-0 grid-cols-1 gap-3 lg:flex-1 lg:grid-cols-[3fr_4fr_3fr] lg:overflow-hidden">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[3fr_4fr_3fr] md:overflow-hidden">
         <Card className="min-h-0 p-2">
           <ProductSearchPanel onAdd={cart.addProduct} />
         </Card>

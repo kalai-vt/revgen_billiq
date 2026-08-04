@@ -62,10 +62,10 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
         </div>
       )}
 
-      <div className="flex flex-1 gap-2 overflow-x-auto lg:flex-col lg:gap-1.5 lg:overflow-x-visible lg:overflow-y-auto lg:scrollbar-thin">
+      <div className="flex flex-1 gap-2 overflow-x-auto md:flex-col md:gap-1.5 md:overflow-x-visible md:overflow-y-auto md:scrollbar-thin">
         {isLoading &&
           Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-36 shrink-0 lg:h-11 lg:w-full lg:shrink" />
+            <Skeleton key={i} className="h-14 w-36 shrink-0 md:h-11 md:w-full md:shrink" />
           ))}
         {!isLoading && data?.items.length === 0 && (
           <EmptyState icon={Search} title="No products found" className="w-full py-4" />
@@ -75,7 +75,7 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
             key={product.id}
             type="button"
             onClick={() => onAdd(product)}
-            className="flex w-36 shrink-0 flex-col items-start gap-2 rounded-xl border bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-[#6C47FF] hover:bg-[#6C47FF]/5 lg:w-full lg:shrink lg:flex-row lg:items-center"
+            className="flex w-36 shrink-0 flex-col items-start gap-2 rounded-xl border bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-[#6C47FF] hover:bg-[#6C47FF]/5 md:w-full md:shrink md:flex-row md:items-center"
           >
             <span
               className={cn(
@@ -92,7 +92,7 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
                 {product.category_name ? ` · ${product.category_name}` : ''}
               </span>
             </span>
-            <span className="flex w-full shrink-0 items-center justify-between gap-2 lg:w-auto lg:justify-end">
+            <span className="flex w-full shrink-0 items-center justify-between gap-2 md:w-auto md:justify-end">
               <span className="font-medium">₹{product.selling_price.toFixed(2)}</span>
               <span className="flex size-6 items-center justify-center rounded-full bg-[#6C47FF]/10 text-[#6C47FF]">
                 <Plus className="size-3.5" />
