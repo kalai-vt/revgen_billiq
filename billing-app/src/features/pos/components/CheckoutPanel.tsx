@@ -125,16 +125,16 @@ export function CheckoutPanel({
         {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
         <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
 
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg border bg-muted/30 p-2">
+        <div className="grid grid-cols-[1fr_1fr_1.3fr] gap-1.5 text-center">
+          <div className="rounded-lg border bg-muted/30 px-1 py-1.5">
             <p className="text-xs text-muted-foreground">Discount</p>
-            <p className="text-sm font-semibold">₹{totals.discountAmount.toFixed(2)}</p>
+            <p className="text-xs font-semibold">₹{totals.discountAmount.toFixed(2)}</p>
           </div>
-          <div className="rounded-lg border bg-muted/30 p-2">
+          <div className="rounded-lg border bg-muted/30 px-1 py-1.5">
             <p className="text-xs text-muted-foreground">Tax ({taxPercentage}%)</p>
-            <p className="text-sm font-semibold">₹{totals.taxAmount.toFixed(2)}</p>
+            <p className="text-xs font-semibold">₹{totals.taxAmount.toFixed(2)}</p>
           </div>
-          <div className="rounded-lg border border-[#6C47FF]/30 bg-[#6C47FF]/5 p-2">
+          <div className="rounded-lg border border-[#6C47FF]/30 bg-[#6C47FF]/5 px-1 py-1.5">
             <p className="text-xs text-muted-foreground">Total</p>
             <p className="text-sm font-bold text-[#6C47FF]">₹{totals.total.toFixed(2)}</p>
           </div>
@@ -168,8 +168,7 @@ export function CheckoutPanel({
           {isHolding ? 'Holding…' : 'Hold Bill'}
         </Button>
         <Button
-          className="flex-1 rounded-xl bg-[#6C47FF] text-white hover:bg-[#5b3ce6]"
-          size="lg"
+          className="h-auto min-h-9 flex-1 rounded-xl bg-[#6C47FF] py-2 text-sm leading-tight whitespace-normal text-white hover:bg-[#5b3ce6]"
           disabled={!canCheckout || isSubmitting}
           onClick={onCheckout}
         >

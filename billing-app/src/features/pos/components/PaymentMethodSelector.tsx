@@ -51,7 +51,7 @@ function SegmentedButtons<T extends string>({
           type="button"
           onClick={() => onChange(option)}
           className={cn(
-            'h-8 rounded-lg border text-xs font-medium transition-colors',
+            'h-auto min-h-8 rounded-lg border px-1 py-1 text-xs leading-tight font-medium transition-colors',
             value === option
               ? 'border-[#6C47FF] bg-[#6C47FF] text-white'
               : 'border-border bg-background text-foreground hover:bg-muted',
