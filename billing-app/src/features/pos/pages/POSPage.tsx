@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { PackageOpen } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Cart } from '@/features/pos/components/Cart';
+import { CartPanel } from '@/features/pos/components/CartPanel';
+import { CheckoutPanel } from '@/features/pos/components/CheckoutPanel';
 import { HeldBillsDialog } from '@/features/pos/components/HeldBillsDialog';
 import { InvoiceSuccessDialog } from '@/features/pos/components/InvoiceSuccessDialog';
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
@@ -27,6 +29,11 @@ export function POSPage() {
   const { data: preferences } = useQuery({
     queryKey: ['business-preferences'],
     queryFn: settingsApi.getBusinessPreferences,
+  });
+  const { data: heldBillsData } = useQuery({
+    queryKey: ['held-bills'],
+    queryFn: () => posApi.listHeldBills(),
+    staleTime: 30_000,
   });
 
   const [discountType, setDiscountType] = useState<DiscountType>(null);
@@ -182,60 +189,70 @@ export function POSPage() {
     (!requiresCustomer || (!!customerId && !!dueDate));
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
+  const heldBillsCount = heldBillsData?.total ?? 0;
+
   return (
-    <div className="grid grid-cols-1 gap-2 lg:h-full lg:grid-cols-[30%_70%] lg:overflow-hidden">
-      <Card className="min-h-0 p-2">
-        <ProductSearchPanel
-          onAdd={cart.addProduct}
-          headerAction={
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setHeldBillsOpen(true)}>
-              <PackageOpen className="size-4" />
-              Held bills
-            </Button>
-          }
-        />
-      </Card>
-      <Card className="min-h-0 p-2">
-        <Cart
-          lines={cart.lines}
-          onQuantityChange={cart.setQuantity}
-          onPriceChange={cart.setPrice}
-          onRemove={cart.removeLine}
-          onClear={cart.clear}
-          canOverridePrice={canOverridePrice}
-          discountType={discountType}
-          discountValue={discountValue}
-          onDiscountChange={handleDiscountChange}
-          taxPercentage={taxPercentage}
-          onTaxPercentageChange={setTaxPercentage}
-          paymentMethod={paymentMethod}
-          onPaymentMethodChange={setPaymentMethod}
-          paymentType={paymentType}
-          onPaymentTypeChange={setPaymentType}
-          outstandingEnabled={outstandingEnabled}
-          amountTendered={amountTendered}
-          onAmountTenderedChange={setAmountTendered}
-          paidNow={paidNow}
-          onPaidNowChange={setPaidNow}
-          dueDate={dueDate}
-          onDueDateChange={setDueDate}
-          customerName={customerName}
-          onCustomerNameChange={setCustomerName}
-          customerPhone={customerPhone}
-          onCustomerPhoneChange={setCustomerPhone}
-          onHold={() => holdMutation.mutate()}
-          isHolding={holdMutation.isPending}
-          allowDiscounts={preferences?.allow_discounts ?? true}
-          enableCustomerSelection={preferences?.enable_customer_selection ?? false}
-          customerId={customerId}
-          selectedCustomer={selectedCustomer}
-          onCustomerSelect={handleCustomerSelect}
-          totals={totals}
-          onCheckout={handleCheckout}
-          isSubmitting={createInvoice.isPending}
-          error={error}
-        />
-      </Card>
+    <div className="flex flex-col gap-3 lg:h-full lg:overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between">
+        <h1 className="text-xl font-semibold">Billing</h1>
+        <Button variant="outline" className="gap-2" onClick={() => setHeldBillsOpen(true)}>
+          <PackageOpen className="size-4" />
+          Held Bills
+          {heldBillsCount > 0 && <Badge variant="secondary">{heldBillsCount}</Badge>}
+        </Button>
+      </div>
+
+      <div className="grid min-h-0 grid-cols-1 gap-3 lg:flex-1 lg:grid-cols-[3fr_4fr_3fr] lg:overflow-hidden">
+        <Card className="min-h-0 p-2">
+          <ProductSearchPanel onAdd={cart.addProduct} />
+        </Card>
+        <Card className="min-h-0 p-2">
+          <CartPanel
+            lines={cart.lines}
+            onQuantityChange={cart.setQuantity}
+            onPriceChange={cart.setPrice}
+            onRemove={cart.removeLine}
+            onClear={cart.clear}
+            canOverridePrice={canOverridePrice}
+          />
+        </Card>
+        <Card className="min-h-0 p-3">
+          <CheckoutPanel
+            lines={cart.lines}
+            discountType={discountType}
+            discountValue={discountValue}
+            onDiscountChange={handleDiscountChange}
+            taxPercentage={taxPercentage}
+            onTaxPercentageChange={setTaxPercentage}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            paymentType={paymentType}
+            onPaymentTypeChange={setPaymentType}
+            outstandingEnabled={outstandingEnabled}
+            amountTendered={amountTendered}
+            onAmountTenderedChange={setAmountTendered}
+            paidNow={paidNow}
+            onPaidNowChange={setPaidNow}
+            dueDate={dueDate}
+            onDueDateChange={setDueDate}
+            customerName={customerName}
+            onCustomerNameChange={setCustomerName}
+            customerPhone={customerPhone}
+            onCustomerPhoneChange={setCustomerPhone}
+            onHold={() => holdMutation.mutate()}
+            isHolding={holdMutation.isPending}
+            allowDiscounts={preferences?.allow_discounts ?? true}
+            enableCustomerSelection={preferences?.enable_customer_selection ?? false}
+            customerId={customerId}
+            selectedCustomer={selectedCustomer}
+            onCustomerSelect={handleCustomerSelect}
+            totals={totals}
+            onCheckout={handleCheckout}
+            isSubmitting={createInvoice.isPending}
+            error={error}
+          />
+        </Card>
+      </div>
 
       <InvoiceSuccessDialog
         invoice={completedInvoice}

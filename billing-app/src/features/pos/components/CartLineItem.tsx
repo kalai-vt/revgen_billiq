@@ -2,10 +2,11 @@ import { useRef, useState } from 'react';
 import { Minus, Plus, X } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
 import { NumericInput } from '@/components/ui/numeric-input';
-import { TableCell, TableRow } from '@/components/ui/table';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
+import { productAvatarClasses, productInitial } from '@/features/pos/lib/productAvatar';
 import type { CartLine } from '@/features/pos/hooks/useCart';
 import { effectivePrice } from '@/features/pos/lib/pricing';
+import { cn } from '@/lib/utils';
 
 interface CartLineItemProps {
   line: CartLine;
@@ -41,47 +42,25 @@ export function CartLineItem({
   }
 
   return (
-    <TableRow>
-      <TableCell className="whitespace-normal">
-        <p className="font-medium">{line.product.name}</p>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center justify-center gap-1">
-          <IconButton
-            tooltip="Decrease quantity"
-            variant="outline"
-            size="icon"
-            className="size-7 rounded-full"
-            aria-label={`Decrease quantity for ${line.product.name}`}
-            onClick={() => applyQuantity(line.quantity - 1)}
-          >
-            <Minus className="size-3" />
-          </IconButton>
-          <NumericInput
-            allowDecimal={false}
-            min={0}
-            commitOn="blur"
-            value={line.quantity}
-            onChange={applyQuantity}
-            onEnter={() => {
-              if (canOverridePrice) priceInputRef.current?.focus();
-            }}
-            className="h-8 w-14 px-1.5 text-center text-sm"
-            aria-label={`Quantity for ${line.product.name}`}
-          />
-          <IconButton
-            tooltip="Increase quantity"
-            variant="outline"
-            size="icon"
-            className="size-7 rounded-full"
-            aria-label={`Increase quantity for ${line.product.name}`}
-            onClick={() => applyQuantity(line.quantity + 1)}
-          >
-            <Plus className="size-3" />
-          </IconButton>
-        </div>
-      </TableCell>
-      <TableCell className="text-right">
+    <div className="flex items-center gap-2 border-b py-2 last:border-0">
+      <div
+        className={cn(
+          'flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold',
+          productAvatarClasses(line.product.name),
+        )}
+      >
+        {productInitial(line.product.name)}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{line.product.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {line.product.identifier_value}
+          {line.product.category_name ? ` · ${line.product.category_name}` : ''}
+        </p>
+      </div>
+
+      <div className="w-16 shrink-0 text-right text-sm">
         {canOverridePrice ? (
           <NumericInput
             ref={priceInputRef}
@@ -89,26 +68,61 @@ export function CartLineItem({
             commitOn="blur"
             value={effectivePrice(line)}
             onChange={applyPrice}
-            className="ml-auto h-8 w-20 px-1.5 text-right text-sm"
+            className="h-7 w-16 px-1 text-right text-xs"
             aria-label={`Unit price for ${line.product.name}`}
           />
         ) : (
-          effectivePrice(line).toFixed(2)
+          <span className="text-muted-foreground">₹{effectivePrice(line).toFixed(2)}</span>
         )}
-      </TableCell>
-      <TableCell className="text-right font-medium">{lineTotal.toFixed(2)}</TableCell>
-      <TableCell>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
         <IconButton
-          tooltip="Remove from cart"
-          variant="ghost"
+          tooltip="Decrease quantity"
+          variant="outline"
           size="icon"
-          className="size-7 text-muted-foreground hover:text-destructive"
-          aria-label={`Remove ${line.product.name} from cart`}
-          onClick={onRemove}
+          className="size-6 rounded-full"
+          aria-label={`Decrease quantity for ${line.product.name}`}
+          onClick={() => applyQuantity(line.quantity - 1)}
         >
-          <X className="size-4" />
+          <Minus className="size-3" />
         </IconButton>
-      </TableCell>
+        <NumericInput
+          allowDecimal={false}
+          min={0}
+          commitOn="blur"
+          value={line.quantity}
+          onChange={applyQuantity}
+          onEnter={() => {
+            if (canOverridePrice) priceInputRef.current?.focus();
+          }}
+          className="h-7 w-10 px-1 text-center text-sm"
+          aria-label={`Quantity for ${line.product.name}`}
+        />
+        <IconButton
+          tooltip="Increase quantity"
+          variant="outline"
+          size="icon"
+          className="size-6 rounded-full"
+          aria-label={`Increase quantity for ${line.product.name}`}
+          onClick={() => applyQuantity(line.quantity + 1)}
+        >
+          <Plus className="size-3" />
+        </IconButton>
+      </div>
+
+      <div className="w-16 shrink-0 text-right text-sm font-semibold">₹{lineTotal.toFixed(2)}</div>
+
+      <IconButton
+        tooltip="Remove from cart"
+        variant="ghost"
+        size="icon"
+        className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+        aria-label={`Remove ${line.product.name} from cart`}
+        onClick={onRemove}
+      >
+        <X className="size-4" />
+      </IconButton>
 
       <ConfirmationDialog
         open={confirmRemoveOpen}
@@ -122,6 +136,6 @@ export function CartLineItem({
           setConfirmRemoveOpen(false);
         }}
       />
-    </TableRow>
+    </div>
   );
 }

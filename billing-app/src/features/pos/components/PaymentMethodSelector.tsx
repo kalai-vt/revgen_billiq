@@ -1,6 +1,6 @@
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NumericInput } from '@/components/ui/numeric-input';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import type { PaymentMethod, PaymentType } from '@/features/pos/api';
 
 interface PaymentMethodSelectorProps {
@@ -26,6 +26,44 @@ const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   credit: 'Credit (Pay Later)',
 };
 
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  card: 'Card',
+  upi: 'UPI',
+};
+
+function SegmentedButtons<T extends string>({
+  options,
+  labels,
+  value,
+  onChange,
+}: {
+  options: T[];
+  labels: Record<T, string>;
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={cn(
+            'h-8 rounded-lg border text-xs font-medium transition-colors',
+            value === option
+              ? 'border-[#6C47FF] bg-[#6C47FF] text-white'
+              : 'border-border bg-background text-foreground hover:bg-muted',
+          )}
+        >
+          {labels[option]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PaymentMethodSelector({
   method,
   onMethodChange,
@@ -44,71 +82,77 @@ export function PaymentMethodSelector({
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {showPaymentType && (
-        <Tabs value={paymentType} onValueChange={(value) => onPaymentTypeChange(value as PaymentType)}>
-          <TabsList className="h-8 grid w-full grid-cols-3">
-            {(Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[]).map((type) => (
-              <TabsTrigger key={type} value={type}>
-                {PAYMENT_TYPE_LABELS[type]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <SegmentedButtons
+          options={['paid', 'partial', 'credit']}
+          labels={PAYMENT_TYPE_LABELS}
+          value={paymentType}
+          onChange={onPaymentTypeChange}
+        />
       )}
 
-      <Tabs value={method} onValueChange={(value) => onMethodChange(value as PaymentMethod)}>
-        <TabsList className="h-8 grid w-full grid-cols-3">
-          <TabsTrigger value="cash">Cash</TabsTrigger>
-          <TabsTrigger value="card">Card</TabsTrigger>
-          <TabsTrigger value="upi">UPI</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">Payment Method</p>
+        <SegmentedButtons
+          options={['cash', 'card', 'upi']}
+          labels={PAYMENT_METHOD_LABELS}
+          value={method}
+          onChange={onMethodChange}
+        />
+      </div>
 
       {paymentType === 'paid' && method === 'cash' && (
-        <div className="flex items-center gap-3">
-          <NumericInput
-            id="amount-tendered"
-            aria-label="Amount tendered"
-            placeholder="Amount tendered"
-            min={0}
-            required={false}
-            value={amountTendered}
-            onChange={onAmountTenderedChange}
-            className="flex-1"
-          />
-          <p className="flex-1 text-sm text-muted-foreground">
-            Change due{' '}
-            <span className={`text-base font-semibold ${change !== null && change < 0 ? 'text-destructive' : 'text-foreground'}`}>
-              {change !== null ? change.toFixed(2) : '—'}
-            </span>
-          </p>
+        <div className="space-y-1 rounded-lg border bg-muted/20 p-2">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="amount-tendered" className="text-sm text-muted-foreground">
+              Amount Tendered
+            </label>
+            <NumericInput
+              id="amount-tendered"
+              min={0}
+              required={false}
+              value={amountTendered}
+              onChange={onAmountTenderedChange}
+              className="h-7 w-28 border-transparent bg-transparent px-1 text-right font-medium shadow-none"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">Change Due</p>
+            <p className={cn('text-sm font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-[#6C47FF]')}>
+              {change !== null ? `₹${change.toFixed(2)}` : '—'}
+            </p>
+          </div>
         </div>
       )}
 
       {(paymentType === 'partial' || paymentType === 'credit') && (
-        <div className="space-y-1.5 rounded-md border bg-muted/30 p-2">
+        <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2">
           {paymentType === 'partial' && (
-            <div className="flex items-center gap-3">
-              <NumericInput
-                id="paid-now"
-                aria-label="Paid today"
-                placeholder="Paid today"
-                min={0}
-                max={total}
-                required={false}
-                value={paidNow}
-                onChange={onPaidNowChange}
-                className="flex-1"
-              />
-              <p className="flex-1 text-sm text-muted-foreground">
-                Outstanding <span className="text-base font-semibold text-foreground">{outstanding.toFixed(2)}</span>
-              </p>
-            </div>
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="paid-now" className="text-sm text-muted-foreground">
+                  Paid Today
+                </label>
+                <NumericInput
+                  id="paid-now"
+                  min={0}
+                  max={total}
+                  required={false}
+                  value={paidNow}
+                  onChange={onPaidNowChange}
+                  className="h-7 w-28 border-transparent bg-transparent px-1 text-right font-medium shadow-none"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">Outstanding</p>
+                <p className="text-sm font-semibold text-[#6C47FF]">₹{outstanding.toFixed(2)}</p>
+              </div>
+            </>
           )}
           {paymentType === 'credit' && (
             <p className="text-sm text-muted-foreground">
-              Full amount of <span className="font-medium text-foreground">{total.toFixed(2)}</span> will be recorded as outstanding.
+              Full amount of <span className="font-medium text-foreground">₹{total.toFixed(2)}</span> will be recorded as outstanding.
             </p>
           )}
           <Input
