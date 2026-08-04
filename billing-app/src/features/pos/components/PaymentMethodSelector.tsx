@@ -82,7 +82,7 @@ export function PaymentMethodSelector({
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {showPaymentType && (
         <SegmentedButtons
           options={['paid', 'partial', 'credit']}
@@ -92,18 +92,15 @@ export function PaymentMethodSelector({
         />
       )}
 
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">Payment Method</p>
-        <SegmentedButtons
-          options={['cash', 'card', 'upi']}
-          labels={PAYMENT_METHOD_LABELS}
-          value={method}
-          onChange={onMethodChange}
-        />
-      </div>
+      <SegmentedButtons
+        options={['cash', 'card', 'upi']}
+        labels={PAYMENT_METHOD_LABELS}
+        value={method}
+        onChange={onMethodChange}
+      />
 
       {paymentType === 'paid' && method === 'cash' && (
-        <div className="space-y-1 rounded-lg border bg-muted/20 p-2">
+        <div className="space-y-1 rounded-lg border bg-muted/20 p-1.5">
           <div className="flex items-center justify-between gap-2">
             <label htmlFor="amount-tendered" className="text-xs text-muted-foreground">
               Amount Tendered
@@ -128,7 +125,7 @@ export function PaymentMethodSelector({
       )}
 
       {(paymentType === 'partial' || paymentType === 'credit') && (
-        <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2">
+        <div className="space-y-1 rounded-lg border bg-muted/20 p-1.5">
           {paymentType === 'partial' && (
             <>
               <div className="flex items-center justify-between gap-2">
