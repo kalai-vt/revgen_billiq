@@ -202,7 +202,7 @@ export function POSPage() {
         </Button>
       </div>
 
-      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.3fr_5fr_2fr] md:overflow-hidden">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.65fr_5fr_2.2fr] md:overflow-hidden">
         <Card className="min-h-0 p-2">
           <ProductSearchPanel onAdd={cart.addProduct} />
         </Card>
