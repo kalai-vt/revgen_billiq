@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Plus } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -14,8 +13,6 @@ import { cn } from '@/lib/utils';
 
 interface ProductSearchPanelProps {
   onAdd: (product: Product) => void;
-  /** Compact action rendered alongside the search input, e.g. the Held Bills button. */
-  headerAction?: ReactNode;
 }
 
 const SEARCH_PLACEHOLDER: Record<PrimarySearchField, string> = {
@@ -25,7 +22,7 @@ const SEARCH_PLACEHOLDER: Record<PrimarySearchField, string> = {
   category: 'Search products by name or category…',
 };
 
-export function ProductSearchPanel({ onAdd, headerAction }: ProductSearchPanelProps) {
+export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
   const { qInput, setQInput, categoryId, setCategoryId, data, isLoading } = usePosProductSearch();
   const { data: productConfig } = useProductConfig();
   const { data: categoriesData } = useQuery({
@@ -37,21 +34,18 @@ export function ProductSearchPanel({ onAdd, headerAction }: ProductSearchPanelPr
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            // Intentional: this is the primary POS search box and the page exists to be
-            // typed/scanned into immediately at checkout.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            placeholder={SEARCH_PLACEHOLDER[productConfig?.primary_search_field ?? 'identifier_value']}
-            className="pl-8 text-xs"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-          />
-        </div>
-        {headerAction}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          // Intentional: this is the primary POS search box and the page exists to be
+          // typed/scanned into immediately at checkout.
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          placeholder={SEARCH_PLACEHOLDER[productConfig?.primary_search_field ?? 'identifier_value']}
+          className="pl-8 text-xs"
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+        />
       </div>
 
       {categories.length > 0 && (

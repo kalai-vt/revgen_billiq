@@ -10,6 +10,7 @@ import { CheckoutPanel } from '@/features/pos/components/CheckoutPanel';
 import { HeldBillsDialog } from '@/features/pos/components/HeldBillsDialog';
 import { InvoiceSuccessDialog } from '@/features/pos/components/InvoiceSuccessDialog';
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
+import { PageHeaderAction } from '@/components/layout/pageActions';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useCart } from '@/features/pos/hooks/useCart';
 import { useCreateInvoice } from '@/features/pos/hooks/useCreateInvoice';
@@ -193,18 +194,17 @@ export function POSPage() {
 
   return (
     <div className="flex flex-col gap-3 md:h-full md:overflow-hidden">
+      <PageHeaderAction>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setHeldBillsOpen(true)}>
+          <PackageOpen className="size-4" />
+          Held Bills
+          {heldBillsCount > 0 && <Badge variant="secondary">{heldBillsCount}</Badge>}
+        </Button>
+      </PageHeaderAction>
+
       <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.78fr_5fr_2.9fr] md:overflow-hidden">
         <Card className="min-h-0 p-2">
-          <ProductSearchPanel
-            onAdd={cart.addProduct}
-            headerAction={
-              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setHeldBillsOpen(true)}>
-                <PackageOpen className="size-4" />
-                Held Bills
-                {heldBillsCount > 0 && <Badge variant="secondary">{heldBillsCount}</Badge>}
-              </Button>
-            }
-          />
+          <ProductSearchPanel onAdd={cart.addProduct} />
         </Card>
         <Card className="min-h-0 p-2">
           <CartPanel

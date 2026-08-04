@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { ChevronRight, Home } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useBreadcrumbAction } from '@/components/layout/pageActions';
 import { getRoleHomeRoute } from '@/lib/roleHome';
 
 interface RouteMeta {
@@ -35,6 +36,7 @@ const ROUTE_LABELS: Record<string, RouteMeta> = {
 export function Breadcrumbs() {
   const location = useLocation();
   const { user } = useAuth();
+  const action = useBreadcrumbAction();
   const meta = ROUTE_LABELS[location.pathname];
 
   if (!meta) return null;
@@ -67,6 +69,7 @@ export function Breadcrumbs() {
           </Fragment>
         );
       })}
+      {action && <div className="ml-auto flex items-center">{action}</div>}
     </nav>
   );
 }
