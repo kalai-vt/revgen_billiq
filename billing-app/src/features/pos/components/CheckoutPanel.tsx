@@ -127,8 +127,12 @@ export function CheckoutPanel({
       </div>
 
       <div className="space-y-1">
-        <div className="grid grid-cols-[8rem_6rem] items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/20 p-1.5">
-          {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
+        {allowDiscounts && (
+          <div className="grid grid-cols-[8rem_6rem] items-center gap-x-2 rounded-lg border bg-muted/20 p-1.5">
+            <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />
+          </div>
+        )}
+        <div className="grid grid-cols-[8rem_6rem] items-center gap-x-2 rounded-lg border bg-muted/20 p-1.5">
           <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
         </div>
 
