@@ -183,8 +183,8 @@ export function POSPage() {
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:h-full lg:grid-cols-[30%_70%] lg:overflow-hidden">
-      <Card className="min-h-0 p-3">
+    <div className="grid grid-cols-1 gap-2 lg:h-full lg:grid-cols-[30%_70%] lg:overflow-hidden">
+      <Card className="min-h-0 p-2">
         <ProductSearchPanel
           onAdd={cart.addProduct}
           headerAction={
@@ -195,7 +195,7 @@ export function POSPage() {
           }
         />
       </Card>
-      <Card className="min-h-0 p-3">
+      <Card className="min-h-0 p-2">
         <Cart
           lines={cart.lines}
           onQuantityChange={cart.setQuantity}

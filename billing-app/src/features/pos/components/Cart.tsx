@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { CartLineItem } from '@/features/pos/components/CartLineItem';
@@ -156,7 +155,7 @@ export function Cart({
         )}
       </div>
 
-      <div className="shrink-0 space-y-2 border-t pt-2">
+      <div className="shrink-0 space-y-1.5 border-t pt-1.5">
         {(enableCustomerSelection || requiresCustomer) && (
           <div className="space-y-1">
             <CustomerPicker customerId={customerId} onSelect={onCustomerSelect} />
@@ -176,14 +175,23 @@ export function Cart({
 
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {!requiresCustomer && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Customer (optional)</Label>
-              <Input placeholder="Enter name" value={customerName} onChange={(e) => onCustomerNameChange(e.target.value)} />
-              <Input placeholder="Phone (optional)" value={customerPhone} onChange={(e) => onCustomerPhoneChange(e.target.value)} />
+            <div className="flex gap-2">
+              <Input
+                placeholder="Customer name (optional)"
+                value={customerName}
+                onChange={(e) => onCustomerNameChange(e.target.value)}
+                className="flex-1"
+              />
+              <Input
+                placeholder="Phone (optional)"
+                value={customerPhone}
+                onChange={(e) => onCustomerPhoneChange(e.target.value)}
+                className="flex-1"
+              />
             </div>
           )}
 
-          <div className={`space-y-1 ${requiresCustomer ? 'md:col-span-2' : ''}`}>
+          <div className={`flex flex-wrap items-center gap-2 ${requiresCustomer ? 'md:col-span-2' : ''}`}>
             {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
             <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
           </div>

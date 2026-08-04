@@ -1,7 +1,6 @@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NumericInput } from '@/components/ui/numeric-input';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import type { PaymentMethod, PaymentType } from '@/features/pos/api';
 
 interface PaymentMethodSelectorProps {
@@ -45,10 +44,10 @@ export function PaymentMethodSelector({
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {showPaymentType && (
         <Tabs value={paymentType} onValueChange={(value) => onPaymentTypeChange(value as PaymentType)}>
-          <TabsList className="h-9 grid w-full grid-cols-3">
+          <TabsList className="h-8 grid w-full grid-cols-3">
             {(Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[]).map((type) => (
               <TabsTrigger key={type} value={type}>
                 {PAYMENT_TYPE_LABELS[type]}
@@ -59,7 +58,7 @@ export function PaymentMethodSelector({
       )}
 
       <Tabs value={method} onValueChange={(value) => onMethodChange(value as PaymentMethod)}>
-        <TabsList className="h-9 grid w-full grid-cols-3">
+        <TabsList className="h-8 grid w-full grid-cols-3">
           <TabsTrigger value="cash">Cash</TabsTrigger>
           <TabsTrigger value="card">Card</TabsTrigger>
           <TabsTrigger value="upi">UPI</TabsTrigger>
@@ -68,41 +67,43 @@ export function PaymentMethodSelector({
 
       {paymentType === 'paid' && method === 'cash' && (
         <div className="flex items-center gap-3">
-          <div className="flex-1 space-y-1">
-            <Label htmlFor="amount-tendered" className="text-xs text-muted-foreground">
-              Amount tendered
-            </Label>
-            <NumericInput
-              id="amount-tendered"
-              min={0}
-              required={false}
-              value={amountTendered}
-              onChange={onAmountTenderedChange}
-            />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground">Change due</p>
-            <p className={`text-lg font-semibold ${change !== null && change < 0 ? 'text-destructive' : ''}`}>
+          <NumericInput
+            id="amount-tendered"
+            aria-label="Amount tendered"
+            placeholder="Amount tendered"
+            min={0}
+            required={false}
+            value={amountTendered}
+            onChange={onAmountTenderedChange}
+            className="flex-1"
+          />
+          <p className="flex-1 text-sm text-muted-foreground">
+            Change due{' '}
+            <span className={`text-base font-semibold ${change !== null && change < 0 ? 'text-destructive' : 'text-foreground'}`}>
               {change !== null ? change.toFixed(2) : '—'}
-            </p>
-          </div>
+            </span>
+          </p>
         </div>
       )}
 
       {(paymentType === 'partial' || paymentType === 'credit') && (
-        <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+        <div className="space-y-1.5 rounded-md border bg-muted/30 p-2">
           {paymentType === 'partial' && (
             <div className="flex items-center gap-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="paid-now" className="text-xs text-muted-foreground">
-                  Paid today
-                </Label>
-                <NumericInput id="paid-now" min={0} max={total} required={false} value={paidNow} onChange={onPaidNowChange} />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground">Outstanding</p>
-                <p className="text-lg font-semibold">{outstanding.toFixed(2)}</p>
-              </div>
+              <NumericInput
+                id="paid-now"
+                aria-label="Paid today"
+                placeholder="Paid today"
+                min={0}
+                max={total}
+                required={false}
+                value={paidNow}
+                onChange={onPaidNowChange}
+                className="flex-1"
+              />
+              <p className="flex-1 text-sm text-muted-foreground">
+                Outstanding <span className="text-base font-semibold text-foreground">{outstanding.toFixed(2)}</span>
+              </p>
             </div>
           )}
           {paymentType === 'credit' && (
@@ -110,12 +111,13 @@ export function PaymentMethodSelector({
               Full amount of <span className="font-medium text-foreground">{total.toFixed(2)}</span> will be recorded as outstanding.
             </p>
           )}
-          <div className="space-y-1">
-            <Label htmlFor="due-date" className="text-xs text-muted-foreground">
-              Due date
-            </Label>
-            <Input id="due-date" type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} />
-          </div>
+          <Input
+            id="due-date"
+            aria-label="Due date"
+            type="date"
+            value={dueDate}
+            onChange={(e) => onDueDateChange(e.target.value)}
+          />
         </div>
       )}
     </div>
