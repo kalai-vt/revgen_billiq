@@ -45,10 +45,10 @@ export function PaymentMethodSelector({
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {showPaymentType && (
         <Tabs value={paymentType} onValueChange={(value) => onPaymentTypeChange(value as PaymentType)}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="h-9 grid w-full grid-cols-3">
             {(Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[]).map((type) => (
               <TabsTrigger key={type} value={type}>
                 {PAYMENT_TYPE_LABELS[type]}
@@ -59,7 +59,7 @@ export function PaymentMethodSelector({
       )}
 
       <Tabs value={method} onValueChange={(value) => onMethodChange(value as PaymentMethod)}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="h-9 grid w-full grid-cols-3">
           <TabsTrigger value="cash">Cash</TabsTrigger>
           <TabsTrigger value="card">Card</TabsTrigger>
           <TabsTrigger value="upi">UPI</TabsTrigger>
@@ -90,7 +90,7 @@ export function PaymentMethodSelector({
       )}
 
       {(paymentType === 'partial' || paymentType === 'credit') && (
-        <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+        <div className="space-y-2 rounded-md border bg-muted/30 p-2">
           {paymentType === 'partial' && (
             <div className="flex items-center gap-3">
               <div className="flex-1 space-y-1">

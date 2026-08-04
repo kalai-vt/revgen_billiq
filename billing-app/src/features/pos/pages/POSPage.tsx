@@ -183,17 +183,19 @@ export function POSPage() {
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:h-full lg:grid-cols-[30%_70%] lg:overflow-hidden">
-      <Card className="min-h-0 p-4">
-        <div className="mb-3 flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => setHeldBillsOpen(true)}>
-            <PackageOpen className="size-4" />
-            Held bills
-          </Button>
-        </div>
-        <ProductSearchPanel onAdd={cart.addProduct} />
+    <div className="grid grid-cols-1 gap-3 lg:h-full lg:grid-cols-[30%_70%] lg:overflow-hidden">
+      <Card className="min-h-0 p-3">
+        <ProductSearchPanel
+          onAdd={cart.addProduct}
+          headerAction={
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setHeldBillsOpen(true)}>
+              <PackageOpen className="size-4" />
+              Held bills
+            </Button>
+          }
+        />
       </Card>
-      <Card className="min-h-0 p-4">
+      <Card className="min-h-0 p-3">
         <Cart
           lines={cart.lines}
           onQuantityChange={cart.setQuantity}

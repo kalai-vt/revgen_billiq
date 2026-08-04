@@ -108,7 +108,7 @@ export function Cart({
   }
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold">
           Current Cart <span className="font-normal text-muted-foreground">({lines.length} item{lines.length === 1 ? '' : 's'})</span>
@@ -156,7 +156,7 @@ export function Cart({
         )}
       </div>
 
-      <div className="shrink-0 space-y-3 border-t pt-3">
+      <div className="shrink-0 space-y-2 border-t pt-2">
         {(enableCustomerSelection || requiresCustomer) && (
           <div className="space-y-1">
             <CustomerPicker customerId={customerId} onSelect={onCustomerSelect} />
@@ -174,21 +174,21 @@ export function Cart({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {!requiresCustomer && (
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Customer (optional)</Label>
               <Input placeholder="Enter name" value={customerName} onChange={(e) => onCustomerNameChange(e.target.value)} />
               <Input placeholder="Phone (optional)" value={customerPhone} onChange={(e) => onCustomerPhoneChange(e.target.value)} />
             </div>
           )}
 
-          <div className={`space-y-2 ${requiresCustomer ? 'md:col-span-2' : ''}`}>
+          <div className={`space-y-1 ${requiresCustomer ? 'md:col-span-2' : ''}`}>
             {allowDiscounts && <DiscountInput discountType={discountType} discountValue={discountValue} onChange={onDiscountChange} />}
             <TaxInput value={taxPercentage} onChange={onTaxPercentageChange} />
           </div>
 
-          <div className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
+          <div className="space-y-0.5 rounded-lg bg-muted/40 p-2 text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span>
               <span>₹{totals.subtotal.toFixed(2)}</span>
