@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -126,7 +126,11 @@ def test_commerce_dashboard_reflects_mock_order(client: TestClient, admin_db_ses
     client.put("/api/commerce/configs/swiggy", json={"is_enabled": True}, headers=headers)
     client.post("/api/commerce/orders/mock-trigger", json={"platform": "swiggy", "item_count": 1}, headers=headers)
 
-    today = date.today().isoformat()
+    # This tenant registers with timezone "UTC" (see _register above), and the commerce
+    # dashboard compares `date_from`/`date_to` against order_time's stored UTC date directly
+    # (no tenant-timezone conversion) — `date.today()` uses the test process's OS-local
+    # timezone, which silently breaks this assertion on any non-UTC dev machine.
+    today = datetime.now(timezone.utc).date().isoformat()
     dashboard = client.get("/api/commerce/dashboard", params={"date_from": today, "date_to": today}, headers=headers)
     assert dashboard.status_code == 200, dashboard.text
     kpis = dashboard.json()["data"]["kpis"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -259,7 +259,11 @@ def test_analytics_dashboard_reflects_activity(client: TestClient) -> None:
         headers=headers,
     )
 
-    today = date.today().isoformat()
+    # This tenant registers with timezone "UTC" (see _register above), so "today" must be
+    # computed in UTC too — `date.today()` uses the test process's OS-local timezone, which
+    # silently breaks this assertion on any non-UTC dev machine (see payments/service.py's
+    # `_today_utc` for the same class of bug on the server side).
+    today = datetime.now(timezone.utc).date().isoformat()
     dashboard = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}", headers=headers)
     assert dashboard.status_code == 200
     data = dashboard.json()["data"]

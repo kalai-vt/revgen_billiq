@@ -27,6 +27,14 @@ from app.schemas.payment import (
 )
 
 
+def _today_utc() -> date:
+    # Payment/Invoice timestamps are always stored in UTC (see Invoice/Payment's `_now()`
+    # default) — using the server process's OS-local `date.today()` here would silently
+    # miscount "today" (due-today, today's collections, ageing/trend windows) on any host
+    # whose local timezone isn't UTC.
+    return datetime.now(timezone.utc).date()
+
+
 class PaymentError(Exception):
     def __init__(self, status_code: int, message: str) -> None:
         self.status_code = status_code
@@ -81,7 +89,7 @@ def record_initial_payment(db: Session, tenant_id: str, invoice: Invoice, curren
 
 
 def list_outstanding_invoices(db: Session, tenant_id: str, customer_id: str) -> list[Invoice]:
-    today = date.today()
+    today = _today_utc()
     invoices = (
         db.query(Invoice)
         .filter(
@@ -346,7 +354,7 @@ def _average_payment_days(db: Session, tenant_id: str, customer_id: str | None) 
 
 
 def _outstanding_trend(db: Session, tenant_id: str, customer_id: str | None, days: int = 30) -> list[TrendPoint]:
-    today = date.today()
+    today = _today_utc()
     start = today - timedelta(days=days - 1)
 
     query = db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.status != "cancelled")
@@ -377,7 +385,7 @@ def _outstanding_trend(db: Session, tenant_id: str, customer_id: str | None, day
 
 
 def _collection_trend(db: Session, tenant_id: str, days: int = 30) -> list[TrendPoint]:
-    today = date.today()
+    today = _today_utc()
     start = today - timedelta(days=days - 1)
     start_dt = datetime.combine(start, time.min, tzinfo=timezone.utc)
     rows = db.query(Payment.created_at, Payment.amount).filter(Payment.tenant_id == tenant_id, Payment.created_at >= start_dt).all()
@@ -395,7 +403,7 @@ def get_credit_summary(db: Session, tenant_id: str, customer_id: str) -> CreditS
     if not customer:
         raise PaymentError(404, "Customer not found")
 
-    today = date.today()
+    today = _today_utc()
     invoices = (
         db.query(Invoice)
         .filter(Invoice.tenant_id == tenant_id, Invoice.customer_id == customer_id, Invoice.outstanding_amount > 0, Invoice.status != "cancelled")
@@ -434,7 +442,7 @@ def _bucket_for(due_date: date | None, today: date) -> AgeingBucket:
 
 
 def get_outstanding_dashboard(db: Session, tenant_id: str) -> OutstandingDashboardOut:
-    today = date.today()
+    today = _today_utc()
     week_end = today + timedelta(days=7)
 
     outstanding_invoices = (
@@ -477,7 +485,7 @@ def get_outstanding_dashboard(db: Session, tenant_id: str) -> OutstandingDashboa
 
 
 def get_ageing_report(db: Session, tenant_id: str) -> AgeingReportOut:
-    today = date.today()
+    today = _today_utc()
     invoices = (
         db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.status != "cancelled", Invoice.outstanding_amount > 0).all()
     )
