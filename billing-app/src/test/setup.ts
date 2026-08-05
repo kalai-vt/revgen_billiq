@@ -11,3 +11,14 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => {
   cleanup();
 });
+
+// jsdom has no ResizeObserver. BaseEChart (src/lib/echarts/BaseEChart.tsx) observes its
+// container to trigger chart resizing, so anything rendering it needs this stub.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+}

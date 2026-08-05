@@ -20,7 +20,10 @@ export function DiscountAnalysisCard({ data, isLoading, onExport }: DiscountAnal
       title="Discount Analysis"
       isLoading={isLoading}
       isEmpty={data.total_invoice_count === 0}
-      onExport={onExport}
+      onExport={(format) => {
+        if (format === 'excel' || format === 'pdf' || format === 'csv') onExport(format);
+      }}
+      exportFormats={['excel', 'pdf', 'csv']}
       height="h-auto"
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

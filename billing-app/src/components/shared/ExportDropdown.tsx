@@ -1,4 +1,4 @@
-import { ChevronDown, Download, FileSpreadsheet, FileText, Sheet } from 'lucide-react';
+import { ChevronDown, Download, FileImage, FileSpreadsheet, FileText, Sheet, Table } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,29 +7,44 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+// Server-generated (analyticsApi.exportDashboardWidget and equivalents elsewhere).
+// Kept narrow and unchanged so the many non-chart consumers of this component
+// (invoices, customers, inventory, products, procurement reports...) that switch
+// exhaustively on this type are unaffected by the chart-only formats below.
 export type ExportFormat = 'excel' | 'pdf' | 'csv';
 
-const FORMAT_CONFIG: Record<ExportFormat, { label: string; icon: typeof FileSpreadsheet }> = {
+// 'image_png' | 'data_csv' are chart-only: instant client-side export straight from
+// the chart's own canvas/data, no server round-trip. `data_csv` is named distinctly
+// from the server's `csv` since the two are independent export paths with different
+// formats. Only ChartCard (and its 13 chart consumers) use this wider type.
+export type ChartExportFormat = ExportFormat | 'image_png' | 'data_csv';
+
+const FORMAT_CONFIG: Record<ChartExportFormat, { label: string; icon: typeof FileSpreadsheet }> = {
   excel: { label: 'Excel', icon: FileSpreadsheet },
   pdf: { label: 'PDF', icon: FileText },
   csv: { label: 'CSV', icon: Sheet },
+  image_png: { label: 'Image (PNG)', icon: FileImage },
+  data_csv: { label: 'Data (CSV)', icon: Table },
 };
 
-interface ExportDropdownProps {
-  onExport: (format: ExportFormat) => void;
-  formats?: ExportFormat[];
+interface ExportDropdownProps<T extends ChartExportFormat> {
+  onExport: (format: T) => void;
+  formats?: T[];
   disabled?: boolean;
   align?: 'start' | 'end';
   label?: string;
 }
 
-export function ExportDropdown({
+const DEFAULT_FORMATS: ExportFormat[] = ['excel', 'pdf', 'csv'];
+
+export function ExportDropdown<T extends ChartExportFormat = ExportFormat>({
   onExport,
-  formats = ['excel', 'pdf', 'csv'],
+  formats,
   disabled = false,
   align = 'end',
   label = 'Export',
-}: ExportDropdownProps) {
+}: ExportDropdownProps<T>) {
+  const resolvedFormats = formats ?? (DEFAULT_FORMATS as T[]);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -42,7 +57,7 @@ export function ExportDropdown({
         }
       />
       <DropdownMenuContent align={align}>
-        {formats.map((format) => {
+        {resolvedFormats.map((format) => {
           const { label: formatLabel, icon: Icon } = FORMAT_CONFIG[format];
           return (
             <DropdownMenuItem key={format} onClick={() => onExport(format)}>

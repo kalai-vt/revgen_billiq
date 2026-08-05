@@ -20,7 +20,10 @@ export function CustomerRetentionCard({ data, isLoading, onExport }: CustomerRet
       title="Customer Retention"
       isLoading={isLoading}
       isEmpty={data.new_customers === 0 && data.returning_customers === 0}
-      onExport={onExport}
+      onExport={(format) => {
+        if (format === 'excel' || format === 'pdf' || format === 'csv') onExport(format);
+      }}
+      exportFormats={['excel', 'pdf', 'csv']}
       height="h-auto"
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

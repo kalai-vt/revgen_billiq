@@ -1,7 +1,13 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useMemo, useRef } from 'react';
 import { ChartCard } from '@/components/shared/ChartCard';
-import type { ExportFormat } from '@/components/shared/ExportDropdown';
-import { CHART_PRIMARY } from '@/features/analytics/lib/colors';
+import type { ChartExportFormat, ExportFormat } from '@/components/shared/ExportDropdown';
+import { BaseEChart, type BaseEChartHandle } from '@/lib/echarts/BaseEChart';
+import { useEChartsTheme } from '@/lib/echarts/useEChartsTheme';
+import { CHART_SURFACE, modeFor } from '@/lib/echarts/theme';
+import { formatFullCurrency } from '@/lib/echarts/formatters';
+import { buildBarOption } from '@/lib/echarts/options';
+import { exportChartAsPng } from '@/lib/echarts/exportImage';
+import { exportChartDataAsCsv } from '@/lib/echarts/exportCsv';
 import type { CashFlowSummary } from '@/features/analytics/api';
 
 interface CashFlowSummaryChartProps {
@@ -11,23 +17,54 @@ interface CashFlowSummaryChartProps {
 }
 
 export function CashFlowSummaryChart({ data, isLoading, onExport }: CashFlowSummaryChartProps) {
+  const chartRef = useRef<BaseEChartHandle>(null);
+  const themeName = useEChartsTheme();
+
+  const option = useMemo(
+    () =>
+      buildBarOption({
+        categories: data.daily.map((d) => d.bucket_label),
+        series: [{ name: 'Cash In', values: data.daily.map((d) => d.amount) }],
+        themeName,
+        valueFormat: 'currency',
+      }),
+    [data.daily, themeName]
+  );
+
+  function handleExport(format: ChartExportFormat) {
+    if (format === 'image_png') {
+      exportChartAsPng(chartRef.current?.getInstance(), 'cash-flow-summary', CHART_SURFACE[modeFor(themeName)]);
+      return;
+    }
+    if (format === 'data_csv') {
+      exportChartDataAsCsv(
+        data.daily,
+        [
+          { key: 'bucket_label', label: 'Period' },
+          { key: 'amount', label: 'Cash In' },
+        ],
+        'cash-flow-summary'
+      );
+      return;
+    }
+    onExport(format);
+  }
+
   return (
-    <ChartCard title="Cash Flow Summary" isLoading={isLoading} isEmpty={data.daily.length === 0} onExport={onExport}>
+    <ChartCard
+      title="Cash Flow Summary"
+      isLoading={isLoading}
+      isEmpty={data.daily.length === 0}
+      onExport={handleExport}
+      exportFormats={['excel', 'pdf', 'csv', 'image_png', 'data_csv']}
+    >
       <div className="flex h-full flex-col gap-2">
         <div className="flex items-baseline justify-between">
           <p className="text-xs text-muted-foreground">Total Cash In</p>
-          <p className="text-lg font-semibold tracking-tight">₹{data.total_cash_in.toFixed(2)}</p>
+          <p className="text-lg font-semibold tracking-tight">{formatFullCurrency(data.total_cash_in)}</p>
         </div>
         <div className="min-h-0 flex-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.daily} margin={{ left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="bucket_label" fontSize={12} />
-              <YAxis fontSize={12} />
-              <Tooltip formatter={(value) => Number(value).toFixed(2)} />
-              <Bar dataKey="amount" name="Cash In" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <BaseEChart ref={chartRef} option={option} />
         </div>
       </div>
     </ChartCard>

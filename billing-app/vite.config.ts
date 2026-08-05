@@ -32,7 +32,7 @@ export default defineConfig(({ command }) => ({
       output: {
         manualChunks: {
           'ag-grid': ['ag-grid-community', 'ag-grid-react'],
-          recharts: ['recharts'],
+          echarts: ['echarts', 'echarts-for-react'],
         },
       },
     },

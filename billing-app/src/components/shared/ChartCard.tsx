@@ -3,15 +3,15 @@ import { BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { ExportDropdown, type ChartExportFormat } from '@/components/shared/ExportDropdown';
 
 interface ChartCardProps {
   title: string;
   isLoading: boolean;
   isEmpty: boolean;
   emptyLabel?: string;
-  onExport?: (format: ExportFormat) => void;
-  exportFormats?: ExportFormat[];
+  onExport?: (format: ChartExportFormat) => void;
+  exportFormats?: ChartExportFormat[];
   height?: string;
   children: ReactNode;
   className?: string;

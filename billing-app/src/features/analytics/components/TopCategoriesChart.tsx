@@ -1,7 +1,12 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useMemo, useRef } from 'react';
 import { ChartCard } from '@/components/shared/ChartCard';
-import type { ExportFormat } from '@/components/shared/ExportDropdown';
-import { CHART_PRIMARY } from '@/features/analytics/lib/colors';
+import type { ChartExportFormat, ExportFormat } from '@/components/shared/ExportDropdown';
+import { BaseEChart, type BaseEChartHandle } from '@/lib/echarts/BaseEChart';
+import { useEChartsTheme } from '@/lib/echarts/useEChartsTheme';
+import { CHART_SURFACE, modeFor } from '@/lib/echarts/theme';
+import { buildBarOption } from '@/lib/echarts/options';
+import { exportChartAsPng } from '@/lib/echarts/exportImage';
+import { exportChartDataAsCsv } from '@/lib/echarts/exportCsv';
 import type { TopCategory } from '@/features/analytics/api';
 
 interface TopCategoriesChartProps {
@@ -11,17 +16,49 @@ interface TopCategoriesChartProps {
 }
 
 export function TopCategoriesChart({ data, isLoading, onExport }: TopCategoriesChartProps) {
+  const chartRef = useRef<BaseEChartHandle>(null);
+  const themeName = useEChartsTheme();
+
+  const option = useMemo(
+    () =>
+      buildBarOption({
+        categories: data.map((d) => d.name),
+        series: [{ name: 'Revenue', values: data.map((d) => d.revenue) }],
+        themeName,
+        valueFormat: 'currency',
+      }),
+    [data, themeName]
+  );
+
+  function handleExport(format: ChartExportFormat) {
+    if (format === 'image_png') {
+      exportChartAsPng(chartRef.current?.getInstance(), 'top-categories', CHART_SURFACE[modeFor(themeName)]);
+      return;
+    }
+    if (format === 'data_csv') {
+      exportChartDataAsCsv(
+        data,
+        [
+          { key: 'name', label: 'Category' },
+          { key: 'revenue', label: 'Revenue' },
+          { key: 'qty_sold', label: 'Qty Sold' },
+        ],
+        'top-categories'
+      );
+      return;
+    }
+    onExport(format);
+  }
+
   return (
-    <ChartCard title="Top Categories" isLoading={isLoading} isEmpty={data.length === 0} onExport={onExport}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="name" fontSize={12} interval={0} angle={-15} textAnchor="end" height={50} />
-          <YAxis fontSize={12} />
-          <Tooltip />
-          <Bar dataKey="revenue" name="Revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+    <ChartCard
+      title="Top Categories"
+      isLoading={isLoading}
+      isEmpty={data.length === 0}
+      onExport={handleExport}
+      exportFormats={['excel', 'pdf', 'csv', 'image_png', 'data_csv']}
+    >
+      <BaseEChart ref={chartRef} option={option} />
     </ChartCard>
   );
 }

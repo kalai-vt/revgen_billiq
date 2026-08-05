@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CHART_PRIMARY } from '@/features/analytics/lib/colors';
+import { useEChartsTheme } from '@/lib/echarts/useEChartsTheme';
+import { CHART_PRIMARY, modeFor } from '@/lib/echarts/theme';
 import type { ComparisonMetric } from '@/features/analytics/api';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +17,8 @@ function formatValue(value: number, format: 'currency' | 'number'): string {
 }
 
 export function ComparisonMetricCard({ metric, format }: ComparisonMetricCardProps) {
+  const themeName = useEChartsTheme();
+  const chartPrimary = CHART_PRIMARY[modeFor(themeName)];
   const max = Math.max(metric.current_value, metric.previous_value, 1);
   const currentWidth = Math.max((metric.current_value / max) * 100, metric.current_value > 0 ? 2 : 0);
   const previousWidth = Math.max((metric.previous_value / max) * 100, metric.previous_value > 0 ? 2 : 0);
@@ -37,7 +40,7 @@ export function ComparisonMetricCard({ metric, format }: ComparisonMetricCardPro
             <span className="font-medium">{formatValue(metric.current_value, format)}</span>
           </div>
           <div className="h-2 rounded-full bg-muted">
-            <div className="h-full rounded-full" style={{ width: `${currentWidth}%`, backgroundColor: CHART_PRIMARY }} />
+            <div className="h-full rounded-full" style={{ width: `${currentWidth}%`, backgroundColor: chartPrimary }} />
           </div>
         </div>
         <div className="space-y-1.5">
