@@ -52,8 +52,17 @@ async function connectOnce(): Promise<void> {
   }
 }
 
-/** Connects to the local QZ Tray instance, reusing an in-flight/active connection if present. */
-export async function connect(timeoutMs = 4000): Promise<void> {
+/** Connects to the local QZ Tray instance, reusing an in-flight/active connection if present.
+ *
+ * The 60s default (not a few seconds) is deliberate: on a till printing for the first time (or
+ * after QZ Tray's trust was cleared), QZ Tray shows its own native "Action Required" popup and
+ * blocks the connection until a human clicks Allow — a short timeout here doesn't make the
+ * connection fail faster, it just gives up on it mid-popup and silently falls back to the browser
+ * print dialog while that native popup is still sitting open, unanswered, which is exactly the
+ * "signed correctly but still shows the popup every time" confusion this was causing: the
+ * fallback fired before the user had a real chance to respond, so trust was never actually
+ * established and every single print repeated the same race. */
+export async function connect(timeoutMs = 60_000): Promise<void> {
   if (isActive()) return;
   if (!connecting) {
     connecting = connectOnce().finally(() => {
