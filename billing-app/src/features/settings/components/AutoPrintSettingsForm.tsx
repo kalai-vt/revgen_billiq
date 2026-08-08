@@ -208,6 +208,13 @@ export function AutoPrintSettingsForm() {
               helper once on this till so the browser can send print jobs silently, with no
               dialog. Detect below to pick it up.
             </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              The first time you print (or click Detect below), QZ Tray shows an{' '}
+              <span className="font-medium">"Action Required"</span> popup asking to trust this
+              site — check <span className="font-medium">"Remember this decision"</span> before
+              clicking Allow. That's a one-time step per till: skipping the checkbox is why the
+              popup would otherwise reappear on every single print.
+            </p>
           </div>
           {qzStatus === 'connected' && <Badge variant="secondary">Connected</Badge>}
           {qzStatus === 'unavailable' && <Badge variant="destructive">Not detected</Badge>}
