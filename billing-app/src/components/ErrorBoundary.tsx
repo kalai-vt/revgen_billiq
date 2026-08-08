@@ -23,11 +23,40 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+/** Shared fallback UI — also used by RouteErrorBoundary, which catches route-render errors (e.g.
+ * a lazy-loaded route chunk failing to load) that React Router's data router handles internally
+ * and never surfaces to this component's componentDidCatch. */
+export function ErrorFallback({ error }: { error: Error | null }): ReactNode {
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="justify-items-center gap-3 text-center">
+          <AlertTriangle className="size-8 text-destructive" />
+          <CardTitle className="text-2xl font-semibold tracking-tight">Something went wrong</CardTitle>
+          <CardDescription className="text-sm">
+            We've hit an unexpected error. Try reloading the page — if it keeps happening, contact support.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+          <Button onClick={() => window.location.reload()}>Reload page</Button>
+          {import.meta.env.DEV && error && (
+            <pre className="w-full overflow-auto rounded-lg bg-muted p-3 text-left text-xs text-muted-foreground">
+              {error.stack ?? error.message}
+            </pre>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 /**
- * Top-level render-error catch-all. Without this, a render-time throw anywhere in the tree
- * (including a lazy-loaded route chunk failing to load) produces a blank white screen instead of
- * a recoverable UI. Must be a class component — getDerivedStateFromError/componentDidCatch have
- * no hooks equivalent.
+ * Top-level render-error catch-all for errors thrown outside the router tree (e.g. in
+ * ThemeProvider/QueryClientProvider). Route-render errors — including a lazy-loaded route chunk
+ * failing to load — are handled by RouteErrorBoundary instead: React Router's data router
+ * (RouterProvider) resolves those internally via each route's `errorElement`, which never
+ * propagates up to a wrapping component boundary like this one. Must be a class component —
+ * getDerivedStateFromError/componentDidCatch have no hooks equivalent.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
@@ -48,28 +77,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render(): ReactNode {
     if (this.state.hasError) {
-      const { error } = this.state;
-      return (
-        <div className="flex min-h-screen items-center justify-center p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader className="justify-items-center gap-3 text-center">
-              <AlertTriangle className="size-8 text-destructive" />
-              <CardTitle className="text-2xl font-semibold tracking-tight">Something went wrong</CardTitle>
-              <CardDescription className="text-sm">
-                We've hit an unexpected error. Try reloading the page — if it keeps happening, contact support.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4">
-              <Button onClick={() => window.location.reload()}>Reload page</Button>
-              {import.meta.env.DEV && error && (
-                <pre className="w-full overflow-auto rounded-lg bg-muted p-3 text-left text-xs text-muted-foreground">
-                  {error.stack ?? error.message}
-                </pre>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      );
+      return <ErrorFallback error={this.state.error} />;
     }
 
     return this.props.children;

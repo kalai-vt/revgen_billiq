@@ -111,14 +111,15 @@ def reset_password_route(payload: ResetPasswordRequest, db: Session = Depends(ge
 @limiter.limit("20/minute")
 def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
     try:
-        user = authenticate(db, payload.email, payload.password)
+        user, tenant = authenticate(db, payload.email, payload.password)
     except AuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     access_token, refresh_token = issue_tokens(db, user, remember_me=payload.remember_me)
     # Include tenant/plan/can_override_price directly (same shape as GET /me) so the client
-    # doesn't need a second round-trip right after login just to render the shell.
-    tenant = get_tenant(db, user.tenant_id)
+    # doesn't need a second round-trip right after login just to render the shell. tenant comes
+    # straight from authenticate() above — already fetched there to check tenant.status, so
+    # re-querying it here would just be a second round trip for the same row.
     settings = db.query(Settings).filter(Settings.tenant_id == user.tenant_id).first()
     return make_response(
         True,

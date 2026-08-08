@@ -337,7 +337,7 @@ def get_login_history(db: Session, user: User, page: int = 1, page_size: int = 2
     return items, total
 
 
-def authenticate(db: Session, email: str, password: str) -> User:
+def authenticate(db: Session, email: str, password: str) -> tuple[User, Tenant]:
     user = get_user_by_email(db, email)
     if not user:
         raise AuthError(401, "Invalid credentials")
@@ -370,8 +370,12 @@ def authenticate(db: Session, email: str, password: str) -> User:
     user.last_login = utc_now()
     db.add(user)
     log_event(db, event_type=LOGIN_SUCCESS, email=user.email, user_id=user.id, tenant_id=user.tenant_id)
-    db.commit()
-    return user
+    # No commit here on the success path — the caller (POST /auth/login) immediately calls
+    # issue_tokens(), whose own commit flushes this user update *and* the new refresh token
+    # together. Saves a full extra round trip to Postgres on every login; safe because this is
+    # the only caller of authenticate(), so nothing depends on the user row being durable before
+    # issue_tokens() runs.
+    return user, tenant
 
 
 def issue_tokens(db: Session, user: User, remember_me: bool = False) -> tuple[str, str]:

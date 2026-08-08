@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.limits import FeatureNotAvailableError, LimitExceededError
-from app.core.migrate import apply_pending_admin_migrations, apply_pending_migrations
+from app.core.migrate import apply_all_pending_migrations
 from app.core.observability import init_sentry
 from app.core.rate_limit import limiter
 from app.core.responses import make_response
@@ -84,9 +84,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 # Runs on every cold start (and every local `uvicorn --reload`) so the schema never drifts from
-# the code again — see app/core/migrate.py for why this exists.
-apply_pending_migrations()
-apply_pending_admin_migrations()
+# the code again — see app/core/migrate.py for why this (and running both concurrently) exists.
+apply_all_pending_migrations()
 
 if not os.environ.get("VERCEL"):
     # Local dev only: uploads live on disk. In production the filesystem is read-only and

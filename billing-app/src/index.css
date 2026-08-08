@@ -169,3 +169,13 @@
     background-color: var(--border);
   }
 }
+
+/* Indeterminate sliding bar for NavigationProgress (src/components/layout/NavigationProgress.tsx). */
+@keyframes navigation-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}

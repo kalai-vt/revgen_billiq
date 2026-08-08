@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from alembic import command
@@ -45,3 +46,21 @@ def apply_pending_admin_migrations() -> None:
         command.upgrade(Config(str(_ALEMBIC_ADMIN_INI)), "head")
     except Exception:
         logger.exception("Failed to apply pending admin database migrations on startup")
+
+
+def apply_all_pending_migrations() -> None:
+    """Runs both migration checks concurrently instead of back-to-back.
+
+    Every cold start (Vercel serverless, or local `uvicorn --reload`) pays for two separate
+    Postgres connections here before the process can serve its first request — each one is also
+    the request most likely to hit Neon's own connection-wake latency after the compute has
+    auto-suspended from inactivity. The two databases are entirely independent (different
+    alembic.ini, different connection, no shared state beyond Python's own logging, which is
+    thread-safe), so there's no reason to pay that cost twice sequentially — running them on two
+    threads overlaps the network-bound wait instead of adding it.
+    """
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        tenant_future = pool.submit(apply_pending_migrations)
+        admin_future = pool.submit(apply_pending_admin_migrations)
+        tenant_future.result()
+        admin_future.result()
