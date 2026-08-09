@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.limits import FeatureNotAvailableError, LimitExceededError
+from app.core import migrate as migrate_module
 from app.core.migrate import apply_all_pending_migrations
 from app.core.observability import init_sentry
 from app.core.rate_limit import limiter
@@ -183,6 +184,8 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     database: str
+    # TEMPORARY — see app/core/migrate.py's last_migration_error docstring. Remove together.
+    migrations: dict[str, str | None] | None = None
 
 
 @app.get("/", include_in_schema=False)
@@ -201,7 +204,13 @@ def health(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
     except Exception:  # noqa: BLE001 — any DB failure means "not ready", detail isn't needed here
         db_status = "unreachable"
         response.status_code = 503
-    return HealthResponse(status="ok" if db_status == "ok" else "degraded", service="billing-api", version="1.0.0", database=db_status)
+    return HealthResponse(
+        status="ok" if db_status == "ok" else "degraded",
+        service="billing-api",
+        version="1.0.0",
+        database=db_status,
+        migrations={"tenant": migrate_module.last_migration_error, "admin": migrate_module.last_admin_migration_error},
+    )
 
 
 @app.get("/api/modules")

@@ -13,6 +13,13 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 _ALEMBIC_INI = _ROOT / "alembic.ini"
 _ALEMBIC_ADMIN_INI = _ROOT / "alembic_admin.ini"
 
+# TEMPORARY diagnostic surface: this app has no log aggregation/Sentry configured, so a silently
+# swallowed migration failure (see the try/except below) is otherwise invisible from outside the
+# Vercel dashboard. Exposed read-only via GET /api/health's `migrations` field. Remove once the
+# 2026-08-09 production incident (registration/login 500ing after a deploy) is root-caused.
+last_migration_error: str | None = None
+last_admin_migration_error: str | None = None
+
 
 def apply_pending_migrations() -> None:
     """Runs `alembic upgrade head` against the tenant database on process start.
@@ -25,9 +32,12 @@ def apply_pending_migrations() -> None:
     migration hiccup doesn't take the whole app down — endpoints unrelated to the affected
     table(s) keep working while it's investigated.
     """
+    global last_migration_error
     try:
         command.upgrade(Config(str(_ALEMBIC_INI)), "head")
-    except Exception:
+        last_migration_error = None
+    except Exception as exc:
+        last_migration_error = f"{type(exc).__name__}: {exc}"
         logger.exception("Failed to apply pending database migrations on startup")
 
 
@@ -42,9 +52,12 @@ def apply_pending_admin_migrations() -> None:
     head` *once* (not upgraded — the tables already exist) before this runs there, or every real
     future admin-side migration will try to re-create tables that are already present and fail.
     """
+    global last_admin_migration_error
     try:
         command.upgrade(Config(str(_ALEMBIC_ADMIN_INI)), "head")
-    except Exception:
+        last_admin_migration_error = None
+    except Exception as exc:
+        last_admin_migration_error = f"{type(exc).__name__}: {exc}"
         logger.exception("Failed to apply pending admin database migrations on startup")
 
 
