@@ -11,13 +11,12 @@ import { Skeleton } from '@shared/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/components/ui/table';
 import { listCommunications, sendBroadcast } from '@/services/communicationsApi';
 import { ApiError } from '@/lib/api-client';
+import { PLAN_OPTIONS, type PlanId } from '@/lib/plans';
 
 const AUDIENCE_OPTIONS = [
   { value: 'all', label: 'All customers' },
   { value: 'plan', label: 'By plan' },
 ];
-
-const PLAN_OPTIONS = ['basic', 'explore', 'advance'];
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -28,7 +27,7 @@ export function CommunicationsPage() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [audienceType, setAudienceType] = useState<'all' | 'plan'>('all');
-  const [plan, setPlan] = useState('basic');
+  const [plan, setPlan] = useState<PlanId>('basic');
 
   const { data: history, isLoading } = useQuery({ queryKey: ['admin-communications'], queryFn: listCommunications });
 
@@ -74,14 +73,14 @@ export function CommunicationsPage() {
             {audienceType === 'plan' && (
               <div className="space-y-1.5">
                 <Label>Plan</Label>
-                <Select value={plan} onValueChange={(value) => value && setPlan(value)}>
-                  <SelectTrigger className="w-full capitalize">
+                <Select value={plan} onValueChange={(value) => value && setPlan(value as PlanId)}>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {PLAN_OPTIONS.map((p) => (
-                      <SelectItem key={p} value={p} className="capitalize">
-                        {p}
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

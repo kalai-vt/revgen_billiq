@@ -47,7 +47,7 @@ def _create_customer(client: TestClient, headers: dict, **overrides) -> dict:
 def _staff_headers(
     client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
 ) -> dict:
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": email, "password": "StaffPass!123", "role": "staff"},

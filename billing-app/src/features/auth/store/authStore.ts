@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as authApi from '@/features/auth/api';
 import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from '@/lib/api-client';
 import { clearSidebarExpansionState } from '@/components/layout/sidebar/sidebarStorage';
+import { useSubscriptionGateStore } from '@/lib/subscriptionGateStore';
 import type { AuthResult, PlanId, Tenant, User } from '@/features/auth/api';
 
 interface AuthState {
@@ -53,6 +54,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Every fresh sign-in starts with all sidebar modules collapsed — never inherit expansion
     // state left over from a previous user/session on this browser.
     clearSidebarExpansionState();
+    // Same idea for the subscription-blocked gate (subscriptionGateStore.ts) — a fresh sign-in
+    // should never carry over a previous session/tenant's suspension state; AppShell's own
+    // billing-usage check re-populates this for the new session if it's actually blocked.
+    useSubscriptionGateStore.getState().clear();
     await applyAuthResult(set, result);
   },
 
@@ -69,6 +74,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     clearTokens();
     clearSidebarExpansionState();
+    useSubscriptionGateStore.getState().clear();
     set({ user: null, tenant: null, plan: null, canOverridePrice: false, isAuthenticated: false });
   },
 

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.models.catalog import Product
 from app.models.commerce import CommerceIntegrationConfig, CommerceOrder, CommerceOrderItem, CommerceProductMapping, CommerceSyncLog
 from app.models.sales import Invoice
 from app.models.user import User
@@ -235,6 +236,12 @@ def list_mappings(db: Session, tenant_id: str) -> list[CommerceProductMapping]:
 
 
 def create_mapping(db: Session, tenant_id: str, payload: CommerceProductMappingCreate) -> CommerceProductMapping:
+    owned_product = (
+        db.query(Product).filter(Product.tenant_id == tenant_id, Product.id == payload.product_id).first()
+    )
+    if not owned_product:
+        raise CommerceOrderError(404, "Product not found")
+
     existing = (
         db.query(CommerceProductMapping)
         .filter(

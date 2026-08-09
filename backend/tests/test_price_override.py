@@ -44,7 +44,7 @@ def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
 def _create_team_member(
     client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, role: str, email: str
 ) -> dict:
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     response = client.post(
         "/api/auth/team",
         json={

@@ -73,7 +73,7 @@ def test_delete_account_locks_out_immediately(client: TestClient) -> None:
 def test_delete_account_requires_owner_role(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "S", "last_name": "T", "email": "staff@acme.test", "password": "StaffPass!123", "role": "manager"},

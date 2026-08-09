@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.limits import LIMIT_KEYS, get_effective_limits
-from app.core.plans import get_plan
+from app.core.plans import PLAN_IDS, get_plan
 from app.core.timeutils import as_aware_utc
 from app.models.settings import Settings
 from app.models.subscription_event import SubscriptionEvent
@@ -31,7 +31,20 @@ def _price_for(plan_id: str) -> int:
     return get_plan(plan_id)["price_inr"]
 
 
-def list_subscriptions(db: Session) -> list[dict[str, Any]]:
+def _days_remaining(trial_ends_at: datetime | None) -> int | None:
+    if trial_ends_at is None:
+        return None
+    delta = as_aware_utc(trial_ends_at) - _now()
+    return max(delta.days, 0) if delta.total_seconds() > 0 else 0
+
+
+# PHASE 21 dashboard filters. "expiring_soon" mirrors the cron's own 3-day warning window
+# (internal_cron/service.py TRIAL_WARNING_WINDOW) so the admin filter and the automatic warning
+# notification agree on what "soon" means.
+DASHBOARD_FILTERS = ("all", "trial", "expiring_soon", "expired", "suspended", "active")
+
+
+def list_subscriptions(db: Session, status_filter: str = "all") -> list[dict[str, Any]]:
     rows = (
         db.query(Tenant, Settings)
         .join(Settings, Settings.tenant_id == Tenant.id)
@@ -39,18 +52,34 @@ def list_subscriptions(db: Session) -> list[dict[str, Any]]:
         .order_by(Tenant.created_at.desc())
         .all()
     )
-    return [
-        {
-            "tenant_id": tenant.id,
-            "company_name": tenant.company_name,
-            "plan": settings_row.plan,
-            "price_inr": _price_for(settings_row.plan),
-            "subscription_status": settings_row.subscription_status,
-            "trial_ends_at": settings_row.trial_ends_at,
-            "created_at": tenant.created_at,
-        }
-        for tenant, settings_row in rows
-    ]
+    now = _now()
+    items = []
+    for tenant, settings_row in rows:
+        days_left = _days_remaining(settings_row.trial_ends_at)
+        is_trialing = settings_row.subscription_status == "trialing"
+        is_expiring_soon = is_trialing and days_left is not None and days_left <= 3
+        if status_filter == "trial" and not is_trialing:
+            continue
+        if status_filter == "expiring_soon" and not is_expiring_soon:
+            continue
+        if status_filter in ("expired", "suspended", "active") and settings_row.subscription_status != status_filter:
+            continue
+        items.append(
+            {
+                "tenant_id": tenant.id,
+                "company_name": tenant.company_name,
+                "owner_email": tenant.email,
+                "plan": settings_row.plan,
+                "price_inr": _price_for(settings_row.plan),
+                "subscription_status": settings_row.subscription_status,
+                "trial_started_at": settings_row.trial_started_at,
+                "trial_ends_at": settings_row.trial_ends_at,
+                "days_remaining": days_left,
+                "suspension_reason": settings_row.suspension_reason,
+                "created_at": tenant.created_at,
+            }
+        )
+    return items
 
 
 def get_subscription(db: Session, tenant_id: str) -> dict[str, Any]:
@@ -81,7 +110,15 @@ def get_subscription(db: Session, tenant_id: str) -> dict[str, Any]:
         "price_inr": _price_for(settings_row.plan),
         "subscription_status": settings_row.subscription_status,
         "payments": payments,
+        "trial_started_at": settings_row.trial_started_at,
         "trial_ends_at": settings_row.trial_ends_at,
+        "days_remaining": _days_remaining(settings_row.trial_ends_at),
+        "subscription_started_at": settings_row.subscription_started_at,
+        "subscription_ends_at": settings_row.subscription_ends_at,
+        "suspended_at": settings_row.suspended_at,
+        "suspension_reason": settings_row.suspension_reason,
+        "reactivated_at": settings_row.reactivated_at,
+        "reactivated_by": settings_row.reactivated_by,
         "history": history,
     }
 
@@ -105,7 +142,7 @@ def update_subscription(
     if not settings_row:
         raise AdminSubscriptionError(404, "Settings not found for this customer")
 
-    if plan is not None and plan not in ("basic", "explore", "advance"):
+    if plan is not None and plan not in PLAN_IDS:
         raise AdminSubscriptionError(400, "Invalid plan")
     if subscription_status is not None and subscription_status not in SUBSCRIPTION_STATUSES:
         raise AdminSubscriptionError(400, f"Invalid status. Must be one of: {', '.join(SUBSCRIPTION_STATUSES)}")
@@ -147,10 +184,35 @@ def update_subscription(
 
 
 def suspend_subscription(db: Session, tenant_id: str, *, changed_by: str, note: str | None = None) -> dict[str, Any]:
-    return update_subscription(
-        db, tenant_id, changed_by=changed_by, plan=None, subscription_status="suspended",
-        trial_ends_at=None, clear_trial=False, note=note, event_type_override="suspended",
+    """Admin-initiated suspend of an active/trialing account (PHASE 14: the [Suspend Account]
+    action available while ACTIVE) — distinct from the automatic trial-expiry suspension in
+    app/core/subscription_access.py, which sets suspension_reason="TRIAL_EXPIRED" instead."""
+    tenant = db.get(Tenant, tenant_id)
+    if not tenant or tenant.is_deleted:
+        raise AdminSubscriptionError(404, "Customer not found")
+    settings_row = db.query(Settings).filter(Settings.tenant_id == tenant_id).first()
+    if not settings_row:
+        raise AdminSubscriptionError(404, "Settings not found for this customer")
+
+    from_status = settings_row.subscription_status
+    settings_row.subscription_status = "suspended"
+    settings_row.suspended_at = _now()
+    settings_row.suspension_reason = "ADMIN_SUSPENDED"
+    db.add(settings_row)
+    db.add(
+        SubscriptionEvent(
+            tenant_id=tenant_id,
+            event_type="suspended",
+            from_plan=settings_row.plan,
+            to_plan=settings_row.plan,
+            from_status=from_status,
+            to_status="suspended",
+            note=note,
+            changed_by=changed_by,
+        )
     )
+    db.commit()
+    return get_subscription(db, tenant_id)
 
 
 def resume_subscription(db: Session, tenant_id: str, *, changed_by: str, note: str | None = None) -> dict[str, Any]:
@@ -190,6 +252,60 @@ def extend_trial(
         db, tenant_id, changed_by=changed_by, plan=None, subscription_status="trialing",
         trial_ends_at=trial_ends_at, clear_trial=False, note=note, event_type_override="trial_extended",
     )
+
+
+def activate_subscription(
+    db: Session,
+    tenant_id: str,
+    *,
+    plan: str,
+    changed_by: str,
+    subscription_ends_at: datetime | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """PHASE 13 of the trial/subscription spec: the admin workflow after a customer pays —
+    "Customer -> Subscription -> Select Plan -> Confirm Payment -> Activate/Reactivate". Used both
+    the first time a trial converts to paid and any time a suspended/expired account is reactivated
+    — same fields, same event type, regardless of which state it's coming from. Never touches any
+    other table: existing invoices/customers/products/inventory/payments are untouched by design
+    (see PHASE 24, data safety) — this only changes the one Settings row's billing state.
+    """
+    tenant = db.get(Tenant, tenant_id)
+    if not tenant or tenant.is_deleted:
+        raise AdminSubscriptionError(404, "Customer not found")
+    settings_row = db.query(Settings).filter(Settings.tenant_id == tenant_id).first()
+    if not settings_row:
+        raise AdminSubscriptionError(404, "Settings not found for this customer")
+    if plan not in PLAN_IDS:
+        raise AdminSubscriptionError(400, "Invalid plan")
+
+    now = _now()
+    from_plan, from_status = settings_row.plan, settings_row.subscription_status
+
+    settings_row.plan = plan
+    settings_row.subscription_status = "active"
+    settings_row.subscription_started_at = now
+    settings_row.subscription_ends_at = subscription_ends_at
+    settings_row.trial_ends_at = None
+    settings_row.suspended_at = None
+    settings_row.suspension_reason = None
+    settings_row.reactivated_at = now
+    settings_row.reactivated_by = changed_by
+    db.add(settings_row)
+    db.add(
+        SubscriptionEvent(
+            tenant_id=tenant_id,
+            event_type="activated",
+            from_plan=from_plan,
+            to_plan=plan,
+            from_status=from_status,
+            to_status="active",
+            note=note,
+            changed_by=changed_by,
+        )
+    )
+    db.commit()
+    return get_subscription(db, tenant_id)
 
 
 # ---------------------------------------------------------------------------

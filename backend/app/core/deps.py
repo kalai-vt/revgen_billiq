@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import decode_access_token
+from app.core.subscription_access import enforce_subscription_access
 from app.core.timeutils import as_aware_utc
+from app.models.settings import Settings
 from app.models.tenant import Tenant
 from app.models.user import User
 
@@ -33,6 +35,14 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     tenant = db.get(Tenant, user.tenant_id)
     if not tenant or tenant.status != "active":
         raise HTTPException(status_code=403, detail="This account has been suspended. Please contact support.")
+
+    # Billing-level check, distinct from the account-level one above: a tenant can be
+    # Tenant.status == "active" (RevGenIQ staff hasn't suspended the account) while their
+    # *subscription* is suspended/expired/cancelled or their trial has run out. Exempts
+    # /api/auth, /api/billing, /api/health, /api/modules — see subscription_access.py.
+    settings_row = db.query(Settings).filter(Settings.tenant_id == user.tenant_id).first()
+    if settings_row:
+        enforce_subscription_access(db, settings_row, request.url.path)
 
     if user.session_invalidated_at is not None and payload.get("iat") is not None:
         issued_at = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)

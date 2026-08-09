@@ -176,7 +176,7 @@ def test_duplicate_identifier_within_file_errors(client: TestClient) -> None:
 def test_barcode_conflict_errors(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     _create_product(client, headers, name="Existing", identifier_value="EX-1", barcode="1234567890123")
 
     content = _csv_bytes(
@@ -260,7 +260,7 @@ def test_error_report_csv_download(client: TestClient) -> None:
 def test_staff_cannot_access_import_endpoints(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": "staff@acme.test", "password": "StaffPass!123", "role": "staff"},

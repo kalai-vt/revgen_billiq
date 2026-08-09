@@ -77,8 +77,9 @@ def test_invoice_create_and_cancel_logged(client: TestClient) -> None:
     assert actions == {"created", "cancelled"}
 
 
-def test_stock_adjustment_logged_as_inventory_module(client: TestClient) -> None:
+def test_stock_adjustment_logged_as_inventory_module(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
 
@@ -114,7 +115,7 @@ def test_sale_also_logs_inventory_activity(client: TestClient) -> None:
 def test_activity_log_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     client.post(
         "/api/auth/team",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.admin_db import get_admin_db
@@ -12,8 +12,10 @@ from app.core.responses import make_response
 from app.models_admin.admin_user import AdminUser
 from app.models_admin.audit_log import AdminAuditLog
 from app.modules.admin_subscriptions import service
-from app.modules.admin_subscriptions.service import AdminSubscriptionError
+from app.modules.admin_subscriptions.service import DASHBOARD_FILTERS, AdminSubscriptionError
+from app.modules.admin_trial_reminders.service import last_reminder_sent_at
 from app.schemas.admin_subscriptions import (
+    ActivateSubscriptionRequest,
     ExtendTrialRequest,
     LimitsUpdateRequest,
     SubscriptionActionRequest,
@@ -28,10 +30,17 @@ router = APIRouter(prefix="/api/admin", tags=["admin-subscriptions"])
 
 @router.get("/subscriptions")
 def list_subscriptions(
+    status_filter: str = Query(default="all"),
     db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
     _current_admin: AdminUser = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
-    rows = service.list_subscriptions(db)
+    if status_filter not in DASHBOARD_FILTERS:
+        raise HTTPException(status_code=400, detail=f"Invalid filter. Must be one of: {', '.join(DASHBOARD_FILTERS)}")
+    rows = service.list_subscriptions(db, status_filter=status_filter)
+    reminder_map = last_reminder_sent_at(admin_db, [row["tenant_id"] for row in rows])
+    for row in rows:
+        row["last_reminder_sent_at"] = reminder_map.get(row["tenant_id"])
     items = [SubscriptionListItem.model_validate(row).model_dump(mode="json") for row in rows]
     return make_response(True, "Subscriptions loaded", items)
 
@@ -151,6 +160,41 @@ def expire_subscription(
     current_admin: AdminUser = Depends(require_admin_role("super_admin", "operations", "finance")),
 ) -> dict[str, Any]:
     return _lifecycle_action(service.expire_subscription, "expired", tenant_id, payload, db, admin_db, current_admin)
+
+
+@router.post("/customers/{tenant_id}/subscription/activate")
+def activate_subscription(
+    tenant_id: str,
+    payload: ActivateSubscriptionRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(require_admin_role("super_admin", "operations", "finance")),
+) -> dict[str, Any]:
+    changed_by = f"{current_admin.first_name} {current_admin.last_name}"
+    try:
+        detail = service.activate_subscription(
+            db,
+            tenant_id,
+            plan=payload.plan,
+            changed_by=changed_by,
+            subscription_ends_at=payload.subscription_ends_at,
+            note=payload.note,
+        )
+    except AdminSubscriptionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    admin_db.add(
+        AdminAuditLog(
+            admin_user_id=current_admin.id,
+            admin_user_name=changed_by,
+            action="tenant.subscription_activated",
+            target_type="tenant",
+            target_id=tenant_id,
+            details={"plan": payload.plan, "note": payload.note},
+        )
+    )
+    admin_db.commit()
+    return make_response(True, "Subscription activated", SubscriptionDetail.model_validate(detail).model_dump(mode="json"))
 
 
 @router.post("/customers/{tenant_id}/subscription/extend-trial")

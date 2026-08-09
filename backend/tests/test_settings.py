@@ -72,7 +72,7 @@ def test_settings_owner_only(client: TestClient, admin_db_session: Session) -> N
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
     admin_headers = _admin_headers(client, admin_db_session)
-    client.put(f"/api/admin/customers/{owner['tenant']['id']}/subscription", json={"plan": "explore"}, headers=admin_headers)
+    client.put(f"/api/admin/customers/{owner['tenant']['id']}/subscription", json={"plan": "advance"}, headers=admin_headers)
 
     client.post(
         "/api/auth/team",

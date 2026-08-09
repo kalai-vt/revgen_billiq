@@ -79,7 +79,7 @@ def test_check_duplicate_detects_identifier_match(client: TestClient) -> None:
 def test_check_duplicate_detects_barcode_match(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     _create_product(client, headers, barcode="1234567890123")
 
     response = client.get("/api/products/check-duplicate", params={"barcode": "1234567890123"}, headers=headers)

@@ -11,6 +11,7 @@ from app.core.limits import assert_feature, require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.commerce import orders_service as service
+from app.modules.commerce.orders_service import CommerceOrderError
 from app.schemas.commerce import CommerceProductMappingCreate, CommerceProductMappingOut, MockOrderTriggerRequest
 
 router = APIRouter(prefix="/api/commerce", tags=["commerce-orders"], dependencies=[Depends(require_feature("commerce"))])
@@ -72,7 +73,7 @@ def get_product_mappings(
     mappings = service.list_mappings(db, current_user.tenant_id)
     out: list[dict[str, Any]] = []
     for m in mappings:
-        product = db.get(Product, m.product_id)
+        product = db.query(Product).filter(Product.tenant_id == current_user.tenant_id, Product.id == m.product_id).first()
         item = CommerceProductMappingOut.model_validate(m)
         item.product_name = product.name if product else ""
         out.append(item.model_dump(mode="json"))
@@ -85,7 +86,10 @@ def post_product_mapping(
     current_user: User = Depends(require_role("owner", "manager")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    mapping = service.create_mapping(db, current_user.tenant_id, payload)
+    try:
+        mapping = service.create_mapping(db, current_user.tenant_id, payload)
+    except CommerceOrderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return make_response(True, "Product mapped", CommerceProductMappingOut.model_validate(mapping).model_dump(mode="json"))
 
 

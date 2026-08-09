@@ -35,6 +35,7 @@ from app.modules.admin_payments.router import router as admin_payments_router
 from app.modules.admin_reports.router import router as admin_reports_router
 from app.modules.admin_staff.router import router as admin_staff_router
 from app.modules.admin_subscriptions.router import router as admin_subscriptions_router
+from app.modules.admin_trial_reminders.router import router as admin_trial_reminders_router
 from app.modules.admin_support.router import router as admin_support_router
 from app.modules.admin_system.router import router as admin_system_router
 from app.modules.admin_usage.router import router as admin_usage_router
@@ -140,6 +141,7 @@ app.include_router(admin_features_router)
 app.include_router(admin_staff_router)
 app.include_router(admin_audit_router)
 app.include_router(admin_subscriptions_router)
+app.include_router(admin_trial_reminders_router)
 app.include_router(admin_payments_router)
 app.include_router(admin_usage_router)
 app.include_router(admin_notifications_router)

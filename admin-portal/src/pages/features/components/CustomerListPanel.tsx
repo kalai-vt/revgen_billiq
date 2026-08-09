@@ -6,6 +6,7 @@ import { Input } from '@shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/components/ui/select';
 import { Skeleton } from '@shared/components/ui/skeleton';
 import type { CustomerFeatureFilters, CustomerFeaturePanelItem } from '@/services/featuresApi';
+import { PLAN_OPTIONS } from '@/lib/plans';
 
 interface CustomerListPanelProps {
   customers: CustomerFeaturePanelItem[] | undefined;
@@ -75,11 +76,7 @@ export function CustomerListPanel({
           value={filters.plan}
           onChange={(v) => onFiltersChange({ ...filters, plan: v })}
           placeholder="Plan"
-          options={[
-            { value: 'basic', label: 'Starter' },
-            { value: 'explore', label: 'Professional' },
-            { value: 'advance', label: 'Enterprise' },
-          ]}
+          options={PLAN_OPTIONS}
         />
         <FilterSelect
           value={filters.status}

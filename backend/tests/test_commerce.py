@@ -62,7 +62,7 @@ def test_product_crud(client: TestClient) -> None:
 def test_product_barcode_must_be_unique(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     _create_product(client, headers, identifier_value="WID-1", barcode="9999999999")
 
     duplicate = client.post(
@@ -76,7 +76,7 @@ def test_product_barcode_must_be_unique(client: TestClient, admin_db_session: Se
 def test_product_search_and_pagination(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     for i in range(25):
         _create_product(client, headers, name=f"Product {i:02d}", identifier_value=f"SKU-{i:02d}", barcode=None)
@@ -213,7 +213,7 @@ def test_invoice_pdf_embeds_uploaded_logo(client: TestClient, admin_db_session: 
 def test_invoice_void_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     product = _create_product(client, owner_headers)
 
     invoice = client.post(

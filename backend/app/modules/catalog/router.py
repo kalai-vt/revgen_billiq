@@ -43,12 +43,21 @@ def get_check_duplicate(
     matches = service.check_duplicate(
         db, current_user.tenant_id, name, identifier_value, barcode, exclude_id=exclude_id
     )
+    barcode_match = matches["barcode_match"]
+    if barcode_match and barcode_match.tenant_id != current_user.tenant_id:
+        # Barcode uniqueness is intentionally global (see check_duplicate's comment), but the
+        # matched product itself may belong to a different tenant — naming it here would leak
+        # that tenant's product name/id/identifier to this caller. Report only that the barcode
+        # is taken, not by what.
+        barcode_match_out = ProductMatchOut(id="", name="Another product", identifier_value="")
+    else:
+        barcode_match_out = ProductMatchOut.model_validate(barcode_match) if barcode_match else None
     out = DuplicateCheckOut(
         name_match=ProductMatchOut.model_validate(matches["name_match"]) if matches["name_match"] else None,
         identifier_match=(
             ProductMatchOut.model_validate(matches["identifier_match"]) if matches["identifier_match"] else None
         ),
-        barcode_match=ProductMatchOut.model_validate(matches["barcode_match"]) if matches["barcode_match"] else None,
+        barcode_match=barcode_match_out,
     )
     return make_response(True, "Duplicate check complete", out.model_dump(mode="json"))
 

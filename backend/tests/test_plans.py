@@ -87,7 +87,7 @@ def test_team_member_blocked_on_basic_then_allowed_on_explore(client: TestClient
     )
     assert denied.status_code == 402
 
-    _set_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    _set_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     allowed = client.post(
         "/api/auth/team",
         json={"first_name": "S", "last_name": "T", "email": "s2@acme.test", "password": "StaffPass!123", "role": "staff"},
@@ -152,7 +152,7 @@ def test_advanced_analytics_requires_explore_plan(client: TestClient, admin_db_s
     denied = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}&advanced=true", headers=headers)
     assert denied.status_code == 402
 
-    _set_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    _set_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     allowed = client.get(f"/api/analytics/dashboard?date_from={today}&date_to={today}&advanced=true", headers=headers)
     assert allowed.status_code == 200
 
@@ -193,5 +193,7 @@ def test_usage_endpoint_reports_plan_and_counts(client: TestClient) -> None:
     assert data["usage"]["warehouses"] == {"used": 1, "limit": 1}
     # No avatar/logo uploaded in this test, so storage usage is a real (zero) number, not null.
     assert data["usage"]["storage"] == {"used": 0.0, "limit": 1024}
-    assert data["subscription_status"] == "active"
+    # A fresh registration now starts a real 14-day trial (app/core/subscription_access.py),
+    # rather than the pre-trial-system default of "active" with no trial at all.
+    assert data["subscription_status"] == "trialing"
     assert "billing_cycle" in data

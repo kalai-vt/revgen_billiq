@@ -62,7 +62,12 @@ def test_cron_expires_overdue_trial_and_notifies(client: TestClient, db_session:
     assert data["trials_expired"] == 1
 
     db_session.refresh(settings_row)
-    assert settings_row.subscription_status == "expired"
+    # Trial expiry -> SUSPENDED (not "expired"), per app/core/subscription_access.py — "expired"
+    # is reserved for a lapsed *paid* subscription (the admin's own Expire action), distinct from
+    # a trial simply running out.
+    assert settings_row.subscription_status == "suspended"
+    assert settings_row.suspension_reason == "TRIAL_EXPIRED"
+    assert settings_row.suspended_at is not None
 
     notifications = db_session.query(Notification).filter(Notification.tenant_id == tenant_id).all()
     assert any(n.type == "subscription_expiry" for n in notifications)

@@ -124,7 +124,7 @@ def test_team_member_still_auto_active_without_verification(
 ) -> None:
     owner = register_and_activate(client, fake_email, _register_payload())
     owner_headers = {"Authorization": f"Bearer {owner['access_token']}"}
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     create_response = client.post(
         "/api/auth/team",

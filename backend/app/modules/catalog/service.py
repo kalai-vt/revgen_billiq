@@ -20,6 +20,11 @@ class CatalogError(Exception):
 
 
 def _assert_barcode_available(db: Session, barcode: str | None, exclude_id: str | None = None) -> None:
+    # Deliberately global, not tenant-scoped: a barcode (EAN/UPC) identifies a real physical
+    # product, so it's meant to be unique platform-wide, not just within one tenant — see
+    # test_barcode_uniqueness_is_global_across_tenants. The generic error message here never
+    # names the other tenant's product (unlike check_duplicate's barcode_match below, which does
+    # for the *same* tenant's own product and must not for a cross-tenant one).
     if not barcode:
         return
     query = db.query(Product).filter(Product.barcode == barcode)
@@ -90,6 +95,10 @@ def check_duplicate(
                 if secondary:
                     identifier_match = db.get(Product, secondary.product_id)
 
+    # Global, not tenant-scoped — mirrors _assert_barcode_available's uniqueness rule (a barcode
+    # identifies a real physical product platform-wide). The router redacts this to a generic
+    # "taken" signal when the match belongs to a different tenant, since the raw Product here may
+    # not be this caller's own — see post_check_duplicate in catalog/router.py.
     barcode_match: Product | None = None
     if barcode:
         barcode_query = db.query(Product).filter(Product.barcode == barcode)

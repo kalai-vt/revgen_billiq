@@ -58,8 +58,9 @@ def _inventory_quantity(client: TestClient, headers: dict, product_id: str) -> f
     raise AssertionError("product not found in inventory")
 
 
-def test_partial_return_sets_status_partial_and_restocks(client: TestClient) -> None:
+def test_partial_return_sets_status_partial_and_restocks(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product, quantity=4)
@@ -226,7 +227,7 @@ def test_return_refund_amount_includes_proportional_tax(client: TestClient) -> N
 def test_return_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     product = _create_product(client, owner_headers)
     invoice = _create_invoice(client, owner_headers, product, quantity=2)
     item_id = invoice["items"][0]["id"]
@@ -283,8 +284,9 @@ def test_return_history_endpoint_lists_across_invoices(client: TestClient) -> No
     assert invoice_numbers == {invoice_a["invoice_number"], invoice_b["invoice_number"]}
 
 
-def test_return_item_disposition_controls_restock(client: TestClient) -> None:
+def test_return_item_disposition_controls_restock(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product, quantity=4)
@@ -358,8 +360,9 @@ def test_refund_method_defaults_to_invoice_payment_method_but_is_overridable(cli
     assert overridden["refund_method"] == "bank_transfer"
 
 
-def test_cancel_return_reverses_inventory_and_invoice_status(client: TestClient) -> None:
+def test_cancel_return_reverses_inventory_and_invoice_status(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product, quantity=4)
@@ -392,8 +395,9 @@ def test_cancel_return_reverses_inventory_and_invoice_status(client: TestClient)
     assert already_cancelled.status_code == 400
 
 
-def test_cancel_return_does_not_touch_stock_for_non_restocked_items(client: TestClient) -> None:
+def test_cancel_return_does_not_touch_stock_for_non_restocked_items(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     invoice = _create_invoice(client, headers, product, quantity=2)
@@ -414,7 +418,7 @@ def test_cancel_return_does_not_touch_stock_for_non_restocked_items(client: Test
 def test_cancel_return_role_gating(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     product = _create_product(client, owner_headers)
     invoice = _create_invoice(client, owner_headers, product, quantity=2)
     item_id = invoice["items"][0]["id"]

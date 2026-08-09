@@ -1,3 +1,5 @@
+import { useSubscriptionGateStore } from '@/lib/subscriptionGateStore';
+
 const ACCESS_TOKEN_KEY = 'revgeniq_access_token';
 const REFRESH_TOKEN_KEY = 'revgeniq_refresh_token';
 
@@ -8,12 +10,39 @@ interface ApiEnvelope<T> {
   errors?: string[];
 }
 
+/**
+ * Structured shape of `detail` on the one HTTPException in the backend that raises with a dict
+ * instead of a string — `enforce_subscription_access` (app/core/subscription_access.py) on a 402.
+ * FastAPI's default HTTPException handler serializes that as a bare `{"detail": {...}}` at the
+ * top level, NOT wrapped in the app's usual `make_response` envelope (that envelope is only
+ * produced by handlers that call `make_response` themselves, which the default HTTPException path
+ * never does) — so this does not have `success`/`message` keys alongside it the way a normal
+ * envelope response would.
+ */
+export interface SubscriptionRequiredDetail {
+  code: 'SUBSCRIPTION_REQUIRED';
+  message: string;
+  subscription_status: string;
+  suspension_reason: string | null;
+}
+
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Present only for the structured-`detail` 402 case above; every other error path leaves this undefined. */
+  detail?: SubscriptionRequiredDetail;
+  constructor(status: number, message: string, detail?: SubscriptionRequiredDetail) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
+}
+
+function isSubscriptionRequiredDetail(value: unknown): value is SubscriptionRequiredDetail {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { code?: unknown }).code === 'SUBSCRIPTION_REQUIRED'
+  );
 }
 
 export function getAccessToken(): string | null {
@@ -75,9 +104,21 @@ export async function request<T>(path: string, options: RequestInit = {}, retry 
     if (refreshed) return request<T>(path, options, false);
   }
 
-  const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T> & { detail?: string };
+  const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T> & { detail?: unknown };
   if (!response.ok || body.success === false) {
-    const message = body.detail || body.message || `Request failed with status ${response.status}`;
+    if (isSubscriptionRequiredDetail(body.detail)) {
+      // Notify the app-wide gate the instant any request comes back blocked — AppShell reads
+      // this to short-circuit straight to the suspension screen, regardless of which page or
+      // query triggered it. See subscriptionGateStore.ts for why this lives outside React state.
+      useSubscriptionGateStore.getState().setBlocked({
+        message: body.detail.message,
+        subscriptionStatus: body.detail.subscription_status,
+        suspensionReason: body.detail.suspension_reason,
+      });
+      throw new ApiError(response.status, body.detail.message, body.detail);
+    }
+    const detailMessage = typeof body.detail === 'string' ? body.detail : undefined;
+    const message = detailMessage || body.message || `Request failed with status ${response.status}`;
     throw new ApiError(response.status, message);
   }
   return body.data as T;

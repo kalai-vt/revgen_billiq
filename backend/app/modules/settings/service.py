@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.core.blob import UploadValidationError, upload_file
 from app.core.security import verify_password
+from app.core.subscription_access import start_trial
 from app.core.timeutils import utc_now
 from app.models.catalog import Product
 from app.models.customer import Customer
 from app.models.sales import Invoice
 from app.models.settings import Settings
+from app.models.subscription_event import SubscriptionEvent
 from app.models.tenant import Tenant
 from app.models.token import RefreshToken
 from app.models.user import User
@@ -56,7 +58,23 @@ def save_logo(db: Session, settings: Settings, content: bytes, content_type: str
 
 def create_default_settings(db: Session, tenant_id: str, currency: str = "INR") -> Settings:
     settings = Settings(tenant_id=tenant_id, currency=currency)
+    start_trial(settings)
     db.add(settings)
+    # PHASE 23 of the trial/subscription spec requires TRIAL_CREATED as its own audit event,
+    # distinct from the "suspended"/"activated"/etc. events every other lifecycle transition
+    # writes (see app/core/subscription_access.py, app/modules/admin_subscriptions/service.py).
+    db.add(
+        SubscriptionEvent(
+            tenant_id=tenant_id,
+            event_type="trial_created",
+            from_plan=None,
+            to_plan=settings.plan,
+            from_status=None,
+            to_status=settings.subscription_status,
+            note=f"14-day trial started, ends {settings.trial_ends_at.isoformat() if settings.trial_ends_at else 'n/a'}",
+            changed_by="system (registration)",
+        )
+    )
     db.flush()
     return settings
 

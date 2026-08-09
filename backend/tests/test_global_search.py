@@ -3,8 +3,9 @@ from __future__ import annotations
 import uuid
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -103,8 +104,9 @@ def test_global_search_no_match_returns_empty_lists(client: TestClient) -> None:
     assert data == {"products": [], "customers": [], "inventory": [], "invoices": [], "categories": []}
 
 
-def test_global_search_finds_inventory_with_stock_subtitle(client: TestClient) -> None:
+def test_global_search_finds_inventory_with_stock_subtitle(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     client.post(
         "/api/products",

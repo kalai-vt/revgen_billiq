@@ -54,6 +54,21 @@ def test_checkout_creates_order_for_tenants_own_plan(client: TestClient, monkeyp
     assert data["amount_inr"] == 999
 
 
+def test_checkout_rejects_custom_plan_as_not_self_payable(client: TestClient, monkeypatch, admin_db_session) -> None:
+    """The Custom plan (price_inr=0) is admin-configured only per the trial/subscription spec —
+    a tenant must not be able to self-checkout their way to "active" for free."""
+    from tests.conftest import set_tenant_plan
+
+    monkeypatch.setattr(razorpay_client, "is_configured", lambda: True)
+    owner = _register(client)
+    headers = _headers(owner["access_token"])
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "custom")
+
+    response = client.post("/api/billing/checkout", headers=headers)
+    assert response.status_code == 400
+    assert "administrator" in response.json()["detail"].lower()
+
+
 def test_verify_rejects_bad_signature(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(razorpay_client, "verify_payment_signature", lambda **kwargs: False)
     owner = _register(client)

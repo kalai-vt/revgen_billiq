@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -102,8 +103,9 @@ def test_invoices_export_all_formats(client: TestClient) -> None:
         assert len(response.content) > 0
 
 
-def test_inventory_export_csv_format(client: TestClient) -> None:
+def test_inventory_export_csv_format(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers)
 

@@ -50,7 +50,7 @@ def test_generate_ean13_is_13_digits_and_valid_checksum(client: TestClient) -> N
 def test_generate_barcode_endpoint_returns_unique_values(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     first = client.get("/api/catalog/barcode/generate", headers=headers)
     second = client.get("/api/catalog/barcode/generate", headers=headers)
@@ -64,7 +64,7 @@ def test_create_product_auto_generates_barcode_when_enabled_and_blank(
 ) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.put("/api/settings", json={"enable_barcode": True}, headers=headers)
 
     product = client.post(
@@ -81,7 +81,7 @@ def test_create_product_does_not_generate_barcode_when_disabled(
 ) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.put("/api/settings", json={"enable_barcode": False}, headers=headers)
 
     product = client.post(
@@ -97,7 +97,7 @@ def test_manual_barcode_still_respected_when_auto_generate_enabled(
 ) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.put("/api/settings", json={"enable_barcode": True}, headers=headers)
 
     product = client.post(

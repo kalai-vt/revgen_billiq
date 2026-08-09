@@ -3,8 +3,9 @@ from __future__ import annotations
 import uuid
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -49,8 +50,9 @@ def _inventory_quantity(client: TestClient, headers: dict, product_id: str) -> f
     raise AssertionError("product not found in inventory")
 
 
-def test_hold_and_resume_bill_does_not_touch_inventory(client: TestClient) -> None:
+def test_hold_and_resume_bill_does_not_touch_inventory(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     stock_before = _inventory_quantity(client, headers, product["id"])

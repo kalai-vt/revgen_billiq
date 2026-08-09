@@ -80,7 +80,7 @@ def test_customer_is_tenant_scoped(client: TestClient) -> None:
 def test_customer_delete_requires_owner(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     customer = client.post("/api/customers", json={"name": "Test Buyer"}, headers=owner_headers).json()["data"]
 
     client.post(

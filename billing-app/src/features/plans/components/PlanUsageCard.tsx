@@ -1,12 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as plansApi from '@/features/plans/api';
 import type { SubscriptionStatus } from '@/features/plans/api';
-import { openRazorpayCheckout, RazorpayDismissedError } from '@/lib/razorpay';
-import { ApiError } from '@/lib/api-client';
+import { usePaySubscription } from '@/features/plans/hooks/usePaySubscription';
 
 const PAYABLE_STATUSES: SubscriptionStatus[] = ['trialing', 'suspended', 'expired'];
 
@@ -39,33 +37,8 @@ function UsageTile({ label, used, limit }: { label: string; used: number | null;
 }
 
 export function PlanUsageCard() {
-  const queryClient = useQueryClient();
   const { data: usage, isLoading } = useQuery({ queryKey: ['billing-usage'], queryFn: plansApi.getUsage });
-
-  const payMutation = useMutation({
-    mutationFn: async () => {
-      const order = await plansApi.createCheckoutOrder();
-      const payment = await openRazorpayCheckout({
-        keyId: order.razorpay_key_id,
-        amountInr: order.amount_inr,
-        orderId: order.order_id,
-        description: `${order.plan_label} plan`,
-      });
-      return plansApi.verifyPayment({
-        razorpay_order_id: payment.razorpay_order_id,
-        razorpay_payment_id: payment.razorpay_payment_id,
-        razorpay_signature: payment.razorpay_signature,
-      });
-    },
-    onSuccess: () => {
-      toast.success('Payment received — your subscription is active.');
-      queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
-    },
-    onError: (err) => {
-      if (err instanceof RazorpayDismissedError) return;
-      toast.error(err instanceof ApiError ? err.message : 'Payment failed. Please try again.');
-    },
-  });
+  const payMutation = usePaySubscription();
 
   if (isLoading || !usage) {
     return (

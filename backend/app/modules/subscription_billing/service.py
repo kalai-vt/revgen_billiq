@@ -42,6 +42,11 @@ def create_checkout_order(db: Session, tenant: Tenant) -> dict[str, Any]:
 
     settings_row = _get_settings(db, tenant.id)
     plan = get_plan(settings_row.plan)
+    if plan["price_inr"] <= 0:
+        # The Custom plan (PHASE 7-10 of the trial/subscription spec) is admin-configured only —
+        # no self-serve price exists for it, so there is nothing for Razorpay to charge. A ₹0
+        # order would otherwise let a tenant "pay" their way to active status for free.
+        raise BillingError(400, "This plan is managed by your administrator and isn't payable online. Contact your administrator to activate your account.")
     amount_paise = plan["price_inr"] * 100
 
     payment = SubscriptionPayment(

@@ -102,8 +102,8 @@ def test_barcode_uniqueness_is_global_across_tenants(client: TestClient, admin_d
     tenant_b = _register(client, "owner-b@acme.test", "Acme B")
     headers_a = _headers(tenant_a["access_token"])
     headers_b = _headers(tenant_b["access_token"])
-    set_tenant_plan(client, admin_db_session, tenant_a["tenant"]["id"], "explore")
-    set_tenant_plan(client, admin_db_session, tenant_b["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, tenant_a["tenant"]["id"], "advance")
+    set_tenant_plan(client, admin_db_session, tenant_b["tenant"]["id"], "advance")
 
     assert _create_product(client, headers_a, identifier_value="A-1", barcode="7770001").status_code == 200
 
@@ -175,7 +175,7 @@ def test_product_config_endpoint_accessible_to_all_roles(
 ) -> None:
     owner = _register(client, "owner@acme.test")
     owner_headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     owner_config = client.get("/api/settings/product-config", headers=owner_headers)
     assert owner_config.status_code == 200

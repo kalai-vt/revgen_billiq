@@ -43,7 +43,7 @@ def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
 def _create_staff(
     client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
 ) -> dict:
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": email, "password": "StaffPass!123", "role": "staff"},
@@ -53,8 +53,9 @@ def _create_staff(
     return login.json()["data"]
 
 
-def test_product_creation_auto_creates_zero_inventory_row(client: TestClient) -> None:
+def test_product_creation_auto_creates_zero_inventory_row(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -64,8 +65,9 @@ def test_product_creation_auto_creates_zero_inventory_row(client: TestClient) ->
     assert listing["items"][0]["is_out_of_stock"] is True
 
 
-def test_manual_add_reduce_adjust_math(client: TestClient) -> None:
+def test_manual_add_reduce_adjust_math(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers, identifier_value="WID-1")
     pid = product["id"]
@@ -104,8 +106,9 @@ def test_manual_add_reduce_adjust_math(client: TestClient) -> None:
     assert adjust_data["current_stock"] == 12
 
 
-def test_reduce_more_than_current_stock_rejected(client: TestClient) -> None:
+def test_reduce_more_than_current_stock_rejected(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
 
@@ -117,8 +120,9 @@ def test_reduce_more_than_current_stock_rejected(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_add_zero_quantity_rejected(client: TestClient) -> None:
+def test_add_zero_quantity_rejected(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
 
@@ -130,8 +134,9 @@ def test_add_zero_quantity_rejected(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_stock_history_records_reason_source_and_user(client: TestClient) -> None:
+def test_stock_history_records_reason_source_and_user(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     client.post(
@@ -151,8 +156,9 @@ def test_stock_history_records_reason_source_and_user(client: TestClient) -> Non
     assert row["current_stock"] == 10
 
 
-def test_dashboard_reflects_stock_and_value(client: TestClient) -> None:
+def test_dashboard_reflects_stock_and_value(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     p1 = _create_product(client, headers, identifier_value="A-1", cost_price=10.0)
     p2 = _create_product(client, headers, name="Gadget", identifier_value="B-1", cost_price=4.0)
@@ -171,8 +177,9 @@ def test_dashboard_reflects_stock_and_value(client: TestClient) -> None:
     assert dashboard["out_of_stock_count"] == 1  # p2: 0
 
 
-def test_pos_sale_auto_deducts_stock_and_records_history(client: TestClient) -> None:
+def test_pos_sale_auto_deducts_stock_and_records_history(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers, selling_price=10.0)
     client.post(f"/api/inventory/{product['id']}/adjust", json={"movement_type": "add", "quantity": 20, "reason": "opening_stock"}, headers=headers)
@@ -223,8 +230,9 @@ def test_staff_can_view_but_not_adjust(client: TestClient, admin_db_session: Ses
     assert denied.status_code == 403
 
 
-def test_low_stock_and_out_of_stock_filters(client: TestClient) -> None:
+def test_low_stock_and_out_of_stock_filters(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     low = _create_product(client, headers, identifier_value="LOW-1")
     out = _create_product(client, headers, name="Out Item", identifier_value="OUT-1")

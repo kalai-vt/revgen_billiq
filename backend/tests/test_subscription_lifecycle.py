@@ -88,7 +88,9 @@ def test_extend_trial_by_days(client: TestClient, admin_db_session: Session) -> 
     if trial_ends_at.tzinfo is None:
         trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
-    assert now + timedelta(days=13) < trial_ends_at < now + timedelta(days=15)
+    # Registration already starts a real 14-day trial (app/core/subscription_access.py); this
+    # extension stacks 14 more days on top of that existing trial_ends_at, landing ~28 days out.
+    assert now + timedelta(days=27) < trial_ends_at < now + timedelta(days=29)
     assert _last_audit_action(admin_db_session) == "tenant.trial_extended"
 
 
@@ -110,8 +112,8 @@ def test_extend_trial_twice_stacks_from_existing_trial_end(client: TestClient, a
     if trial_ends_at.tzinfo is None:
         trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
-    # Second call should stack on top of the first (~28 days out), not reset to ~14.
-    assert now + timedelta(days=27) < trial_ends_at < now + timedelta(days=29)
+    # Registration's own 14-day trial + two 14-day extensions stack to ~42 days out, not reset.
+    assert now + timedelta(days=41) < trial_ends_at < now + timedelta(days=43)
 
 
 def test_extend_trial_requires_days_or_explicit_date(client: TestClient, admin_db_session: Session) -> None:

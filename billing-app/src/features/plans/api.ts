@@ -14,6 +14,11 @@ interface StorageUsageEntry {
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'suspended' | 'expired' | 'cancelled';
 
+/** Mirrors the backend's `_BLOCKING_STATUSES` (app/core/subscription_access.py) — statuses that
+ * block normal app usage outright. AppShell uses this to proactively show the suspension screen
+ * from GET /api/billing/usage's `subscription_status`, without waiting for an actual 402. */
+export const BLOCKING_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = ['suspended', 'expired', 'cancelled'];
+
 export interface BillingUsage {
   plan: PlanId;
   label: string;

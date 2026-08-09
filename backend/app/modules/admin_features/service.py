@@ -10,12 +10,12 @@ from app.core.feature_catalog import (
     CATEGORY_LABELS,
     FEATURE_BY_KEY,
     FEATURE_CATALOG,
-    PLAN_DISPLAY_NAMES,
     get_dependents,
     get_plan_defaults,
     topo_order,
     version_gte,
 )
+from app.core.plans import get_plan
 from app.models.feature_flag import FeatureSchedule, TenantFeatureFlag, TenantFeatureFlagHistory
 from app.models.notification import Notification
 from app.models.settings import Settings
@@ -781,7 +781,7 @@ def get_analytics(db: Session) -> dict[str, Any]:
                 module_counts[item["module_key"]] += 1
                 enabled_count += 1
         settings = _get_settings(db, tenant.id)
-        plan_label = PLAN_DISPLAY_NAMES.get(settings.plan if settings else "basic", "Starter")
+        plan_label = get_plan(settings.plan if settings else "basic")["label"]
         plan_counts[plan_label] = plan_counts.get(plan_label, 0) + 1
         bucket_start = (enabled_count // 5) * 5
         bucket = f"{bucket_start}-{bucket_start + 4}"

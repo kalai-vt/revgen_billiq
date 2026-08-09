@@ -85,8 +85,9 @@ def test_allow_negative_stock_enabled_by_default_permits_oversell(client: TestCl
     assert response.status_code == 200
 
 
-def test_default_low_stock_threshold_applied_to_new_products(client: TestClient) -> None:
+def test_default_low_stock_threshold_applied_to_new_products(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     client.put("/api/settings", json={"default_low_stock_threshold": 25}, headers=headers)
     product = _create_product(client, headers)
@@ -101,7 +102,7 @@ def test_business_preferences_endpoint_accessible_to_all_roles(
 ) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.put(
         "/api/settings",
         json={"default_tax_percent": 12.5, "allow_discounts": False, "default_payment_method": "upi"},

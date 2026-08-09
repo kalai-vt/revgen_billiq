@@ -3,14 +3,13 @@ import { Badge } from '@shared/components/ui/badge';
 import { Card } from '@shared/components/ui/card';
 import { Skeleton } from '@shared/components/ui/skeleton';
 import type { CustomerFeaturePanelItem, TenantFeatureSummary } from '@/services/featuresApi';
+import { planLabel } from '@/lib/plans';
 
 interface TenantInfoBarProps {
   customer: CustomerFeaturePanelItem | undefined;
   summary: TenantFeatureSummary | undefined;
   isLoading: boolean;
 }
-
-const PLAN_LABEL: Record<string, string> = { basic: 'Starter', explore: 'Professional', advance: 'Enterprise' };
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
@@ -54,7 +53,7 @@ export function TenantInfoBar({ customer, summary, isLoading }: TenantInfoBarPro
           </div>
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4 lg:grid-cols-8">
-          <Field label="Plan" value={PLAN_LABEL[customer.plan] ?? customer.plan} />
+          <Field label="Plan" value={planLabel(customer.plan)} />
           <Field label="Version" value={customer.app_version} />
           <Field label="Industry" value={customer.industry ?? '—'} />
           <Field label="Country" value={customer.country} />

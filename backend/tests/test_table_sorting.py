@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -65,8 +66,9 @@ def test_categories_sort_by_name_desc(client: TestClient) -> None:
     assert [c["name"] for c in response.json()["data"]["items"]] == ["Zeta", "Alpha"]
 
 
-def test_inventory_sort_by_quantity(client: TestClient) -> None:
+def test_inventory_sort_by_quantity(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     low = client.post(
         "/api/products", json={"name": "Low Stock", "identifier_value": "INV-1", "selling_price": 10}, headers=headers

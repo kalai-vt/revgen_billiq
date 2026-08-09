@@ -8,10 +8,15 @@ from pydantic import BaseModel
 class SubscriptionListItem(BaseModel):
     tenant_id: str
     company_name: str
+    owner_email: str
     plan: str
     price_inr: int
     subscription_status: str
+    trial_started_at: datetime | None
     trial_ends_at: datetime | None
+    days_remaining: int | None
+    suspension_reason: str | None
+    last_reminder_sent_at: datetime | None = None
     created_at: datetime
 
 
@@ -46,7 +51,15 @@ class SubscriptionDetail(BaseModel):
     plan: str
     price_inr: int
     subscription_status: str
+    trial_started_at: datetime | None
     trial_ends_at: datetime | None
+    days_remaining: int | None
+    subscription_started_at: datetime | None
+    subscription_ends_at: datetime | None
+    suspended_at: datetime | None
+    suspension_reason: str | None
+    reactivated_at: datetime | None
+    reactivated_by: str | None
     payments: list[SubscriptionPaymentOut] = []
     history: list[SubscriptionEventOut]
 
@@ -60,6 +73,12 @@ class SubscriptionUpdateRequest(BaseModel):
 
 
 class SubscriptionActionRequest(BaseModel):
+    note: str | None = None
+
+
+class ActivateSubscriptionRequest(BaseModel):
+    plan: str
+    subscription_ends_at: datetime | None = None
     note: str | None = None
 
 

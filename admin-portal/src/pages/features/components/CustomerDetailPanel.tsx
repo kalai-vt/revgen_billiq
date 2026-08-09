@@ -11,6 +11,7 @@ import { EmptyState } from '@shared/components/ui/empty-state';
 import { Skeleton } from '@shared/components/ui/skeleton';
 import { ApiError } from '@/lib/api-client';
 import { getFeatureFlags, resetFeatures, type CustomerFeaturePanelItem, type FeatureCategory, type TenantFeatureItem } from '@/services/featuresApi';
+import { planLabel } from '@/lib/plans';
 import { ModuleCard } from './ModuleCard';
 import { ModuleConfigDialog } from './ModuleConfigDialog';
 import { ScheduleDialog } from './ScheduleDialog';
@@ -27,8 +28,6 @@ const CATEGORY_ORDER: { key: FeatureCategory; label: string }[] = [
   { key: 'ai', label: 'AI Features' },
   { key: 'premium', label: 'Premium Features' },
 ];
-
-const PLAN_LABEL: Record<string, string> = { basic: 'Starter', explore: 'Professional', advance: 'Enterprise' };
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
@@ -90,7 +89,7 @@ export function CustomerDetailPanel({ tenantId, customer }: CustomerDetailPanelP
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3 lg:grid-cols-4">
               <div>
                 <p className="text-muted-foreground">Plan</p>
-                <p className="font-medium">{PLAN_LABEL[customer.plan] ?? customer.plan}</p>
+                <p className="font-medium">{planLabel(customer.plan)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Version</p>

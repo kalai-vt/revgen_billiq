@@ -216,7 +216,7 @@ def test_team_member_create_and_list(
 ) -> None:
     owner = register_and_activate(client, fake_email, _register_payload())
     headers = _headers(owner["access_token"])
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
 
     create_response = client.post(
         "/api/auth/team",

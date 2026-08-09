@@ -95,6 +95,7 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("settings", "Settings", "Tenant business settings and preferences.", "core", is_implemented=True, always_on=True),
     _m("payments_credit", "Outstanding", "Outstanding balances and credit collection.", "core", is_implemented=True, requires=["pos_billing"]),
     _m("analytics", "Analytics", "Sales performance and business intelligence dashboards.", "core", domain="analytics", is_implemented=True),
+    _m("activity_log", "Activity Log", "Audit trail of who changed what and when.", "core", is_implemented=True),
 
     # ---- Procurement Management (implemented in phases; sub-keys pre-registered so the admin
     # portal's Procurement tab is complete from day one — flip is_implemented as each phase ships) ----
@@ -128,6 +129,11 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("multi_branch", "Multi Branch", "Operate multiple business locations.", "business"),
 
     # ---- AI Features (roadmap) ----
+    # "ai_assistance" is the umbrella module the Advanced plan grants by default (see
+    # PLAN_DEFAULT_MODULES below) — is_implemented stays False like its sibling AI entries below
+    # until real AI functionality ships; enabling it today has no functional effect, it just marks
+    # the tenant as entitled once something is built behind it.
+    _m("ai_assistance", "AI Assistance", "AI-powered assistance across the app.", "ai"),
     _m("ai_sales_assistant", "AI Sales Assistant", "Conversational sales guidance.", "ai"),
     _m("ai_dashboard", "AI Dashboard", "AI-summarized business overview.", "ai", requires=["reports_analytics"]),
     _m("ai_reports", "AI Reports", "Natural-language report generation.", "ai", requires=["reports_analytics"]),
@@ -187,38 +193,63 @@ CATEGORY_LABELS: dict[Category, str] = {
     "premium": "Premium Features",
 }
 
-# Friendly plan names per the spec, mapped onto the plans that already exist in app.core.plans
-# (Starter/Professional/Enterprise are how this module presents basic/explore/advance to admins;
-# introducing genuinely new billing tiers is a much bigger change than feature management needs).
-PLAN_DISPLAY_NAMES: dict[str, str] = {
-    "basic": "Starter",
-    "explore": "Professional",
-    "advance": "Enterprise",
-}
-
 # What a plan grants by default. Modules not listed default to disabled. IMPORTANT: unlike a
 # `TenantFeatureFlag` row (which is a one-time snapshot), a tenant with no stored row for a given
 # module has its status recomputed from this list on every read (`_default_status` in
 # `app/modules/admin_features/service.py`) — so narrowing a tier's list here *retroactively*
 # disables that module for every existing tenant on that tier who never had an admin explicitly
-# touch it (which is nearly all of them). Only ever grow a tier's set with newly-added modules;
-# never remove an already-shipped core module a plan used to include.
-_CORE_KEYS = [m["key"] for m in FEATURE_CATALOG if m["category"] == "core"]
+# touch it. This is exactly what happens here going from the old basic/explore/advance scheme to
+# the new BASIC/ADVANCED/CUSTOM one below — it's a deliberate, spec-driven tightening of what
+# Basic/Advanced include (see the trial & subscription management implementation report), not an
+# oversight. Any tenant that needs an exception can still get one via a per-tenant
+# TenantFeatureFlag override, which this list never touches.
+#
+# BASIC: Dashboard, Sales (billing/POS), Catalog (products+categories), Customer, Activity Log,
+# Settings — the modules named for this tier in the spec, PLUS three the spec's illustrative list
+# didn't call out but which are backend-enforced (`assert_feature`/`require_feature`, not just
+# frontend nav) as ordinary day-to-day POS operations rather than a premium tier, and were always
+# reachable by every tenant before this change: "reports_analytics" is what actually gates the
+# tenant's own Overview/Dashboard route (RequireModule moduleKey="reports_analytics" in
+# billing-app/src/routes/router.tsx — the catalog's "dashboard" key is always_on and doesn't gate
+# anything itself), "returns" gates Returns & Refunds, and "payments_credit" gates Outstanding.
+# Neither Basic's nor Advanced's named list in the spec mentions Returns or Outstanding at all —
+# that omission reads as "assumed baseline," not "Advanced-exclusive," and excluding them broke
+# the existing, tested behavior of every current tenant. See app/modules/sales/router.py and
+# app/modules/payments/router.py for the assert_feature call sites.
+_BASIC_MODULES = [
+    "dashboard", "pos_billing", "products", "categories", "customers", "activity_log", "settings",
+    "reports_analytics", "payments_credit", "returns",
+]
 
-_BASIC_MODULES = [*_CORE_KEYS, "barcode_printing", "expenses"]
-
-_EXPLORE_MODULES = [
-    *_BASIC_MODULES,
+# ADVANCED = BASIC + Inventory, Procurement, Analytics, Commerce, AI Assistance — implemented as
+# inheritance (BASIC + ADVANCED_ONLY), not a duplicated list, per the spec's explicit instruction.
+# "Procurement", "Analytics", and "Commerce" are single named modules in the spec but multiple
+# keys in this catalog (e.g. procurement's own vendors/purchase-entries/returns/payments
+# sub-modules) — granting the parent key's natural sub-modules alongside it keeps that feature
+# actually usable rather than gating it a second time. "invoice_designer" and "custom_branding"
+# aren't named in the spec either, but were reachable by every tenant on the old top "advance"
+# tier this replaces (its defaults were literally every catalog key) — kept here so upgrading an
+# existing advance-tier tenant to the new tier scheme doesn't silently take those away.
+_ADVANCED_ONLY_MODULES = [
+    "inventory",
     "procurement", "vendors", "purchase_entries", "purchase_returns", "vendor_payments",
     "procurement_analytics", "procurement_reports",
-    "loyalty", "whatsapp_integration", "sms_integration",
-    "advanced_analytics", "trend_comparison",
+    "analytics", "advanced_analytics", "trend_comparison",
+    "commerce", "commerce_swiggy", "commerce_zomato", "commerce_analytics",
+    "ai_assistance",
+    "invoice_designer", "custom_branding", "barcode_printing", "expenses",
 ]
+_ADVANCED_MODULES = [*_BASIC_MODULES, *_ADVANCED_ONLY_MODULES]
 
 PLAN_DEFAULT_MODULES: dict[str, list[str]] = {
     "basic": _BASIC_MODULES,
-    "explore": _EXPLORE_MODULES,
-    "advance": [m["key"] for m in FEATURE_CATALOG],
+    "advance": _ADVANCED_MODULES,
+    # CUSTOM has no plan-level defaults at all — every module for a Custom tenant is an explicit
+    # per-tenant TenantFeatureFlag choice (see PHASE 10 of the spec: "Admin can select exactly
+    # what the customer requires"). Switching a tenant's plan to "custom" does not reset or touch
+    # any of their existing TenantFeatureFlag rows — see get_effective_flags_for_tenant, which
+    # only ever falls back to a plan default for a module that has no explicit row yet.
+    "custom": [],
 }
 
 

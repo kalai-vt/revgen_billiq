@@ -61,6 +61,19 @@ class Settings(BaseSettings):
     qz_tray_private_key: str = ""
     qz_tray_certificate: str = ""
 
+    # Trial length for every newly registered tenant (app/modules/auth/service.py:register_tenant)
+    # — the single source of truth so "14 days" is never hard-coded elsewhere. See
+    # app/core/subscription_access.py for how this and trial_ends_at are used to compute and
+    # enforce trial expiry.
+    trial_duration_days: int = 14
+
+    # SMS / WhatsApp providers for trial/subscription reminders (app/core/sms, app/core/whatsapp).
+    # Same shape as the email provider setup above: empty/"console" (the default) means messages
+    # are logged, not actually sent — no account required to run this app. Set a real provider id
+    # once real credentials exist; see each provider's own module for what it expects.
+    sms_provider: str = "console"
+    whatsapp_provider: str = "console"
+
     @model_validator(mode="after")
     def _guard_insecure_settings(self) -> "Settings":
         origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]

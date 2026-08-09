@@ -46,7 +46,7 @@ def _create_product(client: TestClient, headers: dict, **overrides) -> dict:
 def _create_staff(
     client: TestClient, admin_db_session: Session, owner: dict, owner_headers: dict, email: str = "staff@acme.test"
 ) -> dict:
-    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "explore")
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     client.post(
         "/api/auth/team",
         json={"first_name": "Sam", "last_name": "Staff", "email": email, "password": "StaffPass!123", "role": "staff"},
@@ -72,8 +72,9 @@ def _upload_csv(client: TestClient, headers: dict, filename: str, content: bytes
     return response
 
 
-def test_download_template_returns_xlsx(client: TestClient) -> None:
+def test_download_template_returns_xlsx(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     response = client.get("/api/inventory/import-template", headers=headers)
     assert response.status_code == 200
@@ -81,8 +82,9 @@ def test_download_template_returns_xlsx(client: TestClient) -> None:
     assert len(response.content) > 0
 
 
-def test_upload_exact_template_headers_auto_maps_and_validates(client: TestClient) -> None:
+def test_upload_exact_template_headers_auto_maps_and_validates(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -105,8 +107,9 @@ def test_upload_exact_template_headers_auto_maps_and_validates(client: TestClien
     assert row["matched_product_id"] is not None
 
 
-def test_upload_with_renamed_headers_requires_mapping(client: TestClient) -> None:
+def test_upload_with_renamed_headers_requires_mapping(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -132,8 +135,9 @@ def test_upload_with_renamed_headers_requires_mapping(client: TestClient) -> Non
     assert result["items"][0]["selling_price"] == 12
 
 
-def test_missing_required_columns_rejected(client: TestClient) -> None:
+def test_missing_required_columns_rejected(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
 
     content = _csv_bytes(["Notes"], [["just a note"]])
@@ -150,8 +154,9 @@ def test_missing_required_columns_rejected(client: TestClient) -> None:
     assert mapping_response.status_code == 400
 
 
-def test_product_not_found_marks_row_error(client: TestClient) -> None:
+def test_product_not_found_marks_row_error(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
 
     content = _csv_bytes(
@@ -165,8 +170,9 @@ def test_product_not_found_marks_row_error(client: TestClient) -> None:
     assert "not found" in rows["items"][0]["error_messages"][0].lower()
 
 
-def test_duplicate_identifier_within_file_marks_later_row_error(client: TestClient) -> None:
+def test_duplicate_identifier_within_file_marks_later_row_error(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -185,8 +191,9 @@ def test_duplicate_identifier_within_file_marks_later_row_error(client: TestClie
     assert "duplicate" in rows["items"][1]["error_messages"][0].lower()
 
 
-def test_invalid_quantity_price_and_tax_marked_error(client: TestClient) -> None:
+def test_invalid_quantity_price_and_tax_marked_error(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -206,8 +213,9 @@ def test_invalid_quantity_price_and_tax_marked_error(client: TestClient) -> None
     assert "tax" in messages
 
 
-def test_blank_optional_fields_marked_warning_not_error(client: TestClient) -> None:
+def test_blank_optional_fields_marked_warning_not_error(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -222,8 +230,9 @@ def test_blank_optional_fields_marked_warning_not_error(client: TestClient) -> N
     assert rows["items"][0]["status"] == "warning"
 
 
-def test_empty_rows_are_skipped_silently(client: TestClient) -> None:
+def test_empty_rows_are_skipped_silently(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -236,8 +245,9 @@ def test_empty_rows_are_skipped_silently(client: TestClient) -> None:
     assert data["rows_total"] == 1
 
 
-def test_full_confirm_updates_inventory_and_prices_and_creates_history(client: TestClient) -> None:
+def test_full_confirm_updates_inventory_and_prices_and_creates_history(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers, identifier_value="WID-1", cost_price=5.0, selling_price=20.0)
 
@@ -271,8 +281,9 @@ def test_full_confirm_updates_inventory_and_prices_and_creates_history(client: T
     assert import_history["items"][0]["status"] == "completed"
 
 
-def test_confirm_with_error_rows_is_partial_and_excludes_them(client: TestClient) -> None:
+def test_confirm_with_error_rows_is_partial_and_excludes_them(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -290,8 +301,9 @@ def test_confirm_with_error_rows_is_partial_and_excludes_them(client: TestClient
     assert result["rows_failed"] == 1
 
 
-def test_skip_row_excludes_it_from_confirm(client: TestClient) -> None:
+def test_skip_row_excludes_it_from_confirm(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -310,8 +322,9 @@ def test_skip_row_excludes_it_from_confirm(client: TestClient) -> None:
     assert result["rows_imported"] == 0
 
 
-def test_edit_row_value_before_confirm_is_applied(client: TestClient) -> None:
+def test_edit_row_value_before_confirm_is_applied(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 
@@ -331,8 +344,9 @@ def test_edit_row_value_before_confirm_is_applied(client: TestClient) -> None:
     assert inv["quantity"] == 99
 
 
-def test_error_report_download_lists_failed_rows(client: TestClient) -> None:
+def test_error_report_download_lists_failed_rows(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
 
     content = _csv_bytes(["Product ID (PID)", "Quantity"], [["MISSING-1", "5"]])
@@ -356,8 +370,9 @@ def test_staff_cannot_upload_import(client: TestClient, admin_db_session: Sessio
     assert response.status_code == 403
 
 
-def test_upload_xlsx_file_parses_correctly(client: TestClient) -> None:
+def test_upload_xlsx_file_parses_correctly(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     _create_product(client, headers, identifier_value="WID-1")
 

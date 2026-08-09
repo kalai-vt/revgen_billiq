@@ -5,15 +5,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.notifications import (
-    TYPE_LIMIT_APPROACHING,
-    TYPE_SUBSCRIPTION_EXPIRY,
-    TYPE_TRIAL_ENDING_SOON,
-    create_notification,
-)
+from app.core.notifications import TYPE_LIMIT_APPROACHING, TYPE_TRIAL_ENDING_SOON, create_notification
+from app.core.subscription_access import suspend_for_trial_expiry
 from app.core.timeutils import as_aware_utc, utc_now
 from app.models.settings import Settings
-from app.models.subscription_event import SubscriptionEvent
 from app.models.tenant import Tenant
 from app.modules.billing_plans.service import get_usage
 
@@ -44,6 +39,14 @@ def _already_notified_today(db: Session, tenant_id: str, notif_type: str) -> boo
 
 
 def _check_trials(db: Session) -> dict[str, int]:
+    """Catches any trial that ran out since the last run and warns tenants approaching their
+    deadline. This is the second layer of defense, not the only one — `enforce_subscription_access`
+    (app/core/subscription_access.py) already self-heals an overdue trial the instant any request
+    hits it, using the same `suspend_for_trial_expiry` helper this calls, so a tenant can never
+    ride out the gap between expiry and this job's next run. This job exists to catch tenants who
+    simply don't make a request during that gap (so the notification/suspension still happens on
+    schedule) and to send the "ending soon" warning, which nothing else triggers.
+    """
     now = utc_now()
     expired = 0
     warned = 0
@@ -51,28 +54,7 @@ def _check_trials(db: Session) -> dict[str, int]:
     for settings_row in trialing:
         trial_ends_at = as_aware_utc(settings_row.trial_ends_at)
         if trial_ends_at < now:
-            from_status = settings_row.subscription_status
-            settings_row.subscription_status = "expired"
-            db.add(settings_row)
-            db.add(
-                SubscriptionEvent(
-                    tenant_id=settings_row.tenant_id,
-                    event_type="expired",
-                    from_plan=settings_row.plan,
-                    to_plan=settings_row.plan,
-                    from_status=from_status,
-                    to_status="expired",
-                    note="Automatically expired — trial period ended",
-                    changed_by="system (scheduled subscription check)",
-                )
-            )
-            create_notification(
-                db,
-                tenant_id=settings_row.tenant_id,
-                type=TYPE_SUBSCRIPTION_EXPIRY,
-                title="Your trial has expired",
-                message="Your trial period has ended. Contact your administrator to activate a paid plan and keep using RevGen BillIQ.",
-            )
+            suspend_for_trial_expiry(db, settings_row)
             expired += 1
         elif trial_ends_at - now <= TRIAL_WARNING_WINDOW:
             if _already_notified_today(db, settings_row.tenant_id, TYPE_TRIAL_ENDING_SOON):

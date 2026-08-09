@@ -3,8 +3,9 @@ from __future__ import annotations
 import uuid
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from tests.conftest import register_and_activate_standalone
+from tests.conftest import register_and_activate_standalone, set_tenant_plan
 
 
 def _register(client: TestClient, email: str = "owner@acme.test") -> dict:
@@ -69,8 +70,9 @@ def test_invoice_cancelled_creates_notification(client: TestClient) -> None:
     assert any(n["type"] == "invoice_cancelled" for n in data["items"])
 
 
-def test_low_stock_notification_fires_only_on_downward_crossing(client: TestClient) -> None:
+def test_low_stock_notification_fires_only_on_downward_crossing(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
+    set_tenant_plan(client, admin_db_session, owner["tenant"]["id"], "advance")
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
 
