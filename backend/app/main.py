@@ -184,7 +184,8 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     database: str
-    # TEMPORARY — see app/core/migrate.py's last_migration_error docstring. Remove together.
+    # See app/core/migrate.py's last_migration_error comment — the only visibility into a
+    # swallowed startup migration failure this app has, absent any log aggregation/Sentry.
     migrations: dict[str, str | None] | None = None
 
 

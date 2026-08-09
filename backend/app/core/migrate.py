@@ -12,10 +12,11 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 _ALEMBIC_INI = _ROOT / "alembic.ini"
 _ALEMBIC_ADMIN_INI = _ROOT / "alembic_admin.ini"
 
-# TEMPORARY diagnostic surface: this app has no log aggregation/Sentry configured, so a silently
-# swallowed migration failure (see the try/except below) is otherwise invisible from outside the
-# Vercel dashboard. Exposed read-only via GET /api/health's `migrations` field. Remove once the
-# 2026-08-09 production incident (registration/login 500ing after a deploy) is root-caused.
+# Surfaced read-only via GET /api/health's `migrations` field — there's no log aggregation or
+# Sentry configured in this app, so this is the only way to see a silently swallowed migration
+# failure (see the try/except below) from outside the Vercel dashboard. Added after the
+# 2026-08-09 incident where a swallowed migration failure 500'd login/registration with no
+# visible cause; kept permanently since the underlying blind spot (no error tracking) remains.
 last_migration_error: str | None = None
 last_admin_migration_error: str | None = None
 
