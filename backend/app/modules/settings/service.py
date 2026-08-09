@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.blob import UploadValidationError, upload_file
+from app.core.checkout_elements import CHECKOUT_ELEMENT_KEYS, resolve_checkout_config
 from app.core.security import verify_password
 from app.core.subscription_access import start_trial
 from app.core.timeutils import utc_now
@@ -33,6 +34,22 @@ class SettingsError(Exception):
 
 def get_settings(db: Session, tenant_id: str) -> Settings | None:
     return db.query(Settings).filter(Settings.tenant_id == tenant_id).first()
+
+
+def get_checkout_config(settings: Settings) -> dict[str, bool]:
+    return resolve_checkout_config(settings.checkout_config)
+
+
+def update_checkout_config(db: Session, settings: Settings, overrides: dict[str, bool]) -> dict[str, bool]:
+    unknown = set(overrides) - CHECKOUT_ELEMENT_KEYS
+    if unknown:
+        raise SettingsError(400, f"Unknown checkout element(s): {', '.join(sorted(unknown))}")
+    merged = {**(settings.checkout_config or {}), **overrides}
+    settings.checkout_config = merged
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return resolve_checkout_config(settings.checkout_config)
 
 
 def save_logo(db: Session, settings: Settings, content: bytes, content_type: str) -> Settings:

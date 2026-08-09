@@ -6,16 +6,20 @@ import type { PaymentMethod, PaymentType } from '@/features/pos/api';
 interface PaymentMethodSelectorProps {
   method: PaymentMethod;
   onMethodChange: (method: PaymentMethod) => void;
+  visiblePaymentMethods: PaymentMethod[];
   paymentType: PaymentType;
   onPaymentTypeChange: (type: PaymentType) => void;
+  visiblePaymentTypes: PaymentType[];
   amountTendered: number | null;
   onAmountTenderedChange: (value: number | null) => void;
+  showAmountTendered: boolean;
+  showChangeDue: boolean;
   paidNow: number | null;
   onPaidNowChange: (value: number | null) => void;
   dueDate: string;
   onDueDateChange: (value: string) => void;
   total: number;
-  /** Hides the Paid in Full / Partially Paid / Pay Later tabs — used when the tenant's
+  /** Hides the Paid in Full / Partially Paid / Pay Later tabs entirely — used when the tenant's
    * Outstanding module is disabled, so every sale is always paid in full immediately. */
   showPaymentType?: boolean;
 }
@@ -43,8 +47,9 @@ function SegmentedButtons<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  if (options.length === 0) return null;
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((option) => (
         <button
           key={option}
@@ -67,10 +72,14 @@ function SegmentedButtons<T extends string>({
 export function PaymentMethodSelector({
   method,
   onMethodChange,
+  visiblePaymentMethods,
   paymentType,
   onPaymentTypeChange,
+  visiblePaymentTypes,
   amountTendered,
   onAmountTenderedChange,
+  showAmountTendered,
+  showChangeDue,
   paidNow,
   onPaidNowChange,
   dueDate,
@@ -80,47 +89,42 @@ export function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   const change = paymentType === 'paid' && method === 'cash' && amountTendered !== null ? amountTendered - total : null;
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
+  const showCashDetails = paymentType === 'paid' && method === 'cash' && (showAmountTendered || showChangeDue);
 
   return (
     <div className="space-y-1">
       {showPaymentType && (
-        <SegmentedButtons
-          options={['paid', 'partial', 'credit']}
-          labels={PAYMENT_TYPE_LABELS}
-          value={paymentType}
-          onChange={onPaymentTypeChange}
-        />
+        <SegmentedButtons options={visiblePaymentTypes} labels={PAYMENT_TYPE_LABELS} value={paymentType} onChange={onPaymentTypeChange} />
       )}
 
-      <SegmentedButtons
-        options={['cash', 'card', 'upi']}
-        labels={PAYMENT_METHOD_LABELS}
-        value={method}
-        onChange={onMethodChange}
-      />
+      <SegmentedButtons options={visiblePaymentMethods} labels={PAYMENT_METHOD_LABELS} value={method} onChange={onMethodChange} />
 
-      {paymentType === 'paid' && method === 'cash' && (
+      {showCashDetails && (
         <div className="space-y-1 rounded-lg border bg-muted/20 p-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="amount-tendered" className="text-xs text-muted-foreground">
-              Amount Tendered
-            </label>
-            <NumericInput
-              id="amount-tendered"
-              min={0}
-              required={false}
-              value={amountTendered}
-              onChange={onAmountTenderedChange}
-              placeholder="0"
-              className="h-7 w-28 border border-input bg-background px-2 text-right text-xs font-medium"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">Change Due</p>
-            <p className={cn('text-xs font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-[#6C47FF]')}>
-              {change !== null ? `₹${change.toFixed(2)}` : '—'}
-            </p>
-          </div>
+          {showAmountTendered && (
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="amount-tendered" className="text-xs text-muted-foreground">
+                Amount Tendered
+              </label>
+              <NumericInput
+                id="amount-tendered"
+                min={0}
+                required={false}
+                value={amountTendered}
+                onChange={onAmountTenderedChange}
+                placeholder="0"
+                className="h-7 w-28 border border-input bg-background px-2 text-right text-xs font-medium"
+              />
+            </div>
+          )}
+          {showChangeDue && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Change Due</p>
+              <p className={cn('text-xs font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-[#6C47FF]')}>
+                {change !== null ? `₹${change.toFixed(2)}` : '—'}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

@@ -168,3 +168,32 @@ export function exportData(): Promise<Blob> {
 export function deleteAccount(password: string): Promise<null> {
   return request('/api/settings/delete-account', { method: 'POST', body: JSON.stringify({ password }) });
 }
+
+/** Settings > Billing Settings > Checkout Elements. Keys are dynamic (driven by
+ * getCheckoutElementCatalog, see app/core/checkout_elements.py) — never hard-code the set of
+ * keys here so a future element (Coupon, Loyalty, ...) needs no frontend type change. */
+export type CheckoutConfig = Record<string, boolean>;
+
+export interface CheckoutElementCatalogItem {
+  key: string;
+  label: string;
+  group: string;
+  depends_on_module: string | null;
+}
+
+export interface CheckoutElementCatalog {
+  groups: Record<string, string>;
+  elements: CheckoutElementCatalogItem[];
+}
+
+export function getCheckoutElementCatalog(): Promise<CheckoutElementCatalog> {
+  return request('/api/settings/checkout-elements/catalog');
+}
+
+export function getCheckoutConfig(): Promise<{ config: CheckoutConfig }> {
+  return request('/api/settings/checkout-config');
+}
+
+export function updateCheckoutConfig(config: CheckoutConfig): Promise<{ config: CheckoutConfig }> {
+  return request('/api/settings/checkout-config', { method: 'PUT', body: JSON.stringify({ config }) });
+}

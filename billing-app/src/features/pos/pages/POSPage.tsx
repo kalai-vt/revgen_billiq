@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { PackageOpen } from 'lucide-react';
@@ -16,6 +16,8 @@ import { useCart } from '@/features/pos/hooks/useCart';
 import { useCreateInvoice } from '@/features/pos/hooks/useCreateInvoice';
 import { useKeyboardShortcuts } from '@/features/pos/hooks/useKeyboardShortcuts';
 import { computeTotals } from '@/features/pos/lib/calc';
+import { useCheckoutConfig } from '@/features/pos/lib/checkoutElements';
+import { computeCheckoutGridColumns, getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
@@ -27,6 +29,7 @@ export function POSPage() {
   const cart = useCart();
   const { canOverridePrice } = useAuth();
   const outstandingEnabled = useFeatureFlag('payments_credit');
+  const checkoutConfig = useCheckoutConfig();
   const { data: preferences } = useQuery({
     queryKey: ['business-preferences'],
     queryFn: settingsApi.getBusinessPreferences,
@@ -76,6 +79,24 @@ export function POSPage() {
       setPaymentType('paid');
     }
   }, [outstandingEnabled, paymentType]);
+
+  // If the tenant's Checkout Elements settings hide the currently-selected payment type/method
+  // (or the Outstanding module gets disabled out from under a mid-selection), fall back to the
+  // first one still visible — hiding a UI option must never leave the sale in an unselectable
+  // state. Business logic itself (what create_invoice accepts) is unaffected either way.
+  useEffect(() => {
+    const visibleTypes = getVisiblePaymentTypes(checkoutConfig, outstandingEnabled);
+    if (visibleTypes.length > 0 && !visibleTypes.includes(paymentType)) {
+      setPaymentType(visibleTypes[0]);
+    }
+  }, [checkoutConfig, outstandingEnabled, paymentType]);
+
+  useEffect(() => {
+    const visibleMethods = getVisiblePaymentMethods(checkoutConfig);
+    if (visibleMethods.length > 0 && !visibleMethods.includes(paymentMethod)) {
+      setPaymentMethod(visibleMethods[0]);
+    }
+  }, [checkoutConfig, paymentMethod]);
 
   function handleCustomerSelect(customer: Customer | null) {
     setCustomerId(customer?.id ?? null);
@@ -197,6 +218,11 @@ export function POSPage() {
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
   const heldBillsCount = heldBillsData?.total ?? 0;
+  // Checkout's column narrows (and Cart's widens to absorb the difference) with how many
+  // optional element groups are actually showing — see checkoutLayout.ts. Set as a CSS custom
+  // property rather than the class itself so the grid-cols-1 mobile layout is untouched; only the
+  // md: breakpoint's grid-template-columns reads it.
+  const checkoutGridColumns = computeCheckoutGridColumns(checkoutConfig, outstandingEnabled);
 
   return (
     <div className="flex flex-col gap-3 md:h-full md:overflow-hidden">
@@ -208,7 +234,10 @@ export function POSPage() {
         </Button>
       </PageHeaderAction>
 
-      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[2.78fr_5fr_2.9fr] md:overflow-hidden">
+      <div
+        className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-[var(--checkout-grid-cols)] md:overflow-hidden"
+        style={{ '--checkout-grid-cols': checkoutGridColumns } as CSSProperties}
+      >
         <Card className="min-h-0 p-2">
           <ProductSearchPanel onAdd={cart.addProduct} />
         </Card>
@@ -256,6 +285,7 @@ export function POSPage() {
             onCheckout={handleCheckout}
             isSubmitting={createInvoice.isPending}
             error={error}
+            checkoutConfig={checkoutConfig}
           />
         </Card>
       </div>

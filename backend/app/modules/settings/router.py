@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.checkout_elements import CHECKOUT_ELEMENT_REGISTRY, GROUP_LABELS
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_role
 from app.core.limits import assert_feature
@@ -17,6 +18,9 @@ from app.modules.settings.service import AccountDeletionError, SettingsError
 from app.schemas.settings import (
     BrandingOut,
     BusinessPreferencesOut,
+    CheckoutConfigOut,
+    CheckoutConfigUpdate,
+    CheckoutElementCatalogOut,
     DeleteAccountRequest,
     ProductConfigOut,
     SettingsOut,
@@ -78,6 +82,46 @@ def get_business_preferences(
     return make_response(
         True, "Business preferences loaded", BusinessPreferencesOut.model_validate(settings).model_dump(mode="json")
     )
+
+
+@router.get("/settings/checkout-elements/catalog")
+def get_checkout_elements_catalog(_current_user: User = Depends(get_current_user)) -> dict[str, Any]:
+    catalog = CheckoutElementCatalogOut(
+        groups=dict(GROUP_LABELS),
+        elements=[
+            {"key": e["key"], "label": e["label"], "group": e["group"], "depends_on_module": e["depends_on_module"]}
+            for e in CHECKOUT_ELEMENT_REGISTRY
+        ],
+    )
+    return make_response(True, "Checkout element catalog loaded", catalog.model_dump(mode="json"))
+
+
+@router.get("/settings/checkout-config")
+def get_checkout_config(
+    current_user: User = Depends(require_role("owner", "manager", "staff")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    settings = service.get_settings(db, current_user.tenant_id)
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    config = CheckoutConfigOut(config=service.get_checkout_config(settings))
+    return make_response(True, "Checkout configuration loaded", config.model_dump(mode="json"))
+
+
+@router.put("/settings/checkout-config")
+def put_checkout_config(
+    payload: CheckoutConfigUpdate,
+    current_user: User = Depends(require_role("owner")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    settings = service.get_settings(db, current_user.tenant_id)
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    try:
+        resolved = service.update_checkout_config(db, settings, payload.config)
+    except SettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return make_response(True, "Checkout configuration updated", CheckoutConfigOut(config=resolved).model_dump(mode="json"))
 
 
 @router.put("/settings")

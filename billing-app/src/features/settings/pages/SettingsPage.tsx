@@ -19,6 +19,7 @@ import { AutoPrintSettingsForm } from '@/features/settings/components/AutoPrintS
 import { AvatarUploadControl } from '@/features/settings/components/AvatarUploadControl';
 import { BillingSettingsForm } from '@/features/settings/components/BillingSettingsForm';
 import { BusinessPreferencesForm } from '@/features/settings/components/BusinessPreferencesForm';
+import { CheckoutElementsForm } from '@/features/settings/components/CheckoutElementsForm';
 import { ChangePasswordForm } from '@/features/settings/components/ChangePasswordForm';
 import { DataPrivacyCard } from '@/features/settings/components/DataPrivacyCard';
 import { InvoiceSettingsForm } from '@/features/settings/components/InvoiceSettingsForm';
@@ -263,8 +264,16 @@ export function SettingsPage() {
                 <CardTitle>Billing Settings</CardTitle>
                 <CardDescription>GST, invoice numbering, currency, branding, and theme.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
                 <BillingSettingsForm />
+
+                <div className="border-t pt-6">
+                  <h3 className="mb-1 text-sm font-medium">Checkout Elements</h3>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Choose which optional elements appear on the Billing checkout screen.
+                  </p>
+                  <CheckoutElementsForm />
+                </div>
               </CardContent>
             </Card>
           )}

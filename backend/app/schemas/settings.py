@@ -101,6 +101,26 @@ class DeleteAccountRequest(BaseModel):
     password: str
 
 
+class CheckoutElementOut(BaseModel):
+    key: str
+    label: str
+    group: str
+    depends_on_module: str | None = None
+
+
+class CheckoutElementCatalogOut(BaseModel):
+    groups: dict[str, str]
+    elements: list[CheckoutElementOut]
+
+
+class CheckoutConfigOut(BaseModel):
+    config: dict[str, bool]
+
+
+class CheckoutConfigUpdate(BaseModel):
+    config: dict[str, bool]
+
+
 class ProductConfigOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

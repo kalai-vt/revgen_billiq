@@ -59,6 +59,12 @@ class Settings(Base):
     default_low_stock_threshold: Mapped[float] = mapped_column(Float, default=5.0)
     default_payment_method: Mapped[str] = mapped_column(String(10), default="cash")
 
+    # Settings > Billing Settings > Checkout Elements — per-tenant overrides for which optional
+    # checkout elements render. NULL/missing keys fall back to app.core.checkout_elements'
+    # registry defaults (see resolve_checkout_config), which all default True — so a tenant who
+    # never visits this settings page keeps exactly today's checkout, unchanged.
+    checkout_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # Business profile (branding) — Invoice Designer
     tagline: Mapped[str | None] = mapped_column(String(200), nullable=True)
     address_line1: Mapped[str | None] = mapped_column(String(255), nullable=True)
