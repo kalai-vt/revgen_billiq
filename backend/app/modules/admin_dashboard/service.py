@@ -6,9 +6,19 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.models.returns import Return
 from app.models.sales import Invoice
 from app.models.tenant import Tenant
 from app.models.user import User
+
+
+def _returned_amount(db: Session, *, start: datetime, end: datetime | None = None) -> float:
+    query = db.query(func.coalesce(func.sum(Return.refund_amount), 0.0)).filter(
+        Return.status != "cancelled", Return.created_at >= start
+    )
+    if end is not None:
+        query = query.filter(Return.created_at < end)
+    return query.scalar() or 0.0
 
 
 def _today_start_utc() -> datetime:
@@ -48,13 +58,13 @@ def get_dashboard_summary(db: Session) -> dict[str, Any]:
         .filter(Invoice.created_at >= month_start)
         .scalar()
         or 0.0
-    )
+    ) - _returned_amount(db, start=month_start)
     annual_revenue = (
         db.query(func.coalesce(func.sum(Invoice.total_amount), 0.0))
         .filter(Invoice.created_at >= year_start)
         .scalar()
         or 0.0
-    )
+    ) - _returned_amount(db, start=year_start)
     outstanding_payments = db.query(func.coalesce(func.sum(Invoice.outstanding_amount), 0.0)).scalar() or 0.0
 
     revenue_trend = []
@@ -70,7 +80,7 @@ def get_dashboard_summary(db: Session) -> dict[str, Any]:
             .filter(Invoice.created_at >= bucket_start, Invoice.created_at < bucket_end)
             .scalar()
             or 0.0
-        )
+        ) - _returned_amount(db, start=bucket_start, end=bucket_end)
         revenue_trend.append({"month": bucket_start.strftime("%b %Y"), "revenue": round(amount, 2)})
 
     return {

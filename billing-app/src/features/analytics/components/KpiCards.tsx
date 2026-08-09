@@ -10,8 +10,10 @@ interface KpiTileConfig {
 }
 
 const KPI_TILES: KpiTileConfig[] = [
-  { key: 'total_sales', label: 'Total Revenue', format: 'currency', scope: 'range' },
-  { key: 'net_sales', label: 'Net Sales', format: 'currency', scope: 'range' },
+  // "Revenue" always means net of returns — total_sales (gross, pre-return) is the secondary
+  // "Gross Sales" tile, never the headline figure a merchant reads as their revenue.
+  { key: 'net_sales', label: 'Revenue', format: 'currency', scope: 'range' },
+  { key: 'total_sales', label: 'Gross Sales', format: 'currency', scope: 'range' },
   { key: 'total_orders', label: 'Total Orders', format: 'number', scope: 'range' },
   { key: 'average_order_value', label: 'Average Order Value', format: 'currency', scope: 'range' },
   { key: 'total_units_sold', label: 'Total Products Sold', format: 'number', scope: 'range' },
@@ -28,10 +30,10 @@ const KPI_TILES: KpiTileConfig[] = [
   { key: 'outstanding_amount', label: 'Outstanding Amount', format: 'currency', scope: 'allTime' },
 ];
 
-/** Overview's lean 5-tile executive snapshot (Total Revenue/Orders/Customers/AOV/Products Sold).
+/** Overview's lean 5-tile executive snapshot (Revenue/Orders/Customers/AOV/Products Sold).
  * Advanced Analytics shows the full KPI_TILES set by omitting this prop. */
 export const OVERVIEW_KPI_KEYS: Array<keyof DashboardKpis> = [
-  'total_sales',
+  'net_sales',
   'total_orders',
   'total_customers',
   'average_order_value',

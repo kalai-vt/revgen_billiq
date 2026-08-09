@@ -39,7 +39,9 @@ export function POSPage() {
 
   const [discountType, setDiscountType] = useState<DiscountType>(null);
   const [discountValue, setDiscountValue] = useState(0);
-  const [taxPercentage, setTaxPercentage] = useState(0);
+  // null = auto (each line taxed at its own product's tax_rate_percent, see computeTotals) — the
+  // default. Set once the cashier types into the Tax % field, overriding every line to that rate.
+  const [taxOverride, setTaxOverride] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentType, setPaymentType] = useState<PaymentType>('paid');
   const [amountTendered, setAmountTendered] = useState<number | null>(null);
@@ -55,13 +57,13 @@ export function POSPage() {
 
   const createInvoice = useCreateInvoice();
   const queryClient = useQueryClient();
-  const totals = computeTotals(cart.lines, discountType, discountValue, taxPercentage);
+  const totals = computeTotals(cart.lines, discountType, discountValue, taxOverride);
 
   // Seed defaults from business preferences once, on first load — a fresh cart with no
-  // interaction yet.
+  // interaction yet. Tax itself isn't seeded here: it now defaults to each product's own
+  // tax_rate_percent (see computeTotals), not the tenant's default_tax_percent setting.
   useEffect(() => {
     if (preferences && cart.lines.length === 0 && discountType === null) {
-      setTaxPercentage(preferences.default_tax_percent);
       setPaymentMethod(preferences.default_payment_method);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,7 +103,7 @@ export function POSPage() {
         })),
         discount_type: discountType,
         discount_value: discountValue,
-        tax_percentage: taxPercentage,
+        tax_percentage: taxOverride ?? totals.effectiveTaxPercentage,
         payment_method: paymentMethod,
       }),
     onSuccess: () => {
@@ -122,7 +124,10 @@ export function POSPage() {
     );
     setDiscountType(heldBill.discount_type);
     setDiscountValue(heldBill.discount_value);
-    setTaxPercentage(heldBill.tax_percentage);
+    // The held bill stored a concrete snapshot (the effective rate at hold-time, whether that
+    // came from auto or a manual override) — treat it as a fixed override on resume, the same
+    // way discount_value is resumed as-is rather than recomputed.
+    setTaxOverride(heldBill.tax_percentage);
     setPaymentMethod(heldBill.payment_method);
     setCustomerName(heldBill.customer_name ?? '');
     setCustomerPhone(heldBill.customer_phone ?? '');
@@ -139,7 +144,7 @@ export function POSPage() {
     cart.clear();
     setDiscountType(null);
     setDiscountValue(0);
-    setTaxPercentage(preferences?.default_tax_percent ?? 0);
+    setTaxOverride(null);
     setPaymentMethod(preferences?.default_payment_method ?? 'cash');
     setPaymentType('paid');
     setAmountTendered(null);
@@ -167,7 +172,7 @@ export function POSPage() {
         })),
         discount_type: discountType,
         discount_value: discountValue,
-        tax_percentage: taxPercentage,
+        tax_percentage: taxOverride ?? totals.effectiveTaxPercentage,
         payment_method: paymentMethod,
         amount_tendered: paymentType === 'paid' && paymentMethod === 'cash' ? amountTendered : null,
         payment_type: paymentType,
@@ -181,12 +186,13 @@ export function POSPage() {
   }
 
   const requiresCustomer = outstandingEnabled && paymentType !== 'paid';
+  // Amount tendered is a cashier balance/change aid only — never a requirement to check out (see
+  // CheckoutPanel.tsx's own canCheckout, which this mirrors for the keyboard shortcut).
   const canCheckout =
     cart.lines.length > 0 &&
     !createInvoice.isPending &&
     !completedInvoice &&
     !heldBillsOpen &&
-    (paymentType !== 'paid' || paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total)) &&
     (!requiresCustomer || (!!customerId && !!dueDate));
   useKeyboardShortcuts({ onCheckout: handleCheckout, canCheckout });
 
@@ -222,8 +228,8 @@ export function POSPage() {
             discountType={discountType}
             discountValue={discountValue}
             onDiscountChange={handleDiscountChange}
-            taxPercentage={taxPercentage}
-            onTaxPercentageChange={setTaxPercentage}
+            taxPercentage={totals.effectiveTaxPercentage}
+            onTaxPercentageChange={setTaxOverride}
             paymentMethod={paymentMethod}
             onPaymentMethodChange={setPaymentMethod}
             paymentType={paymentType}

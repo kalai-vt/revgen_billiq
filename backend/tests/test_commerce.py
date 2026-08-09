@@ -128,12 +128,14 @@ def test_invoice_creation_computes_discount_and_tax(client: TestClient) -> None:
     assert invoice["status"] == "paid"
 
 
-def test_invoice_cash_payment_requires_sufficient_amount_tendered(client: TestClient) -> None:
+def test_invoice_cash_payment_allows_insufficient_or_missing_amount_tendered(client: TestClient) -> None:
+    """amount_tendered is an optional change-due convenience for the cashier, never a
+    requirement — the till doesn't refuse a cash sale it can't compute exact change for."""
     owner = _register(client)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers, selling_price=10.0, tax_rate_percent=0.0)
 
-    response = client.post(
+    short = client.post(
         "/api/invoices",
         json={
             "lines": [{"product_id": product["id"], "quantity": 1}],
@@ -142,7 +144,16 @@ def test_invoice_cash_payment_requires_sufficient_amount_tendered(client: TestCl
         },
         headers=headers,
     )
-    assert response.status_code == 400
+    assert short.status_code == 200, short.text
+    assert short.json()["data"]["change_due"] == -5.0
+
+    omitted = client.post(
+        "/api/invoices",
+        json={"lines": [{"product_id": product["id"], "quantity": 1}], "payment_method": "cash"},
+        headers=headers,
+    )
+    assert omitted.status_code == 200, omitted.text
+    assert omitted.json()["data"]["change_due"] is None
 
 
 def test_invoice_pdf_download(client: TestClient) -> None:

@@ -101,15 +101,18 @@ def test_credit_sale_requires_customer(client: TestClient) -> None:
     assert "customer" in response.json()["detail"].lower()
 
 
-def test_credit_sale_requires_credit_enabled_customer(client: TestClient) -> None:
+def test_credit_sale_allowed_without_credit_enabled_customer(client: TestClient) -> None:
+    """is_credit_enabled is an optional per-customer flag (surfaced in Customer > Credit &
+    Outstanding), not a mandatory prerequisite — a partial/credit sale must work for any selected
+    customer regardless of whether it's been toggled on. The real, working guardrails
+    (credit_limit, auto_block_credit, require_manager_approval) are covered separately below."""
     owner = _register(client)
     headers = _headers(owner["access_token"])
     product = _create_product(client, headers)
     customer = _create_customer(client, headers)  # is_credit_enabled defaults False
 
     response = _create_invoice(client, headers, product, payment_type="credit", customer_id=customer["id"])
-    assert response.status_code == 400
-    assert "credit" in response.json()["detail"].lower()
+    assert response.status_code == 200, response.text
 
 
 def test_credit_sale_sets_outstanding_due_date_and_status(client: TestClient) -> None:

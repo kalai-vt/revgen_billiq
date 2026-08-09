@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.catalog import Category, Product
 from app.models.customer import Customer
 from app.models.payment import Payment
-from app.models.returns import Return
+from app.models.returns import Return, ReturnItem
 from app.models.sales import Invoice, InvoiceItem
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -37,11 +37,16 @@ from app.schemas.analytics import (
     TrendPoint,
 )
 
-# Invoices in these statuses count as real sales for revenue-flow KPIs. `cancelled` and
-# `refunded` are excluded; `partial` is included (a partially-paid sale is still a real sale,
-# just not fully collected yet) — this differs from the original dashboard, which only counted
-# `paid` and silently dropped partial/credit sales from revenue entirely.
-_SALE_STATUSES = ("paid", "partial")
+# Invoices in these statuses count as real sales for GROSS revenue-flow KPIs (net-of-returns
+# figures are then derived separately, see _returns_filter/net_sales below). Only `cancelled` is
+# excluded — a voided invoice was never a real transaction. `refunded` must NOT be excluded here
+# despite the name: Invoice.status is set to "refunded"/"partial" by create_return() when all/some
+# of an invoice's items are returned (app/modules/sales/service.py) — it does not mean "payment
+# not collected" (that's the separate `payment_status` field). Excluding it would make a fully
+# returned invoice's original sale amount disappear from gross entirely, which then double-counts
+# against it when the return amount is ALSO subtracted for net — a ₹1000 sale fully returned would
+# incorrectly show total_sales=0 and net_sales=-1000 instead of total_sales=1000, net_sales=0.
+_SALE_STATUSES = ("paid", "partial", "refunded")
 
 
 class AnalyticsError(Exception):
@@ -101,6 +106,21 @@ def _window_filter(window: AnalyticsWindow):
         Invoice.status.in_(_SALE_STATUSES),
         Invoice.created_at >= window.start_utc,
         Invoice.created_at < window.end_utc,
+    )
+
+
+def _returns_filter(window: AnalyticsWindow):
+    # Same period-based convention as get_kpis' net_sales: a return is attributed to the window
+    # it was PROCESSED in, not the window its original sale fell into — a refund issued this
+    # week reduces this week's net figures even if the sale itself was last month. This can make
+    # a single window's net go negative for a product/employee/etc. that had heavy returns and
+    # few new sales in that window; that's consistent with how the existing total_sales/net_sales
+    # KPI pair already behaves, not a new inconsistency introduced here.
+    return (
+        Return.tenant_id == window.tenant_id,
+        Return.status != "cancelled",
+        Return.created_at >= window.start_utc,
+        Return.created_at < window.end_utc,
     )
 
 
@@ -208,6 +228,23 @@ def get_kpis(db: Session, window: AnalyticsWindow) -> DashboardKpis:
     )
 
 
+def _returns_by_day(db: Session, window: AnalyticsWindow) -> dict[date, float]:
+    rows = (
+        db.query(
+            func.date(Return.created_at).label("day"),
+            func.coalesce(func.sum(Return.refund_amount), 0.0).label("returned"),
+        )
+        .filter(*_returns_filter(window))
+        .group_by(func.date(Return.created_at))
+        .all()
+    )
+    result: dict[date, float] = {}
+    for row in rows:
+        day = row.day if isinstance(row.day, date) else date.fromisoformat(str(row.day))
+        result[day] = float(row.returned)
+    return result
+
+
 def _daily_series(db: Session, window: AnalyticsWindow) -> dict[date, tuple[float, int]]:
     rows = (
         db.query(
@@ -219,10 +256,16 @@ def _daily_series(db: Session, window: AnalyticsWindow) -> dict[date, tuple[floa
         .group_by(func.date(Invoice.created_at))
         .all()
     )
+    returned_by_day = _returns_by_day(db, window)
     result: dict[date, tuple[float, int]] = {}
     for row in rows:
         day = row.day if isinstance(row.day, date) else date.fromisoformat(str(row.day))
         result[day] = (float(row.revenue), int(row.order_count))
+    # A day with returns but no sales of its own (e.g. all today's activity was refunding an
+    # earlier sale) still needs to show up as a negative-adjusted point, not be silently absent.
+    for day, returned in returned_by_day.items():
+        revenue, order_count = result.get(day, (0.0, 0))
+        result[day] = (round(revenue - returned, 2), order_count)
     return result
 
 
@@ -297,7 +340,17 @@ def get_hourly_sales(db: Session, window: AnalyticsWindow, tenant: Tenant) -> li
     for created_at, total_amount in rows:
         aware = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
         buckets[aware.astimezone(tz).hour].append(float(total_amount))
-    return [HourlyPoint(hour=h, revenue=sum(amounts), order_count=len(amounts)) for h, amounts in buckets.items()]
+
+    returned_by_hour: dict[int, float] = {h: 0.0 for h in range(24)}
+    return_rows = db.query(Return.created_at, Return.refund_amount).filter(*_returns_filter(window)).all()
+    for created_at, refund_amount in return_rows:
+        aware = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+        returned_by_hour[aware.astimezone(tz).hour] += float(refund_amount)
+
+    return [
+        HourlyPoint(hour=h, revenue=round(sum(amounts) - returned_by_hour[h], 2), order_count=len(amounts))
+        for h, amounts in buckets.items()
+    ]
 
 
 def get_payment_methods(db: Session, window: AnalyticsWindow) -> list[PaymentMethodBreakdown]:
@@ -311,7 +364,43 @@ def get_payment_methods(db: Session, window: AnalyticsWindow) -> list[PaymentMet
         .group_by(Invoice.payment_method)
         .all()
     )
-    return [PaymentMethodBreakdown(method=row.payment_method, amount=float(row.amount), count=row.count) for row in rows]
+    # Refunds are attributed back to the method they were refunded through, same as the sale side
+    # groups by how it was originally paid.
+    returned_rows = (
+        db.query(Return.refund_method, func.coalesce(func.sum(Return.refund_amount), 0.0))
+        .filter(*_returns_filter(window))
+        .group_by(Return.refund_method)
+        .all()
+    )
+    returned_by_method = {method: float(amount) for method, amount in returned_rows}
+    breakdown = {
+        row.payment_method: PaymentMethodBreakdown(
+            method=row.payment_method,
+            amount=round(float(row.amount) - returned_by_method.pop(row.payment_method, 0.0), 2),
+            count=row.count,
+        )
+        for row in rows
+    }
+    # A method with only refunds this window (no new sales via it) still needs to show up negative.
+    for method, returned_amount in returned_by_method.items():
+        breakdown[method] = PaymentMethodBreakdown(method=method, amount=round(-returned_amount, 2), count=0)
+    return list(breakdown.values())
+
+
+def _returns_by_product(db: Session, window: AnalyticsWindow) -> dict[str, tuple[float, float]]:
+    """product_id -> (quantity_returned, refund_amount), for returns processed within the window."""
+    rows = (
+        db.query(
+            ReturnItem.product_id,
+            func.coalesce(func.sum(ReturnItem.quantity_returned), 0.0),
+            func.coalesce(func.sum(ReturnItem.line_refund_amount), 0.0),
+        )
+        .join(Return, Return.id == ReturnItem.return_id)
+        .filter(*_returns_filter(window))
+        .group_by(ReturnItem.product_id)
+        .all()
+    )
+    return {product_id: (float(qty), float(amount)) for product_id, qty, amount in rows}
 
 
 def get_top_products(db: Session, window: AnalyticsWindow, limit: int = 5) -> list[TopProduct]:
@@ -330,13 +419,17 @@ def get_top_products(db: Session, window: AnalyticsWindow, limit: int = 5) -> li
         .limit(limit)
         .all()
     )
-    return [
-        TopProduct(
-            product_id=row.product_id, name=row.product_name, identifier_value=row.identifier_value,
-            qty_sold=float(row.qty_sold), revenue=float(row.revenue),
+    returns_by_product = _returns_by_product(db, window)
+    result = []
+    for row in rows:
+        returned_qty, returned_amount = returns_by_product.get(row.product_id, (0.0, 0.0))
+        result.append(
+            TopProduct(
+                product_id=row.product_id, name=row.product_name, identifier_value=row.identifier_value,
+                qty_sold=round(float(row.qty_sold) - returned_qty, 2), revenue=round(float(row.revenue) - returned_amount, 2),
+            )
         )
-        for row in rows
-    ]
+    return result
 
 
 def get_top_categories(db: Session, window: AnalyticsWindow, limit: int = 5) -> list[TopCategory]:
@@ -357,10 +450,30 @@ def get_top_categories(db: Session, window: AnalyticsWindow, limit: int = 5) -> 
         .limit(limit)
         .all()
     )
-    return [
-        TopCategory(category_id=row.category_id, name=row.name or "Uncategorized", qty_sold=float(row.qty_sold), revenue=float(row.revenue))
-        for row in rows
-    ]
+    returns_by_category = (
+        db.query(
+            Product.category_id,
+            func.coalesce(func.sum(ReturnItem.quantity_returned), 0.0),
+            func.coalesce(func.sum(ReturnItem.line_refund_amount), 0.0),
+        )
+        .select_from(ReturnItem)
+        .join(Return, Return.id == ReturnItem.return_id)
+        .join(Product, Product.id == ReturnItem.product_id)
+        .filter(*_returns_filter(window))
+        .group_by(Product.category_id)
+        .all()
+    )
+    returns_map = {category_id: (float(qty), float(amount)) for category_id, qty, amount in returns_by_category}
+    result = []
+    for row in rows:
+        returned_qty, returned_amount = returns_map.get(row.category_id, (0.0, 0.0))
+        result.append(
+            TopCategory(
+                category_id=row.category_id, name=row.name or "Uncategorized",
+                qty_sold=round(float(row.qty_sold) - returned_qty, 2), revenue=round(float(row.revenue) - returned_amount, 2),
+            )
+        )
+    return result
 
 
 def get_sales_by_employee(db: Session, window: AnalyticsWindow, limit: int = 10) -> list[EmployeeSales]:
@@ -379,8 +492,20 @@ def get_sales_by_employee(db: Session, window: AnalyticsWindow, limit: int = 10)
         .limit(limit)
         .all()
     )
+    # Attributed to whoever made the ORIGINAL sale, not whoever processed the return.
+    returns_by_employee = dict(
+        db.query(Invoice.created_by, func.coalesce(func.sum(Return.refund_amount), 0.0))
+        .join(Return, Return.invoice_id == Invoice.id)
+        .filter(*_returns_filter(window))
+        .group_by(Invoice.created_by)
+        .all()
+    )
     return [
-        EmployeeSales(user_id=row.created_by, name=f"{row.first_name} {row.last_name}".strip(), revenue=float(row.revenue), order_count=int(row.order_count))
+        EmployeeSales(
+            user_id=row.created_by, name=f"{row.first_name} {row.last_name}".strip(),
+            revenue=round(float(row.revenue) - float(returns_by_employee.get(row.created_by, 0.0)), 2),
+            order_count=int(row.order_count),
+        )
         for row in rows
     ]
 
@@ -544,7 +669,7 @@ def get_trend_comparison(db: Session, tenant: Tenant, unit: ComparisonUnit) -> T
     previous_kpis = get_kpis(db, previous_window)
 
     metric_defs: list[tuple[str, str, float, float]] = [
-        ("revenue", "Revenue", current_kpis.total_sales, previous_kpis.total_sales),
+        ("revenue", "Revenue", current_kpis.net_sales, previous_kpis.net_sales),
         ("orders", "Orders", float(current_kpis.total_orders), float(previous_kpis.total_orders)),
         ("customers", "Customers", float(current_kpis.new_customers), float(previous_kpis.new_customers)),
         ("average_order_value", "Average Order Value", current_kpis.average_order_value, previous_kpis.average_order_value),

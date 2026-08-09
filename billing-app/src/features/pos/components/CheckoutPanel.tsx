@@ -81,10 +81,9 @@ export function CheckoutPanel({
   onCustomerSelect,
 }: CheckoutPanelProps) {
   const requiresCustomer = outstandingEnabled && paymentType !== 'paid';
-  const canCheckout =
-    lines.length > 0 &&
-    (paymentType !== 'paid' || paymentMethod !== 'cash' || (amountTendered !== null && amountTendered >= totals.total)) &&
-    (!requiresCustomer || (!!customerId && !!dueDate));
+  // Amount tendered is a cashier balance/change aid only — it must never block checkout, even
+  // for the paid-in-full + cash default.
+  const canCheckout = lines.length > 0 && (!requiresCustomer || (!!customerId && !!dueDate));
 
   return (
     <div className="flex h-full flex-col gap-1.5 overflow-y-auto scrollbar-thin">
@@ -95,10 +94,7 @@ export function CheckoutPanel({
             {requiresCustomer && !customerId && (
               <p className="text-xs text-destructive">A customer must be selected for a partial or credit sale.</p>
             )}
-            {requiresCustomer && selectedCustomer && !selectedCustomer.is_credit_enabled && (
-              <p className="text-xs text-destructive">'{selectedCustomer.name}' is not enabled for credit sales — check Customer Settings.</p>
-            )}
-            {requiresCustomer && selectedCustomer?.is_credit_enabled && selectedCustomer.credit_limit != null && (
+            {requiresCustomer && selectedCustomer && selectedCustomer.credit_limit != null && (
               <p className="text-xs text-muted-foreground">
                 Current outstanding: {selectedCustomer.outstanding_amount.toFixed(2)} / limit {selectedCustomer.credit_limit.toFixed(2)}
               </p>

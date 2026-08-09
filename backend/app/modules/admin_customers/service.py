@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.timeutils import days_remaining
+from app.models.returns import Return
 from app.models.sales import Invoice
 from app.models.customer import Customer
 from app.models.settings import Settings
@@ -94,6 +95,11 @@ def get_customer_profile(db: Session, tenant_id: str) -> dict[str, Any]:
     monthly_revenue = (
         db.query(func.coalesce(func.sum(Invoice.total_amount), 0.0))
         .filter(Invoice.tenant_id == tenant_id, Invoice.created_at >= month_start)
+        .scalar()
+        or 0.0
+    ) - (
+        db.query(func.coalesce(func.sum(Return.refund_amount), 0.0))
+        .filter(Return.tenant_id == tenant_id, Return.status != "cancelled", Return.created_at >= month_start)
         .scalar()
         or 0.0
     )

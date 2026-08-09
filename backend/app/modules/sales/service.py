@@ -300,8 +300,14 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
     if payload.payment_type != "paid":
         if customer is None:
             raise SalesError(400, "A customer must be selected for a partial or credit sale")
-        if not customer.is_credit_enabled:
-            raise SalesError(400, f"'{customer.name}' is not enabled for credit sales")
+        # is_credit_enabled is deliberately not checked here. Requiring it flipped on before *any*
+        # partial/credit sale made the feature's other guardrails effectively unreachable in
+        # practice — a shop owner picks a customer, chooses "pay later", and hits a hard block
+        # with no indication a separate per-customer toggle (buried in Customer > Credit &
+        # Outstanding) needs to be found and flipped first. The optional guardrails this gate was
+        # meant to lead into — credit_limit, auto_block_credit, require_manager_approval — are
+        # still fully enforced below via _check_credit_limit; only the mandatory on/off prerequisite
+        # is removed.
         if payload.due_date is None:
             raise SalesError(400, "A due date is required for a partial or credit sale")
         if payload.paid_now > total_amount:
@@ -403,9 +409,9 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
                 reference_id=invoice.id,
             )
 
-    if payload.payment_type == "paid" and payload.payment_method == "cash":
-        if payload.amount_tendered is None or payload.amount_tendered < invoice.total_amount:
-            raise SalesError(400, "Amount tendered must be provided and cover the total for cash payments")
+    # Amount tendered is an optional cashier convenience (change-due calculation) only, never a
+    # requirement to complete the sale — the till doesn't refuse cash it can't make change for.
+    if payload.payment_type == "paid" and payload.payment_method == "cash" and payload.amount_tendered is not None:
         invoice.change_due = round(payload.amount_tendered - invoice.total_amount, 2)
 
     db.add(invoice)

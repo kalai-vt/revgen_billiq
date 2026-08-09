@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.catalog import Product
 from app.models.inventory import Inventory
 from app.models.procurement import PurchaseEntry, PurchaseEntryItem, PurchaseReturn, Vendor
+from app.models.returns import Return, ReturnItem
 from app.models.sales import Invoice, InvoiceItem
 from app.schemas.procurement_analytics import (
     GstReportRow,
@@ -36,7 +37,11 @@ def _received_purchases_query(db: Session, tenant_id: str, date_from: date, date
 def _gross_profit(db: Session, tenant_id: str, date_from: date, date_to: date) -> tuple[float, float]:
     """Approximate gross profit = pre-tax sale revenue minus COGS at *current* product cost price
     (not a historical snapshot — see Phase 1's weighted-average costing note). Directionally
-    correct; shifts slightly as later purchases change a product's average cost."""
+    correct; shifts slightly as later purchases change a product's average cost.
+
+    Revenue and COGS both net out returns processed in this window (ReturnItem.quantity_returned)
+    — a returned, restocked unit was never actually sold, so it shouldn't count as revenue or as
+    cost of goods *sold* either."""
     rows = (
         db.query(InvoiceItem.line_subtotal, InvoiceItem.quantity, Product.cost_price)
         .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
@@ -51,6 +56,26 @@ def _gross_profit(db: Session, tenant_id: str, date_from: date, date_to: date) -
     )
     revenue = sum(r[0] for r in rows)
     cogs = sum(r[1] * r[2] for r in rows)
+
+    # Uses InvoiceItem.unit_price (pre-tax, pre-discount) rather than ReturnItem.line_refund_amount
+    # — the latter is the actual money refunded, which includes tax/discount adjustments and would
+    # be dimensionally inconsistent subtracted from the pre-tax `revenue`/`cogs` above.
+    return_rows = (
+        db.query(ReturnItem.quantity_returned, InvoiceItem.unit_price, Product.cost_price)
+        .join(Return, Return.id == ReturnItem.return_id)
+        .join(InvoiceItem, InvoiceItem.id == ReturnItem.invoice_item_id)
+        .join(Product, Product.id == ReturnItem.product_id)
+        .filter(
+            Return.tenant_id == tenant_id,
+            Return.status != "cancelled",
+            func.date(Return.created_at) >= date_from,
+            func.date(Return.created_at) <= date_to,
+        )
+        .all()
+    )
+    revenue -= sum(r[0] * r[1] for r in return_rows)
+    cogs -= sum(r[0] * r[2] for r in return_rows)
+
     gross_profit = round(revenue - cogs, 2)
     margin = round((gross_profit / revenue) * 100, 2) if revenue > 0 else 0.0
     return gross_profit, margin
