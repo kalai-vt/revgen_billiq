@@ -416,8 +416,19 @@ def get_tenant_feature_summary(db: Session, tenant_id: str) -> dict[str, Any]:
 
 
 def reset_to_plan_defaults(
-    db: Session, tenant_id: str, admin: AdminUser, reason: str | None = None, module_keys: list[str] | None = None
+    db: Session,
+    tenant_id: str,
+    *,
+    admin_id: str,
+    admin_name: str,
+    reason: str | None = None,
+    module_keys: list[str] | None = None,
 ) -> None:
+    """Deletes this tenant's TenantFeatureFlag override rows (all of them, or just `module_keys`),
+    dropping every affected module back to whatever its current plan grants by default. Takes
+    admin_id/admin_name directly rather than an AdminUser instance so callers outside this module
+    (e.g. admin_subscriptions.service, which changes a tenant's plan) don't need to round-trip
+    through the admin DB just to call this."""
     _get_tenant(db, tenant_id)
     query = db.query(TenantFeatureFlag).filter(TenantFeatureFlag.tenant_id == tenant_id)
     if module_keys is not None:
@@ -431,8 +442,8 @@ def reset_to_plan_defaults(
                 action="reset_to_default",
                 previous_state=_flag_state(flag),
                 new_state=None,
-                changed_by_admin_id=admin.id,
-                changed_by_admin_name=_admin_name(admin),
+                changed_by_admin_id=admin_id,
+                changed_by_admin_name=admin_name,
                 reason=reason or "Reset to plan defaults",
             )
         )

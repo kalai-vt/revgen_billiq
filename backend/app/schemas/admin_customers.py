@@ -12,6 +12,9 @@ class AdminCustomerListItem(BaseModel):
     owner_email: str
     plan: str
     status: str
+    subscription_status: str
+    trial_ends_at: datetime | None
+    days_remaining: int | None
     total_invoices: int
     total_users: int
     last_login: datetime | None

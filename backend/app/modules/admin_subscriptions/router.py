@@ -71,6 +71,7 @@ def update_subscription(
         detail = service.update_subscription(
             db,
             tenant_id,
+            admin_id=current_admin.id,
             changed_by=changed_by,
             plan=payload.plan,
             subscription_status=payload.subscription_status,
@@ -177,6 +178,7 @@ def activate_subscription(
             tenant_id,
             plan=payload.plan,
             changed_by=changed_by,
+            admin_id=current_admin.id,
             subscription_ends_at=payload.subscription_ends_at,
             note=payload.note,
         )

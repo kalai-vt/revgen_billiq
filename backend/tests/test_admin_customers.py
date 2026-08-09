@@ -59,6 +59,22 @@ def test_list_customers_returns_registered_tenant(client: TestClient, admin_db_s
     assert "Acme Retail" in companies
 
 
+def test_list_customers_includes_trial_fields(client: TestClient, admin_db_session: Session) -> None:
+    """The Customers page must show trial status at a glance — subscription_status,
+    trial_ends_at, and days_remaining were previously missing entirely from this endpoint
+    (only the dedicated Subscriptions page had them), so a customer's trial could silently run
+    out with nothing on the Customers list hinting at it."""
+    headers = _admin_headers(client, admin_db_session)
+    _register_tenant(client)
+
+    response = client.get("/api/admin/customers", headers=headers)
+    assert response.status_code == 200, response.text
+    row = next(r for r in response.json()["data"] if r["company_name"] == "Acme Retail")
+    assert row["subscription_status"] == "trialing"
+    assert row["trial_ends_at"] is not None
+    assert row["days_remaining"] in (13, 14)
+
+
 def test_get_customer_profile(client: TestClient, admin_db_session: Session) -> None:
     headers = _admin_headers(client, admin_db_session)
     owner = _register_tenant(client)

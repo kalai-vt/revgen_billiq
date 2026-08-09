@@ -140,7 +140,13 @@ def reset_features(
 ) -> dict[str, Any]:
     module_keys = payload.module_keys if payload else None
     try:
-        service.reset_to_plan_defaults(db, tenant_id, current_admin, module_keys=module_keys)
+        service.reset_to_plan_defaults(
+            db,
+            tenant_id,
+            admin_id=current_admin.id,
+            admin_name=f"{current_admin.first_name} {current_admin.last_name}",
+            module_keys=module_keys,
+        )
     except AdminFeatureError as exc:
         _raise(exc)
     _log(admin_db, current_admin, "tenant.features_reset", tenant_id, {"module_keys": module_keys})

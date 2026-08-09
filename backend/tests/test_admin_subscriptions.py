@@ -101,3 +101,92 @@ def test_invalid_plan_rejected(client: TestClient, admin_db_session: Session) ->
 
     response = client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": "enterprise"}, headers=headers)
     assert response.status_code == 400
+
+
+def test_setting_plan_to_basic_resets_module_overrides_to_basic_defaults(
+    client: TestClient, admin_db_session: Session
+) -> None:
+    """A tenant's module access must actually match the plan an admin assigns — a stale
+    TenantFeatureFlag override from a previous tier (e.g. "inventory" left enabled from an
+    earlier Advanced stint) must not silently survive being set back to Basic."""
+    headers = _admin_headers(client, admin_db_session)
+    owner = _register_tenant(client)
+    tenant_id = owner["tenant"]["id"]
+
+    # Grant an Advanced-only module explicitly while still on Basic.
+    grant = client.put(
+        f"/api/admin/customers/{tenant_id}/features/inventory", json={"status": "enabled"}, headers=headers
+    )
+    assert grant.status_code == 200, grant.text
+    features = {row["module_key"]: row for row in client.get(f"/api/admin/customers/{tenant_id}/features", headers=headers).json()["data"]}
+    assert features["inventory"]["status"] == "enabled"
+    assert features["inventory"]["is_custom"] is True
+
+    # Re-assigning the (unchanged) plan value must not touch it...
+    client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": "basic"}, headers=headers)
+    features = {row["module_key"]: row for row in client.get(f"/api/admin/customers/{tenant_id}/features", headers=headers).json()["data"]}
+    assert features["inventory"]["is_custom"] is True
+
+    # ...but upgrading then explicitly setting back to basic must reset it.
+    client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": "advance"}, headers=headers)
+    reset = client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": "basic"}, headers=headers)
+    assert reset.status_code == 200, reset.text
+    features = {row["module_key"]: row for row in client.get(f"/api/admin/customers/{tenant_id}/features", headers=headers).json()["data"]}
+    assert features["inventory"]["is_custom"] is False
+    assert features["inventory"]["status"] == "disabled"
+    # Basic's own named modules are still (correctly) enabled via plan defaults, not overrides.
+    assert features["pos_billing"]["status"] == "enabled"
+    assert features["pos_billing"]["is_custom"] is False
+
+
+def test_setting_plan_to_advance_resets_module_overrides_to_advance_defaults(
+    client: TestClient, admin_db_session: Session
+) -> None:
+    headers = _admin_headers(client, admin_db_session)
+    owner = _register_tenant(client)
+    tenant_id = owner["tenant"]["id"]
+
+    # Explicitly disable a module Advanced would otherwise grant by default.
+    client.put(f"/api/admin/customers/{tenant_id}/features/inventory", json={"status": "disabled"}, headers=headers)
+
+    response = client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": "advance"}, headers=headers)
+    assert response.status_code == 200, response.text
+    features = {row["module_key"]: row for row in client.get(f"/api/admin/customers/{tenant_id}/features", headers=headers).json()["data"]}
+    assert features["inventory"]["status"] == "enabled"
+    assert features["inventory"]["is_custom"] is False
+
+
+def test_setting_plan_to_custom_preserves_existing_module_overrides(
+    client: TestClient, admin_db_session: Session
+) -> None:
+    """Custom is the one tier the admin hand-picks modules for — switching a tenant onto it must
+    never wipe whatever overrides they already have."""
+    headers = _admin_headers(client, admin_db_session)
+    owner = _register_tenant(client)
+    tenant_id = owner["tenant"]["id"]
+
+    client.put(f"/api/admin/customers/{tenant_id}/features/inventory", json={"status": "enabled"}, headers=headers)
+
+    response = client.put(f"/api/admin/customers/{tenant_id}/subscription", json={"plan": "custom"}, headers=headers)
+    assert response.status_code == 200, response.text
+    features = {row["module_key"]: row for row in client.get(f"/api/admin/customers/{tenant_id}/features", headers=headers).json()["data"]}
+    assert features["inventory"]["status"] == "enabled"
+    assert features["inventory"]["is_custom"] is True
+
+
+def test_activate_subscription_resets_module_overrides_on_plan_change(
+    client: TestClient, admin_db_session: Session
+) -> None:
+    headers = _admin_headers(client, admin_db_session)
+    owner = _register_tenant(client)
+    tenant_id = owner["tenant"]["id"]
+
+    client.put(f"/api/admin/customers/{tenant_id}/features/inventory", json={"status": "enabled"}, headers=headers)
+
+    response = client.post(
+        f"/api/admin/customers/{tenant_id}/subscription/activate", json={"plan": "basic"}, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    features = {row["module_key"]: row for row in client.get(f"/api/admin/customers/{tenant_id}/features", headers=headers).json()["data"]}
+    assert features["inventory"]["is_custom"] is False
+    assert features["inventory"]["status"] == "disabled"

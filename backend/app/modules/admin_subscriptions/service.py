@@ -7,14 +7,32 @@ from sqlalchemy.orm import Session
 
 from app.core.limits import LIMIT_KEYS, get_effective_limits
 from app.core.plans import PLAN_IDS, get_plan
-from app.core.timeutils import as_aware_utc
+from app.core.timeutils import as_aware_utc, days_remaining as _days_remaining
 from app.models.settings import Settings
 from app.models.subscription_event import SubscriptionEvent
 from app.models.tenant import Tenant
 from app.models.subscription_payment import SubscriptionPayment
 from app.models.tenant_limit import TenantLimitOverride
+from app.modules.admin_features.service import reset_to_plan_defaults
 
 SUBSCRIPTION_STATUSES = ("trialing", "active", "suspended", "expired", "cancelled")
+
+# Basic and Advanced are the two platform-defined tiers with a real default module set (see
+# PLAN_DEFAULT_MODULES in feature_catalog.py) — assigning a tenant to one of them should mean
+# exactly that tier's modules, not whatever this tenant's TenantFeatureFlag overrides happened to
+# be left at from before (e.g. a leftover "advance"-tier override surviving a downgrade to
+# "basic"). Custom is deliberately excluded: its entire purpose is that the admin hand-picks
+# modules per-tenant (PHASE 10 of the trial/subscription spec), so setting a tenant to "custom"
+# must never touch their existing overrides.
+_PLANS_WITH_ENFORCED_DEFAULTS = ("basic", "advance")
+
+
+def _reset_features_for_plan_change(db: Session, tenant_id: str, plan: str, *, admin_id: str, admin_name: str) -> None:
+    if plan not in _PLANS_WITH_ENFORCED_DEFAULTS:
+        return
+    reset_to_plan_defaults(
+        db, tenant_id, admin_id=admin_id, admin_name=admin_name, reason=f"Plan changed to {plan}: reset to plan defaults"
+    )
 
 
 def _now() -> datetime:
@@ -29,13 +47,6 @@ class AdminSubscriptionError(Exception):
 
 def _price_for(plan_id: str) -> int:
     return get_plan(plan_id)["price_inr"]
-
-
-def _days_remaining(trial_ends_at: datetime | None) -> int | None:
-    if trial_ends_at is None:
-        return None
-    delta = as_aware_utc(trial_ends_at) - _now()
-    return max(delta.days, 0) if delta.total_seconds() > 0 else 0
 
 
 # PHASE 21 dashboard filters. "expiring_soon" mirrors the cron's own 3-day warning window
@@ -127,6 +138,7 @@ def update_subscription(
     db: Session,
     tenant_id: str,
     *,
+    admin_id: str | None = None,
     changed_by: str,
     plan: str | None,
     subscription_status: str | None,
@@ -149,8 +161,9 @@ def update_subscription(
 
     from_plan, from_status = settings_row.plan, settings_row.subscription_status
     event_type = event_type_override or "updated"
+    plan_changed = plan is not None and plan != settings_row.plan
 
-    if plan is not None and plan != settings_row.plan:
+    if plan_changed:
         if event_type_override is None:
             event_type = "upgrade" if _price_for(plan) > _price_for(settings_row.plan) else "downgrade"
         settings_row.plan = plan
@@ -180,6 +193,8 @@ def update_subscription(
         )
     )
     db.commit()
+    if plan_changed and admin_id is not None:
+        _reset_features_for_plan_change(db, tenant_id, plan, admin_id=admin_id, admin_name=changed_by)
     return get_subscription(db, tenant_id)
 
 
@@ -260,6 +275,7 @@ def activate_subscription(
     *,
     plan: str,
     changed_by: str,
+    admin_id: str,
     subscription_ends_at: datetime | None = None,
     note: str | None = None,
 ) -> dict[str, Any]:
@@ -305,6 +321,11 @@ def activate_subscription(
         )
     )
     db.commit()
+    # Unconditional on plan actually changing (unlike update_subscription's plan_changed guard) —
+    # activation is inherently a fresh-state moment (PHASE 13: post-payment activate/reactivate),
+    # and can legitimately re-select the same plan a suspended/expired tenant was already on. Any
+    # module overrides that accumulated before the lapse shouldn't survive a fresh activation.
+    _reset_features_for_plan_change(db, tenant_id, plan, admin_id=admin_id, admin_name=changed_by)
     return get_subscription(db, tenant_id)
 
 

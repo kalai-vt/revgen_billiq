@@ -7,6 +7,9 @@ export interface AdminCustomerListItem {
   owner_email: string;
   plan: string;
   status: string;
+  subscription_status: string;
+  trial_ends_at: string | null;
+  days_remaining: number | null;
   total_invoices: number;
   total_users: number;
   last_login: string | null;

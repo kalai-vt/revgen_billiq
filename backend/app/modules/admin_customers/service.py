@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.timeutils import days_remaining
 from app.models.sales import Invoice
 from app.models.customer import Customer
 from app.models.settings import Settings
@@ -34,6 +35,15 @@ def _get_plan(db: Session, tenant_id: str) -> str:
     return row[0] if row else "basic"
 
 
+def _get_billing(db: Session, tenant_id: str) -> tuple[str, str, Any]:
+    row = (
+        db.query(Settings.plan, Settings.subscription_status, Settings.trial_ends_at)
+        .filter(Settings.tenant_id == tenant_id)
+        .first()
+    )
+    return (row[0], row[1], row[2]) if row else ("basic", "trialing", None)
+
+
 def list_customers(db: Session, search: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
     query = db.query(Tenant).filter(Tenant.is_deleted.is_(False))
     if status:
@@ -48,14 +58,18 @@ def list_customers(db: Session, search: str | None = None, status: str | None = 
         owner = _get_owner(db, tenant.id)
         total_invoices = db.query(func.count(Invoice.id)).filter(Invoice.tenant_id == tenant.id).scalar() or 0
         total_users = db.query(func.count(User.id)).filter(User.tenant_id == tenant.id).scalar() or 0
+        plan, subscription_status, trial_ends_at = _get_billing(db, tenant.id)
         results.append(
             {
                 "tenant_id": tenant.id,
                 "company_name": tenant.company_name,
                 "owner_name": f"{owner.first_name} {owner.last_name}" if owner else None,
                 "owner_email": owner.email if owner else tenant.email,
-                "plan": _get_plan(db, tenant.id),
+                "plan": plan,
                 "status": tenant.status,
+                "subscription_status": subscription_status,
+                "trial_ends_at": trial_ends_at,
+                "days_remaining": days_remaining(trial_ends_at),
                 "total_invoices": total_invoices,
                 "total_users": total_users,
                 "last_login": owner.last_login if owner else None,

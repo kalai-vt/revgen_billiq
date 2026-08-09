@@ -20,6 +20,42 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Mirrors the "expiring soon" threshold used by the cron's own trial-warning window and the
+// Subscriptions dashboard's filter (internal_cron/service.py TRIAL_WARNING_WINDOW) — a customer
+// row and the dedicated Subscriptions page should agree on what counts as "soon".
+const EXPIRING_SOON_DAYS = 3;
+
+function BillingBadge({
+  subscriptionStatus,
+  daysRemaining,
+}: {
+  subscriptionStatus: string;
+  daysRemaining: number | null;
+}) {
+  if (subscriptionStatus === 'trialing') {
+    const expiringSoon = daysRemaining !== null && daysRemaining <= EXPIRING_SOON_DAYS;
+    const label =
+      daysRemaining === null
+        ? 'Trial'
+        : daysRemaining === 0
+          ? 'Trial ends today'
+          : `Trial: ${daysRemaining}d left`;
+    return (
+      <Badge variant={expiringSoon ? 'destructive' : 'secondary'}>{label}</Badge>
+    );
+  }
+  if (subscriptionStatus === 'suspended') {
+    return <Badge variant="destructive">Suspended</Badge>;
+  }
+  if (subscriptionStatus === 'expired') {
+    return <Badge variant="destructive">Trial expired</Badge>;
+  }
+  if (subscriptionStatus === 'cancelled') {
+    return <Badge variant="outline">Cancelled</Badge>;
+  }
+  return <Badge variant="outline">Active</Badge>;
+}
+
 export function CustomersPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -78,6 +114,7 @@ export function CustomersPage() {
                 <TableHead>Owner</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Billing</TableHead>
                 <TableHead>Invoices</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Joined</TableHead>
@@ -86,7 +123,7 @@ export function CustomersPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
                     No customers found.
                   </TableCell>
                 </TableRow>
@@ -109,6 +146,9 @@ export function CustomersPage() {
                       <Badge variant={row.status === 'active' ? 'default' : 'destructive'} className="capitalize">
                         {row.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <BillingBadge subscriptionStatus={row.subscription_status} daysRemaining={row.days_remaining} />
                     </TableCell>
                     <TableCell className="tabular-nums">{row.total_invoices}</TableCell>
                     <TableCell className="tabular-nums">{row.total_users}</TableCell>
