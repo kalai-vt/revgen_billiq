@@ -50,6 +50,7 @@ from app.modules.commerce.dashboard_router import router as commerce_dashboard_r
 from app.modules.commerce.orders_router import router as commerce_orders_router
 from app.modules.commerce.webhooks_router import router as commerce_webhooks_router
 from app.modules.customers.router import router as customers_router
+from app.modules.internal_bootstrap.router import router as internal_bootstrap_router
 from app.modules.internal_cron.router import router as internal_cron_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.invoice_designer.router import router as invoice_designer_router
@@ -162,6 +163,7 @@ app.include_router(customers_router)
 app.include_router(payments_router)
 app.include_router(inventory_router)
 app.include_router(internal_cron_router)
+app.include_router(internal_bootstrap_router)
 app.include_router(procurement_vendors_router)
 app.include_router(procurement_purchases_router)
 app.include_router(procurement_returns_router)
