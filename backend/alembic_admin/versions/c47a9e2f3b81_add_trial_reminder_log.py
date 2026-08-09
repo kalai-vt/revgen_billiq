@@ -1,7 +1,7 @@
 """add trial reminder log
 
 Revision ID: c47a9e2f3b81
-Revises: 98d0de5b3882
+Revises: c3d4e5f6a7b8
 Create Date: 2026-08-09 00:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'c47a9e2f3b81'
-down_revision: Union[str, Sequence[str], None] = '98d0de5b3882'
+down_revision: Union[str, Sequence[str], None] = 'c3d4e5f6a7b8'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
