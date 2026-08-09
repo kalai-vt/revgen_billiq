@@ -33,7 +33,7 @@ def _verify_secret(request: Request) -> None:
 
 
 class BootstrapRequest(BaseModel):
-    action: Literal["create", "delete"]
+    action: Literal["create", "deactivate"]
     email: str
     password: str | None = None
     first_name: str = "Agent"
@@ -63,9 +63,15 @@ def bootstrap(
         admin_db.commit()
         return make_response(True, "Temporary admin created", {"id": admin.id, "email": admin.email})
 
+    # deactivate, not delete: this admin may already have AdminAuditLog rows referencing its id
+    # (e.g. from actions taken during the investigation) — hard-deleting the row breaks that FK
+    # and the audit trail is exactly what should survive. is_active=False + status="suspended"
+    # is the same effect admin_staff.service.set_active_status() uses, and login already checks it.
     admin = admin_db.query(AdminUser).filter(AdminUser.email == payload.email).first()
     if not admin:
         raise HTTPException(status_code=404, detail="No admin with this email")
-    admin_db.delete(admin)
+    admin.is_active = False
+    admin.status = "suspended"
+    admin_db.add(admin)
     admin_db.commit()
-    return make_response(True, "Temporary admin deleted", None)
+    return make_response(True, "Temporary admin deactivated", None)
