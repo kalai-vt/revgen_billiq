@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from alembic import command
@@ -62,18 +61,19 @@ def apply_pending_admin_migrations() -> None:
 
 
 def apply_all_pending_migrations() -> None:
-    """Runs both migration checks concurrently instead of back-to-back.
+    """Runs both migration checks back-to-back, in the same thread.
 
-    Every cold start (Vercel serverless, or local `uvicorn --reload`) pays for two separate
-    Postgres connections here before the process can serve its first request — each one is also
-    the request most likely to hit Neon's own connection-wake latency after the compute has
-    auto-suspended from inactivity. The two databases are entirely independent (different
-    alembic.ini, different connection, no shared state beyond Python's own logging, which is
-    thread-safe), so there's no reason to pay that cost twice sequentially — running them on two
-    threads overlaps the network-bound wait instead of adding it.
+    A prior version of this ran the two `command.upgrade()` calls concurrently in a
+    `ThreadPoolExecutor` to overlap their network-bound waits on cold start. That's unsafe:
+    Alembic's `context`/`op` objects (imported as `from alembic import context` in both
+    alembic/env.py and alembic_admin/env.py) are process-global proxies, not per-call isolated —
+    `EnvironmentContext.configure()` from one thread clobbers the "current" context the other
+    thread is mid-way through using. This caused a real production incident (2026-08-09):
+    the admin migration failed with a literal `KeyError: 'config'` (its context got overwritten
+    mid-setup) while the tenant migration's transaction aborted partway through
+    (`current transaction is aborted, commands ignored until end of transaction block`) — both
+    symptoms of the two threads interleaving inside Alembic's shared state. Sequential execution
+    costs a bit more cold-start latency but is correct.
     """
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        tenant_future = pool.submit(apply_pending_migrations)
-        admin_future = pool.submit(apply_pending_admin_migrations)
-        tenant_future.result()
-        admin_future.result()
+    apply_pending_migrations()
+    apply_pending_admin_migrations()
