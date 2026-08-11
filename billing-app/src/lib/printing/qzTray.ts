@@ -1,5 +1,6 @@
 import qz from 'qz-tray';
 import { getCertificate, sign } from '@/lib/printing/qzTraySigning';
+import { checkLocalNetworkAccess } from '@/lib/printing/lna';
 
 /** Thin wrapper around the QZ Tray browser SDK. QZ Tray is a locally-installed desktop app; when
  * it isn't running, every call here rejects and callers should fall back to the existing browser
@@ -83,6 +84,30 @@ export async function isAvailable(timeoutMs = 2500): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Distinguishes *why* a connection isn't up yet — critical because "QZ Tray's own trust
+ * dialog needs a click" and "Chrome is blocking this at the browser level" look identical as a
+ * plain connect() rejection, but need completely different explanations to a cashier (see
+ * docs/qz-tray-production-setup.md). Never throws. */
+export type QzConnectionState = 'lna-denied' | 'lna-prompt' | 'connected' | 'unavailable';
+
+/** Checks Local Network Access *before* attempting a websocket connection, so a doomed
+ * connection never sits blocked for the full timeout while Chrome silently waits on a
+ * permission that was already denied. When the result is 'lna-prompt', callers should show an
+ * explainer and only call `connect()` on a direct, subsequent user click — Chrome surfaces the
+ * LNA prompt more reliably on a real user gesture than inside an automatic effect. */
+export async function connectWithDiagnostics(timeoutMs = 60_000): Promise<QzConnectionState> {
+  if (isActive()) return 'connected';
+  const lna = await checkLocalNetworkAccess();
+  if (lna === 'denied') return 'lna-denied';
+  if (lna === 'prompt') return 'lna-prompt';
+  try {
+    await connect(timeoutMs);
+    return 'connected';
+  } catch {
+    return 'unavailable';
   }
 }
 

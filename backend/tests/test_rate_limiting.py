@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.rate_limit import limiter
+from tests.conftest import register_and_activate_standalone
 
 
 @pytest.fixture()
@@ -45,4 +46,24 @@ def test_register_rate_limited_after_10_per_hour(client: TestClient, rate_limiti
         client.post("/api/auth/register", json=payload)
 
     blocked = client.post("/api/auth/register", json=payload)
+    assert blocked.status_code == 429
+
+
+def test_qz_certificate_rate_limited_after_30_per_minute(client: TestClient, rate_limiting_enabled) -> None:
+    # A compromised/misbehaving till repeatedly hitting the signing/certificate endpoints is the
+    # scenario this guards against — see app/modules/printing/router.py.
+    owner = register_and_activate_standalone(
+        client,
+        {
+            "company_name": "Rate Limit Print Co", "legal_name": "Rate Limit Print Co Ltd",
+            "email": "printer-owner@ratelimit.test", "phone": "+15557778888", "password": "StrongPass!123",
+            "first_name": "Rae", "last_name": "Limit", "country": "US", "currency": "USD", "timezone": "UTC",
+        },
+    )
+    headers = {"Authorization": f"Bearer {owner['access_token']}"}
+    for _ in range(30):
+        response = client.get("/api/printing/qz-certificate", headers=headers)
+        assert response.status_code != 429
+
+    blocked = client.get("/api/printing/qz-certificate", headers=headers)
     assert blocked.status_code == 429

@@ -14,6 +14,7 @@ import * as qzTray from '@/lib/printing/qzTray';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { loadDeviceMode, saveDeviceMode, type PrintDeviceMode } from '@/lib/printing/deviceProfile';
+import { buildTestPrintCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { ApiError } from '@/lib/api-client';
 
 const PAPER_SIZE_LABELS: Record<AutoPrintPaperSize, string> = {
@@ -34,6 +35,15 @@ const DEVICE_MODE_LABELS: Record<PrintDeviceMode, string> = {
 
 type QzStatus = 'idle' | 'checking' | 'connected' | 'unavailable';
 type PairStatus = 'idle' | 'pairing' | 'paired' | 'error';
+// Mirrors qzTray.QzConnectionState's LNA branches, plus 'idle' for "haven't checked yet" and
+// 'ok' once a connection has actually been established (LNA must have been granted for that to
+// happen at all).
+type LnaStatus = 'idle' | 'ok' | 'prompt' | 'denied';
+type TestPrintStatus = 'idle' | 'printing';
+
+function isThermalPaperSize(size: AutoPrintPaperSize): size is ThermalPaperSize {
+  return size === '58mm' || size === '80mm';
+}
 
 export function AutoPrintSettingsForm() {
   const queryClient = useQueryClient();
@@ -47,9 +57,11 @@ export function AutoPrintSettingsForm() {
   });
   const [error, setError] = useState<string | null>(null);
   const [qzStatus, setQzStatus] = useState<QzStatus>('idle');
+  const [lnaStatus, setLnaStatus] = useState<LnaStatus>('idle');
   const [printers, setPrinters] = useState<string[]>([]);
   const [deviceMode, setDeviceMode] = useState<PrintDeviceMode>(() => loadDeviceMode());
   const [pairStatus, setPairStatus] = useState<PairStatus>('idle');
+  const [testPrintStatus, setTestPrintStatus] = useState<TestPrintStatus>('idle');
 
   // The printer connection itself is local to this device (see deviceProfile.ts) — check whether
   // it's already paired from a previous visit, separately from the tenant-wide settings below.
@@ -124,16 +136,69 @@ export function AutoPrintSettingsForm() {
     mutation.mutate();
   }
 
-  async function detectPrinters() {
-    setQzStatus('checking');
+  async function finishConnecting() {
     try {
       const found = await qzTray.listPrinters();
       setPrinters(found);
       setQzStatus('connected');
+      setLnaStatus('ok');
       if (found.length === 0) toast.info('QZ Tray is connected but reported no printers.');
     } catch (err) {
       setQzStatus('unavailable');
       toast.error(err instanceof Error ? err.message : 'Could not connect to QZ Tray');
+    }
+  }
+
+  /** Checks Local Network Access before ever attempting a websocket connection — see
+   * qzTray.connectWithDiagnostics — so a browser-level block and a "QZ isn't running" failure
+   * never look like the same generic error to the cashier. */
+  async function detectPrinters() {
+    setQzStatus('checking');
+    const state = await qzTray.connectWithDiagnostics();
+    if (state === 'lna-denied') {
+      setQzStatus('unavailable');
+      setLnaStatus('denied');
+      toast.error('BillIQ needs permission to connect to the local printer service.');
+      return;
+    }
+    if (state === 'lna-prompt') {
+      setQzStatus('idle');
+      setLnaStatus('prompt');
+      return;
+    }
+    if (state === 'unavailable') {
+      setQzStatus('unavailable');
+      toast.error('BillIQ Printer Service is not installed or not running on this computer.');
+      return;
+    }
+    await finishConnecting();
+  }
+
+  /** The explicit user click Chrome needs to reliably surface its own LNA permission prompt —
+   * see docs/qz-tray-production-setup.md. Calls qzTray.connect() directly rather than going
+   * through detectPrinters()/connectWithDiagnostics() again, since the point is to actually
+   * attempt the connection now, in direct response to this click. */
+  async function requestPrinterAccess() {
+    setQzStatus('checking');
+    try {
+      await qzTray.connect();
+      await finishConnecting();
+    } catch (err) {
+      setQzStatus('unavailable');
+      toast.error(err instanceof Error ? err.message : 'Could not connect to QZ Tray');
+    }
+  }
+
+  async function runTestPrint() {
+    if (!form.auto_print_printer_name || !isThermalPaperSize(form.auto_print_paper_size)) return;
+    setTestPrintStatus('printing');
+    try {
+      await qzTray.printRaw(form.auto_print_printer_name, buildTestPrintCommands(form.auto_print_paper_size));
+      toast.success('Test print sent — check the printer.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Secure printer authorization failed. Please contact support.');
+    } finally {
+      setTestPrintStatus('idle');
     }
   }
 
@@ -220,6 +285,48 @@ export function AutoPrintSettingsForm() {
           {qzStatus === 'unavailable' && <Badge variant="destructive">Not detected</Badge>}
         </div>
 
+        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs">
+          <span className="flex items-center gap-1.5">
+            <span
+              className={`size-1.5 rounded-full ${qzStatus === 'connected' ? 'bg-emerald-500' : qzStatus === 'checking' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
+            />
+            QZ Tray: {qzStatus === 'connected' ? 'Connected' : qzStatus === 'checking' ? 'Connecting…' : 'Not connected'}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className={`size-1.5 rounded-full ${lnaStatus === 'ok' ? 'bg-emerald-500' : lnaStatus === 'denied' ? 'bg-destructive' : lnaStatus === 'prompt' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
+            />
+            Local Network Access: {lnaStatus === 'ok' ? 'OK' : lnaStatus === 'denied' ? 'Blocked' : lnaStatus === 'prompt' ? 'Permission required' : 'Not checked'}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className={`size-1.5 rounded-full ${form.auto_print_printer_name && qzStatus === 'connected' ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
+            Printer: {form.auto_print_printer_name && qzStatus === 'connected' ? 'Connected' : form.auto_print_printer_name || 'Not selected'}
+          </span>
+        </div>
+
+        {lnaStatus === 'prompt' && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
+            <p className="font-medium">Printer Connection Required</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              BillIQ needs permission to connect to your local printer service. This is required
+              to print bills to your thermal printer. Chrome will show its own permission prompt —
+              this is separate from QZ Tray's own trust dialog and is a one-time step per browser.
+            </p>
+            <Button type="button" size="sm" className="mt-2" onClick={requestPrinterAccess} disabled={qzStatus === 'checking'}>
+              {qzStatus === 'checking' && <Loader2 className="size-4 animate-spin" />}
+              Allow Printer Access
+            </Button>
+          </div>
+        )}
+
+        {lnaStatus === 'denied' && (
+          <p className="text-xs text-destructive">
+            Chrome previously blocked BillIQ from connecting to the local printer service. Open
+            Chrome's site settings for this page and allow "Local network access", then click
+            Detect again.
+          </p>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Default printer</Label>
@@ -254,6 +361,18 @@ export function AutoPrintSettingsForm() {
               >
                 {qzStatus === 'checking' ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
               </Button>
+              {isThermalPaperSize(form.auto_print_paper_size) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={runTestPrint}
+                  disabled={!form.auto_print_printer_name || qzStatus !== 'connected' || testPrintStatus === 'printing'}
+                  title="Print a test page — never creates an invoice or sale"
+                >
+                  {testPrintStatus === 'printing' && <Loader2 className="size-4 animate-spin" />}
+                  Test Print
+                </Button>
+              )}
             </div>
           </div>
 

@@ -31,6 +31,12 @@ class Settings(BaseSettings):
 
     app_url: str = "http://localhost:5173"
     admin_portal_url: str = "http://localhost:5174"
+    # This backend's own externally-reachable base URL — used only to build the BillIQ
+    # Promotion QR redirect link (app/modules/promotion/), since that link must be scannable
+    # from a customer's phone, not just reachable from inside the app. Must be set to the real
+    # public API origin in production.
+    api_base_url: str = "http://localhost:8010"
+    revgenai_marketing_url: str = "https://revgenai.in/billiq"
     email_provider: str = "console"
     smtp_host: str = ""
     smtp_port: int = 587
