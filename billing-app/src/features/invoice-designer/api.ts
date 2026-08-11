@@ -212,6 +212,22 @@ export interface SignatureConfig {
   show_customer_signature: boolean;
 }
 
+export type PromotionLayout = 'compact' | 'standard' | 'banner';
+export type PromotionSpacing = 'compact' | 'normal' | 'relaxed';
+
+// Per-tenant presentation knobs only — the promotional copy itself (title/description/
+// website/phone/CTA) is centrally managed by RevGenAI, see PromotionContent/getPromotionConfig
+// below, not stored per-tenant.
+export interface BillIQPromotionConfig {
+  enabled: boolean;
+  layout: PromotionLayout;
+  alignment: ColumnAlign;
+  font_size: FontSizeChoice;
+  spacing: PromotionSpacing;
+  separator_line: boolean;
+  qr_enabled: boolean;
+}
+
 export interface ThemeConfig {
   primary_color: string;
   secondary_color: string;
@@ -254,6 +270,7 @@ export interface InvoiceTemplateConfig {
   footer: FooterConfig;
   qr_barcode: QrBarcodeConfig;
   signature: SignatureConfig;
+  billiq_promotion: BillIQPromotionConfig;
   theme: ThemeConfig;
   paper: PaperConfig;
 }
@@ -359,4 +376,22 @@ export function deleteTemplate(id: string): Promise<void> {
 
 export function setDefaultTemplate(id: string): Promise<InvoiceTemplate> {
   return request(`/api/invoice-templates/${id}/set-default`, { method: 'POST' });
+}
+
+// Central, RevGenAI-managed BillIQ promotional content — never tenant-specific. `qr_url` is
+// present only when the caller is authenticated as a tenant user (see backend
+// app/modules/promotion/router.py's optional-auth resolution) — it's the tenant's own
+// scan-tracked redirect link, omitted entirely for anonymous callers (e.g. a public preview).
+export interface PromotionContent {
+  version: string;
+  title: string;
+  description: string;
+  website: string;
+  phone: string;
+  cta_text: string;
+  qr_url: string | null;
+}
+
+export function getPromotionConfig(): Promise<PromotionContent> {
+  return request('/api/v1/promotion/config');
 }

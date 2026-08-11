@@ -4,6 +4,7 @@ import io
 from xml.sax.saxutils import escape as xml_escape
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, A5, landscape, legal, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -11,10 +12,14 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 
 from app.core.formatting import format_amount
 from app.core.pdf_utils import logo_flowable
+from app.models.promotion import PromotionConfig
 from app.models.settings import Settings
 from app.models.tenant import Tenant
 from app.modules.invoice_designer.document_data import DocumentData
-from app.schemas.invoice_template import InvoiceTemplateConfig, PaperConfig
+from app.schemas.invoice_template import BillIQPromotionConfig, InvoiceTemplateConfig, PaperConfig
+
+_PROMOTION_FONT_SIZES = {"sm": 8, "md": 10, "lg": 13}
+_PROMOTION_SPACING_MM = {"compact": 1.0, "normal": 2.0, "relaxed": 3.5}
 
 _ITEM_COLUMN_LABELS = {
     "row_number": "#", "product": "Item", "sku": "SKU", "barcode": "Barcode", "hsn_sac": "HSN/SAC",
@@ -23,6 +28,7 @@ _ITEM_COLUMN_LABELS = {
     "tax": "Tax", "amount": "Amount",
 }
 _ALIGN_MAP = {"left": "LEFT", "center": "CENTER", "right": "RIGHT"}
+_PARA_ALIGN = {"LEFT": TA_LEFT, "CENTER": TA_CENTER, "RIGHT": TA_RIGHT}
 
 _TAX_SUMMARY_LABELS = {
     "subtotal": "Subtotal", "discount": "Discount", "cgst": "CGST", "sgst": "SGST", "igst": "IGST",
@@ -65,6 +71,89 @@ def _barcode_flowable(value: str, width: float = 55 * mm, height: float = 14 * m
         return None
 
 
+def _promotion_flowables(
+    promo: PromotionConfig,
+    config: BillIQPromotionConfig,
+    qr_url: str | None,
+    is_thermal: bool,
+    page_width: float,
+    font_scale_percent: int,
+) -> list:
+    """The RevGenAI lead-gen footer — always appended last (see call site), after totals, GST,
+    signature, and every other required invoice element, per spec: it must never displace or be
+    mistaken for legal/financial invoice content."""
+    if not config.enabled:
+        return []
+
+    scale = font_scale_percent / 100
+    base_size = _PROMOTION_FONT_SIZES[config.font_size] * scale
+    align = _ALIGN_MAP.get(config.alignment, "CENTER")
+    gap = _PROMOTION_SPACING_MM[config.spacing] * mm
+
+    title_style = ParagraphStyle(
+        "PromoTitle", fontName="Helvetica-Bold", fontSize=base_size + 1, leading=(base_size + 1) * 1.3, alignment=_PARA_ALIGN[align],
+    )
+    body_style = ParagraphStyle(
+        "PromoBody", fontName="Helvetica", fontSize=base_size, leading=base_size * 1.3,
+        textColor=colors.HexColor("#4b5563"), alignment=_PARA_ALIGN[align],
+    )
+    cta_style = ParagraphStyle(
+        "PromoCta", fontName="Helvetica-Oblique", fontSize=base_size, leading=base_size * 1.3, alignment=_PARA_ALIGN[align],
+    )
+
+    flow: list = []
+    if config.separator_line:
+        rule = Table([[""]], colWidths=[page_width])
+        rule.setStyle(TableStyle([("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db"))]))
+        flow.append(rule)
+    flow.append(Spacer(1, gap))
+
+    # Thermal receipts get the compact, address-agnostic copy from the spec regardless of the
+    # tenant's chosen layout — a 58mm/80mm strip has no room for a "banner" or multi-line CTA.
+    if is_thermal:
+        flow.append(Paragraph(xml_escape(promo.title), title_style))
+        flow.append(Paragraph(xml_escape(promo.description), body_style))
+        flow.append(Paragraph(xml_escape(promo.website), body_style))
+        flow.append(Paragraph(xml_escape(promo.phone), body_style))
+    elif config.layout == "compact":
+        flow.append(Paragraph(xml_escape(promo.title), title_style))
+        flow.append(Paragraph(xml_escape(f"{promo.description} | {promo.website} | {promo.phone}"), body_style))
+    else:
+        flow.append(Paragraph(xml_escape(promo.title), title_style))
+        flow.append(Paragraph(xml_escape(promo.description), body_style))
+        flow.append(Paragraph(xml_escape(promo.website), body_style))
+        flow.append(Paragraph(xml_escape(promo.phone), body_style))
+
+    if config.qr_enabled and qr_url:
+        qr = _qr_flowable(qr_url, size=16 * mm if is_thermal else 20 * mm)
+        if qr:
+            flow.append(Spacer(1, gap))
+            qr_row = Table([[qr]], colWidths=[page_width])
+            qr_row.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+            flow.append(qr_row)
+
+    if not is_thermal and config.layout != "compact":
+        flow.append(Spacer(1, gap))
+        flow.append(Paragraph(xml_escape(promo.cta_text), cta_style))
+
+    if config.layout == "banner" and not is_thermal:
+        banner = Table([[flow]], colWidths=[page_width])
+        banner.setStyle(
+            TableStyle(
+                [
+                    ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#6C47FF")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4 * mm),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4 * mm),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4 * mm),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4 * mm),
+                ]
+            )
+        )
+        return [banner]
+
+    return flow
+
+
 def _pagesize(paper: PaperConfig) -> tuple[float, float]:
     size = paper.size
     if size == "A4":
@@ -98,7 +187,14 @@ def _scaled_styles(font_scale_percent: int) -> dict[str, ParagraphStyle]:
     }
 
 
-def render_document_pdf(data: DocumentData, tenant: Tenant, settings: Settings | None, config: InvoiceTemplateConfig) -> bytes:
+def render_document_pdf(
+    data: DocumentData,
+    tenant: Tenant,
+    settings: Settings | None,
+    config: InvoiceTemplateConfig,
+    promotion: PromotionConfig | None = None,
+    promotion_qr_url: str | None = None,
+) -> bytes:
     decimal_precision = settings.decimal_precision if settings else 2
     date_format = settings.date_format if settings else "DD/MM/YYYY"
     date_pattern = {"DD/MM/YYYY": "%d/%m/%Y", "MM/DD/YYYY": "%m/%d/%Y", "YYYY-MM-DD": "%Y-%m-%d"}.get(date_format, "%d/%m/%Y")
@@ -339,6 +435,17 @@ def render_document_pdf(data: DocumentData, tenant: Tenant, settings: Settings |
         sig_table = Table([sig_row])
         sig_table.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("FONTSIZE", (0, 0), (-1, -1), 9)]))
         story.append(sig_table)
+
+    # --- BillIQ Promotion (RevGenAI lead-gen footer) ---
+    # Always last: after totals, GST, footer, and signature, so it never displaces required
+    # invoice content. Silently omitted if the central content row hasn't been seeded (e.g. a
+    # test DB without the promotion migration applied) rather than failing PDF generation.
+    if promotion is not None:
+        is_thermal = config.paper.size in ("58mm", "80mm")
+        promo_flowables = _promotion_flowables(
+            promotion, config.billiq_promotion, promotion_qr_url, is_thermal, pagesize[0], config.paper.font_scale_percent
+        )
+        story.extend(promo_flowables)
 
     doc.build(story)
     return buffer.getvalue()

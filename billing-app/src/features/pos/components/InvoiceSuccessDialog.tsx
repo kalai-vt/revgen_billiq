@@ -12,11 +12,12 @@ import * as settingsApi from '@/features/settings/api';
 import type { AutoPrintPaperSize } from '@/features/settings/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
+import { getPromotionConfig } from '@/features/invoice-designer/api';
 import * as qzTray from '@/lib/printing/qzTray';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { loadDeviceMode } from '@/lib/printing/deviceProfile';
-import { buildReceiptCommands, numberToWordsInr, type ThermalPaperSize } from '@/lib/printing/escpos';
+import { buildReceiptCommands, numberToWordsInr, type ReceiptPromotion, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { buildLogoCommand } from '@/lib/printing/escposLogo';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
@@ -66,6 +67,11 @@ export function InvoiceSuccessDialog({
   // thermal receipt shows — same template AutoPrintSettingsForm.tsx already checks paper size
   // against, so thermal output stays in sync with what's actually configured in Designer.
   const { template: taxInvoiceTemplate } = useTemplateForDocument('tax_invoice');
+  const { data: promotionContent } = useQuery({
+    queryKey: ['promotion-config'],
+    queryFn: getPromotionConfig,
+    enabled: needsThermalSettings,
+  });
 
   useEffect(() => {
     if (!invoice || !autoPrint || autoPrintedFor.current === invoice.id) return;
@@ -107,6 +113,17 @@ export function InvoiceSuccessDialog({
         .filter((section) => section.enabled)
         .sort((a, b) => a.order - b.order)
         .map((section) => ({ text: section.text }));
+
+      const promotion: ReceiptPromotion | null =
+        config?.billiq_promotion.enabled && promotionContent
+          ? {
+              title: promotionContent.title,
+              description: promotionContent.description,
+              website: promotionContent.website,
+              phone: promotionContent.phone,
+              qrUrl: config.billiq_promotion.qr_enabled ? promotionContent.qr_url : null,
+            }
+          : null;
 
       const info = config?.invoice_info.fields;
       const customerFields = config?.customer_details.fields;
@@ -167,6 +184,7 @@ export function InvoiceSuccessDialog({
           sgst: tax?.sgst ? currentInvoice.tax_amount / 2 : null,
           igst: tax?.igst ? currentInvoice.tax_amount : null,
           amountInWords: tax?.amount_in_words ? numberToWordsInr(currentInvoice.total_amount) : null,
+          promotion,
           visibility: info && customerFields && tax
             ? {
                 invoiceNumber: info.invoice_number,
@@ -242,6 +260,7 @@ export function InvoiceSuccessDialog({
     deviceMode,
     usesWebTransport,
     taxInvoiceTemplate,
+    promotionContent,
   ]);
 
   if (!invoice) return null;

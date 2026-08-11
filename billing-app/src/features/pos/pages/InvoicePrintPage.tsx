@@ -8,6 +8,7 @@ import * as settingsApi from '@/features/settings/api';
 import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { invoiceToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
+import { getPromotionConfig } from '@/features/invoice-designer/api';
 
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,9 @@ export function InvoicePrintPage() {
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
   const { template, isLoading: isTemplateLoading } = useTemplateForDocument('tax_invoice');
+  // Never gates the print flow — a slow/failed promotion fetch must not delay or block the
+  // actual invoice, which is core functionality this feature must never interfere with.
+  const { data: promotionContent } = useQuery({ queryKey: ['promotion-config'], queryFn: getPromotionConfig });
 
   useEffect(() => {
     if (invoice && template) {
@@ -62,6 +66,7 @@ export function InvoicePrintPage() {
         branding={branding}
         mode={paperSizeToPreviewMode(template.config.paper.size)}
         data={invoiceToPreviewData(invoice, settings.date_format, settings.decimal_precision)}
+        promotionContent={promotionContent ?? null}
       />
     </div>
   );

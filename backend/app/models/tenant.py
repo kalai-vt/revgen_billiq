@@ -30,3 +30,6 @@ class Tenant(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    # Opaque, lazily-generated identifier used only to attribute BillIQ Promotion QR scans back
+    # to this tenant (see app/modules/promotion/) without ever exposing the real tenant id.
+    promotion_tracking_id: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)

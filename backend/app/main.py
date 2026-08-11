@@ -53,6 +53,7 @@ from app.modules.customers.router import router as customers_router
 from app.modules.internal_cron.router import router as internal_cron_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.invoice_designer.router import router as invoice_designer_router
+from app.modules.promotion.router import router as promotion_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.payments.router import router as payments_router
 from app.modules.pos.router import router as pos_router
@@ -172,6 +173,7 @@ app.include_router(pos_router)
 app.include_router(printing_router)
 app.include_router(sales_router)
 app.include_router(invoice_designer_router)
+app.include_router(promotion_router)
 app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(activity_router)

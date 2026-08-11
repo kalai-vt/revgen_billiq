@@ -28,6 +28,8 @@ IconStyle = Literal["outline", "filled"]
 PaperSize = Literal["58mm", "80mm", "A5", "A4", "letter", "legal", "custom"]
 Orientation = Literal["portrait", "landscape"]
 LogoSizePreset = Literal["sm", "md", "lg"]
+PromotionLayout = Literal["compact", "standard", "banner"]
+PromotionSpacing = Literal["compact", "normal", "relaxed"]
 
 
 class BrandingConfig(BaseModel):
@@ -162,6 +164,20 @@ class SignatureConfig(BaseModel):
     show_customer_signature: bool = False
 
 
+class BillIQPromotionConfig(BaseModel):
+    """Per-tenant presentation knobs for the RevGenAI lead-gen footer. The actual promotional
+    copy (title/description/website/phone/CTA) is NOT stored here — it's centrally managed,
+    see app/modules/promotion/. Always renders after totals/GST/signature, never before."""
+
+    enabled: bool = True
+    layout: PromotionLayout = "standard"
+    alignment: ColumnAlign = "center"
+    font_size: FontSize = "sm"
+    spacing: PromotionSpacing = "normal"
+    separator_line: bool = True
+    qr_enabled: bool = True
+
+
 class MarginMm(BaseModel):
     top: float = 18
     right: float = 18
@@ -191,6 +207,7 @@ class InvoiceTemplateConfig(BaseModel):
     footer: FooterConfig = Field(default_factory=FooterConfig)
     qr_barcode: QrBarcodeConfig = Field(default_factory=QrBarcodeConfig)
     signature: SignatureConfig = Field(default_factory=SignatureConfig)
+    billiq_promotion: BillIQPromotionConfig = Field(default_factory=BillIQPromotionConfig)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
 

@@ -8,6 +8,7 @@ import * as settingsApi from '@/features/settings/api';
 import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { returnToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
+import { getPromotionConfig } from '@/features/invoice-designer/api';
 
 export function ReturnPrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export function ReturnPrintPage() {
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
   const { template, isLoading: isTemplateLoading } = useTemplateForDocument('credit_note');
+  const { data: promotionContent } = useQuery({ queryKey: ['promotion-config'], queryFn: getPromotionConfig });
 
   useEffect(() => {
     if (ret && template) {
@@ -62,6 +64,7 @@ export function ReturnPrintPage() {
         branding={branding}
         mode={paperSizeToPreviewMode(template.config.paper.size)}
         data={returnToPreviewData(ret, settings.date_format, settings.decimal_precision)}
+        promotionContent={promotionContent ?? null}
       />
     </div>
   );

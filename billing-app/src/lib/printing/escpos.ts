@@ -143,6 +143,17 @@ export interface ReceiptQrCode {
   data: string;
 }
 
+/** The RevGenAI lead-gen footer — always the compact title/description/website/phone/QR form
+ * from the BillIQ Promotion spec regardless of the tenant's Invoice Designer layout choice
+ * (compact/standard/banner only apply to A4/PDF; a 58mm/80mm strip has no room for those). */
+export interface ReceiptPromotion {
+  title: string;
+  description: string;
+  website: string;
+  phone: string;
+  qrUrl?: string | null;
+}
+
 export interface ReceiptItem {
   name: string;
   quantity: number;
@@ -249,6 +260,9 @@ export interface ReceiptData {
   igst?: number | null;
   amountInWords?: string | null;
   visibility?: Partial<ReceiptFieldVisibility>;
+  /** Present only when the tenant's Designer template has billiq_promotion.enabled — see
+   * InvoiceSuccessDialog.tsx. Printed last, after everything else, never before it. */
+  promotion?: ReceiptPromotion | null;
 }
 
 function money(value: number, data: ReceiptData): string {
@@ -359,6 +373,41 @@ export function buildReceiptCommands(
     }
   }
 
+  if (data.promotion) {
+    out.push(divider(width), align('center'), bold(true));
+    for (const wrapped of wrapText(data.promotion.title, width)) out.push(`${wrapped}\n`);
+    out.push(bold(false));
+    for (const wrapped of wrapText(data.promotion.description, width)) out.push(`${wrapped}\n`);
+    for (const wrapped of wrapText(data.promotion.website, width)) out.push(`${wrapped}\n`);
+    for (const wrapped of wrapText(data.promotion.phone, width)) out.push(`${wrapped}\n`);
+    if (data.promotion.qrUrl) {
+      // Smaller module size than the default (6) so the QR still fits a 58mm head comfortably.
+      out.push(feed(1), qrCode(data.promotion.qrUrl, 4), feed(1));
+    }
+  }
+
+  out.push(feed(3), cut());
+  return out;
+}
+
+/** A standalone printer/connectivity check for Settings > Automatic Printing's "Test Print"
+ * button. Deliberately independent of ReceiptData/any invoice — no amount, customer, or
+ * transaction data of any kind, so it can never be mistaken for (or accidentally create) a real
+ * sale record. */
+export function buildTestPrintCommands(paperSize: ThermalPaperSize): string[] {
+  const width = CHARS_PER_LINE[paperSize];
+  const now = new Date();
+  const out: string[] = [];
+  out.push(init(), align('center'), bold(true), doubleSize(true));
+  out.push('RevGen BillIQ\n');
+  out.push(doubleSize(false));
+  out.push('Printer Test\n');
+  out.push(bold(false));
+  out.push(`${paperSize}\n`);
+  out.push(`${now.toLocaleDateString()} ${now.toLocaleTimeString()}\n`);
+  out.push(divider(width));
+  out.push('Printer connection successful\n');
+  out.push(divider(width));
   out.push(feed(3), cut());
   return out;
 }

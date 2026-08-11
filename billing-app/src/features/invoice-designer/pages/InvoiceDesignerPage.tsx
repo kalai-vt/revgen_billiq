@@ -17,6 +17,7 @@ import { FooterPanel } from '@/features/invoice-designer/components/panels/Foote
 import { QrBarcodePanel } from '@/features/invoice-designer/components/panels/QrBarcodePanel';
 import { ThemePanel } from '@/features/invoice-designer/components/panels/ThemePanel';
 import { PaperSizePanel } from '@/features/invoice-designer/components/panels/PaperSizePanel';
+import { BillIQPromotionPanel } from '@/features/invoice-designer/components/panels/BillIQPromotionPanel';
 import { TemplatePreview, type PreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
 import { TemplateToolbar, type AutosaveStatus } from '@/features/invoice-designer/components/TemplateToolbar';
 import { PreviewControls, ZOOM_DEFAULT } from '@/features/invoice-designer/components/PreviewControls';
@@ -32,6 +33,7 @@ const CONFIG_TABS: { id: string; label: string; Panel: (props: { config: Invoice
   { id: 'tax', label: 'Tax & Summary', Panel: TaxSummaryPanel },
   { id: 'footer', label: 'Footer', Panel: FooterPanel },
   { id: 'qr', label: 'QR & Barcode', Panel: QrBarcodePanel },
+  { id: 'billiq-promotion', label: 'BillIQ Promotion', Panel: BillIQPromotionPanel },
   { id: 'theme', label: 'Theme', Panel: ThemePanel },
   { id: 'paper', label: 'Paper & Printing', Panel: PaperSizePanel },
 ];
@@ -53,6 +55,10 @@ export function InvoiceDesignerPage() {
   const configPanelRef = useRef<HTMLDivElement | null>(null);
 
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
+  const { data: promotionContent } = useQuery({
+    queryKey: ['promotion-config'],
+    queryFn: invoiceDesignerApi.getPromotionConfig,
+  });
 
   // Ensures every document type has at least its built-in default template lazily seeded
   // before the per-type list below is fetched, so a tenant who has never opened the designer
@@ -337,6 +343,7 @@ export function InvoiceDesignerPage() {
                     branding={branding}
                     mode={previewMode}
                     data={buildSamplePreviewData(documentType)}
+                    promotionContent={promotionContent ?? null}
                   />
                 </div>
               </section>

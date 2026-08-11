@@ -1,6 +1,14 @@
 import type { CSSProperties } from 'react';
-import type { InvoiceTemplateConfig, PreviewData } from '@/features/invoice-designer/api';
+import type { InvoiceTemplateConfig, PreviewData, PromotionContent } from '@/features/invoice-designer/api';
 import { cn } from '@/lib/utils';
+
+const BILLIQ_BRAND_COLOR = '#6C47FF';
+const PROMOTION_FONT_SIZE_PX: Record<InvoiceTemplateConfig['billiq_promotion']['font_size'], number> = {
+  sm: 10, md: 11.5, lg: 13,
+};
+const PROMOTION_SPACING_PX: Record<InvoiceTemplateConfig['billiq_promotion']['spacing'], number> = {
+  compact: 2, normal: 4, relaxed: 8,
+};
 
 export type PreviewMode = 'desktop' | 'a4' | 'a5' | '80mm' | '58mm' | 'mobile' | 'pdf';
 
@@ -57,6 +65,9 @@ interface TemplatePreviewProps {
   branding: BrandingValues;
   mode: PreviewMode;
   data: PreviewData;
+  /** RevGenAI's centrally-managed promotional copy (see getPromotionConfig) — null while
+   * loading or when fetched anonymously. The tenant-level on/off switch is config.billiq_promotion. */
+  promotionContent?: PromotionContent | null;
 }
 
 const FONT_FAMILY_CSS: Record<InvoiceTemplateConfig['theme']['font_family'], string> = {
@@ -111,7 +122,65 @@ function BarcodePlaceholder() {
   );
 }
 
-export function TemplatePreview({ config, branding, mode, data }: TemplatePreviewProps) {
+function PromotionBlock({
+  config,
+  content,
+  isThermal,
+}: {
+  config: InvoiceTemplateConfig['billiq_promotion'];
+  content: PromotionContent;
+  isThermal: boolean;
+}) {
+  const textAlign = isThermal ? 'center' : config.alignment;
+  const fontSize = PROMOTION_FONT_SIZE_PX[config.font_size];
+  const gap = PROMOTION_SPACING_PX[config.spacing];
+  // A 58mm/80mm strip has no room for the tenant's chosen layout or the CTA line — always the
+  // compact title/description/website/phone/QR copy from the spec, regardless of `layout`.
+  const layout = isThermal ? 'compact' : config.layout;
+
+  const body = (
+    <div
+      className={cn('mt-4 pt-3', config.separator_line && 'border-t')}
+      style={{ textAlign, fontSize }}
+    >
+      <p className="font-bold" style={{ color: BILLIQ_BRAND_COLOR, marginBottom: gap }}>
+        {content.title}
+      </p>
+      {layout === 'compact' && !isThermal ? (
+        <p className="text-muted-foreground" style={{ marginBottom: gap }}>
+          {content.description} · {content.website} · {content.phone}
+        </p>
+      ) : (
+        <>
+          <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.description}</p>
+          <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.website}</p>
+          <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.phone}</p>
+        </>
+      )}
+      {config.qr_enabled && (
+        <div className={cn('flex', textAlign === 'center' ? 'justify-center' : textAlign === 'right' ? 'justify-end' : 'justify-start')} style={{ marginTop: gap }}>
+          <QrPlaceholder label="Scan to learn more" />
+        </div>
+      )}
+      {layout !== 'compact' && !isThermal && (
+        <p className="italic text-muted-foreground" style={{ marginTop: gap, fontSize: fontSize - 0.5 }}>
+          {content.cta_text}
+        </p>
+      )}
+    </div>
+  );
+
+  if (layout === 'banner' && !isThermal) {
+    return (
+      <div className="mt-2 rounded-lg border-2 p-3" style={{ borderColor: BILLIQ_BRAND_COLOR }}>
+        {body}
+      </div>
+    );
+  }
+  return body;
+}
+
+export function TemplatePreview({ config, branding, mode, data, promotionContent }: TemplatePreviewProps) {
   const width = MODE_WIDTH_PX[mode];
   const isThermal = mode === '80mm' || mode === '58mm';
   // Below this width there's no room for a real two-column header — every professional invoice
@@ -348,6 +417,10 @@ export function TemplatePreview({ config, branding, mode, data }: TemplatePrevie
             </div>
           )}
         </div>
+      )}
+
+      {config.billiq_promotion.enabled && promotionContent && (
+        <PromotionBlock config={config.billiq_promotion} content={promotionContent} isThermal={isThermal} />
       )}
     </div>
   );
