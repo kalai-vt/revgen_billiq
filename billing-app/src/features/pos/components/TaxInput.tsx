@@ -9,7 +9,14 @@ interface TaxInputProps {
 export function TaxInput({ value, onChange }: TaxInputProps) {
   return (
     <>
-      <Label htmlFor="tax-percentage" className="text-xs text-muted-foreground">
+      {/* Matches SelectTrigger's own chrome exactly (h-8, rounded-lg, border border-input,
+       * bg-transparent) — Discount's label-equivalent cell is a real Select, which is
+       * self-bordered; this plain label needs the same treatment applied explicitly so the two
+       * rows read as visually identical, not just structurally identical. */}
+      <Label
+        htmlFor="tax-percentage"
+        className="h-8 w-full justify-start rounded-lg border border-input bg-transparent px-2.5 text-xs font-normal text-muted-foreground"
+      >
         Tax %
       </Label>
       <NumericInput

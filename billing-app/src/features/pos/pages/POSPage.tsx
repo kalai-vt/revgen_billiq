@@ -18,12 +18,14 @@ import { useKeyboardShortcuts } from '@/features/pos/hooks/useKeyboardShortcuts'
 import { computeTotals } from '@/features/pos/lib/calc';
 import { useCheckoutConfig } from '@/features/pos/lib/checkoutElements';
 import { computeCheckoutGridColumns, getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
+import { buildProvisionalBillSnapshot, storeProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import type { Customer } from '@/features/customers/api';
 import type { DiscountType, HeldBill, Invoice, PaymentMethod, PaymentType } from '@/features/pos/api';
 import { ApiError } from '@/lib/api-client';
+import { appPath } from '@/lib/app-path';
 
 export function POSPage() {
   const cart = useCart();
@@ -161,6 +163,26 @@ export function POSPage() {
     setDiscountValue(value);
   }
 
+  // Provisional/Order Bill: a print preview of the current cart for the customer to review and
+  // pay against before Checkout. Deliberately makes no API call at all — no invoice, payment, or
+  // inventory change happens here; only a real Checkout does that. The snapshot is handed to the
+  // new tab via localStorage (see provisionalBill.ts) rather than any backend round-trip.
+  function handlePrintOrderBill() {
+    const snapshot = buildProvisionalBillSnapshot({
+      lines: cart.lines,
+      totals,
+      customerName,
+      customerPhone,
+      discountType,
+      discountValue,
+      taxPercentage: taxOverride ?? totals.effectiveTaxPercentage,
+      paymentType,
+      paymentMethod,
+    });
+    storeProvisionalBillSnapshot(snapshot);
+    window.open(appPath('/pos/provisional-bill/print'), '_blank', 'noopener,noreferrer');
+  }
+
   function resetForNewSale() {
     cart.clear();
     setDiscountType(null);
@@ -276,6 +298,7 @@ export function POSPage() {
             onCustomerPhoneChange={setCustomerPhone}
             onHold={() => holdMutation.mutate()}
             isHolding={holdMutation.isPending}
+            onPrintOrderBill={handlePrintOrderBill}
             allowDiscounts={preferences?.allow_discounts ?? true}
             enableCustomerSelection={preferences?.enable_customer_selection ?? false}
             customerId={customerId}

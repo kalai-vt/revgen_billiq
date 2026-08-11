@@ -1,4 +1,4 @@
-import { User } from 'lucide-react';
+import { Printer, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +41,10 @@ interface CheckoutPanelProps {
   error: string | null;
   onHold: () => void;
   isHolding: boolean;
+  /** Prints a Provisional/Order Bill for the current cart — a preview the customer can review and
+   * pay against before Checkout. Never calls the backend: no invoice, payment, or inventory
+   * change happens until the cashier clicks Checkout separately. */
+  onPrintOrderBill: () => void;
   allowDiscounts: boolean;
   enableCustomerSelection: boolean;
   customerId: string | null;
@@ -79,6 +83,7 @@ export function CheckoutPanel({
   error,
   onHold,
   isHolding,
+  onPrintOrderBill,
   allowDiscounts,
   enableCustomerSelection,
   customerId,
@@ -164,26 +169,31 @@ export function CheckoutPanel({
         </div>
       )}
 
-      <div
-        className="grid gap-1.5 text-center"
-        style={{ gridTemplateColumns: `${showDiscount ? '1fr ' : ''}${showTax ? '1fr ' : ''}1.3fr` }}
-      >
+      {/* Total = Sale Amount - Discount + Tax — pure relabeling/redisplay of the same
+       * calc.ts-computed totals used everywhere else (checkout submission, held bills, the
+       * provisional bill); no calculation changes here. A compact label/value list rather than
+       * bordered tiles, to leave Current Cart as much vertical room as possible. */}
+      <div className="space-y-0.5 rounded-lg border bg-muted/20 px-2.5 py-1.5 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Sale Amount</span>
+          <span className="font-medium tabular-nums">₹{totals.subtotal.toFixed(2)}</span>
+        </div>
         {showDiscount && (
-          <div className="rounded-lg border bg-muted/30 px-1 py-1">
-            <p className="text-xs text-muted-foreground">Discount</p>
-            <p className="text-xs font-semibold">₹{totals.discountAmount.toFixed(2)}</p>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Discount</span>
+            <span className="font-medium tabular-nums text-destructive">-₹{totals.discountAmount.toFixed(2)}</span>
           </div>
         )}
         {showTax && (
-          <div className="rounded-lg border bg-muted/30 px-1 py-1">
-            <p className="text-xs text-muted-foreground">Tax ({taxPercentage}%)</p>
-            <p className="text-xs font-semibold">₹{totals.taxAmount.toFixed(2)}</p>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Tax ({taxPercentage}%)</span>
+            <span className="font-medium tabular-nums">+₹{totals.taxAmount.toFixed(2)}</span>
           </div>
         )}
         {/* Total is mandatory — always visible, never configurable. */}
-        <div className="rounded-lg border border-[#6C47FF]/30 bg-[#6C47FF]/5 px-1 py-1">
-          <p className="text-xs text-muted-foreground">Total</p>
-          <p className="text-xs font-bold text-[#6C47FF]">₹{totals.total.toFixed(2)}</p>
+        <div className="mt-1 flex items-center justify-between border-t pt-1">
+          <span className="font-semibold text-[#6C47FF]">Total</span>
+          <span className="font-bold tabular-nums text-[#6C47FF]">₹{totals.total.toFixed(2)}</span>
         </div>
       </div>
 
@@ -208,25 +218,39 @@ export function CheckoutPanel({
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
-      {/* Checkout is mandatory — always visible, never configurable. Hold Bill is optional. */}
-      <div className="mt-auto flex gap-2 border-t pt-3">
-        {checkoutConfig.hold_bill && (
-          <Button
-            variant="outline"
-            className="rounded-xl border-[#6C47FF] text-xs text-[#6C47FF] hover:bg-[#6C47FF]/5"
-            disabled={lines.length === 0 || isHolding || isSubmitting}
-            onClick={onHold}
-          >
-            {isHolding ? 'Holding…' : 'Hold Bill'}
-          </Button>
-        )}
+      {/* Checkout is mandatory — always visible, never configurable. Hold Bill is optional.
+       * Print Order Bill is its own row — a pre-checkout step, distinct from the final actions
+       * below it, that never touches the backend (see onPrintOrderBill's own doc comment). */}
+      <div className="mt-auto flex flex-col gap-2 border-t pt-3">
         <Button
-          className="h-auto min-h-9 flex-1 rounded-xl bg-[#6C47FF] py-2 text-xs leading-tight whitespace-normal text-white hover:bg-[#5b3ce6]"
-          disabled={!canCheckout || isSubmitting}
-          onClick={onCheckout}
+          type="button"
+          variant="outline"
+          className="rounded-xl text-xs"
+          disabled={lines.length === 0}
+          onClick={onPrintOrderBill}
         >
-          {isSubmitting ? 'Processing…' : `Checkout · ₹${totals.total.toFixed(2)}`}
+          <Printer className="size-4" />
+          Print Order Bill
         </Button>
+        <div className="flex gap-2">
+          {checkoutConfig.hold_bill && (
+            <Button
+              variant="outline"
+              className="rounded-xl border-[#6C47FF] text-xs text-[#6C47FF] hover:bg-[#6C47FF]/5"
+              disabled={lines.length === 0 || isHolding || isSubmitting}
+              onClick={onHold}
+            >
+              {isHolding ? 'Holding…' : 'Hold Bill'}
+            </Button>
+          )}
+          <Button
+            className="h-auto min-h-9 flex-1 rounded-xl bg-[#6C47FF] py-2 text-xs leading-tight whitespace-normal text-white hover:bg-[#5b3ce6]"
+            disabled={!canCheckout || isSubmitting}
+            onClick={onCheckout}
+          >
+            {isSubmitting ? 'Processing…' : `Checkout · ₹${totals.total.toFixed(2)}`}
+          </Button>
+        </div>
       </div>
     </div>
   );

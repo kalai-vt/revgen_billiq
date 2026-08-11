@@ -56,6 +56,7 @@ const baseProps = {
   error: null,
   onHold: vi.fn(),
   isHolding: false,
+  onPrintOrderBill: vi.fn(),
   allowDiscounts: true,
   enableCustomerSelection: false,
   customerId: null,
@@ -204,5 +205,50 @@ describe('CheckoutPanel — each element disappears completely when disabled', (
     render(<CheckoutPanel {...baseProps} checkoutConfig={configWith({ hold_bill: false })} />);
     expect(screen.queryByRole('button', { name: /hold bill/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /checkout/i })).toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPanel — Billing Summary (Sale Amount / Discount / Tax / Total)', () => {
+  const summaryTotals = { subtotal: 1000, discountAmount: 100, taxableAmount: 900, taxAmount: 45, total: 945, effectiveTaxPercentage: 5 };
+
+  it('Sale Amount always renders, regardless of Discount/Tax toggles', () => {
+    render(
+      <CheckoutPanel
+        {...baseProps}
+        totals={summaryTotals}
+        checkoutConfig={configWith({ discount: false, tax: false })}
+      />,
+    );
+    expect(screen.getByText('Sale Amount')).toBeInTheDocument();
+    expect(screen.getByText('₹1000.00')).toBeInTheDocument();
+  });
+
+  it('Discount renders with a leading minus sign and Tax with a leading plus sign', () => {
+    render(<CheckoutPanel {...baseProps} totals={summaryTotals} checkoutConfig={configWith({ discount: true, tax: true })} />);
+    expect(screen.getByText('-₹100.00')).toBeInTheDocument();
+    expect(screen.getByText('+₹45.00')).toBeInTheDocument();
+  });
+
+  it('Total equals Sale Amount - Discount + Tax and matches the Checkout button amount', () => {
+    render(<CheckoutPanel {...baseProps} totals={summaryTotals} checkoutConfig={configWith({ discount: true, tax: true })} />);
+    // 1000 - 100 + 45 = 945, matching the totals object computed upstream by calc.ts.
+    expect(screen.getAllByText('₹945.00').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /checkout · ₹945\.00/i })).toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPanel — Print Order Bill', () => {
+  it('renders a Print Order Bill action distinct from Checkout, calling only its own handler', () => {
+    const onPrintOrderBill = vi.fn();
+    render(<CheckoutPanel {...baseProps} onPrintOrderBill={onPrintOrderBill} />);
+    const printButton = screen.getByRole('button', { name: /print order bill/i });
+    printButton.click();
+    expect(onPrintOrderBill).toHaveBeenCalledTimes(1);
+    expect(baseProps.onCheckout).not.toHaveBeenCalled();
+  });
+
+  it('Print Order Bill is disabled for an empty cart, same as Checkout', () => {
+    render(<CheckoutPanel {...baseProps} lines={[]} totals={{ ...baseProps.totals, subtotal: 0, taxAmount: 0, total: 0 }} />);
+    expect(screen.getByRole('button', { name: /print order bill/i })).toBeDisabled();
   });
 });

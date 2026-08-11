@@ -62,6 +62,9 @@ const OutstandingDashboardPage = lazy(() =>
 );
 const InvoicePrintPage = lazy(() => import('@/features/pos/pages/InvoicePrintPage').then((m) => ({ default: m.InvoicePrintPage })));
 const ReturnPrintPage = lazy(() => import('@/features/pos/pages/ReturnPrintPage').then((m) => ({ default: m.ReturnPrintPage })));
+const ProvisionalBillPrintPage = lazy(() =>
+  import('@/features/pos/pages/ProvisionalBillPrintPage').then((m) => ({ default: m.ProvisionalBillPrintPage })),
+);
 const DashboardPage = lazy(() => import('@/features/analytics/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const AdvancedAnalyticsPage = lazy(() =>
   import('@/features/analytics/pages/AdvancedAnalyticsPage').then((m) => ({ default: m.AdvancedAnalyticsPage })),
@@ -164,6 +167,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/invoices/:id/print', element: <InvoicePrintPage /> },
           { path: '/returns/:id/print', element: <ReturnPrintPage /> },
+          { path: '/pos/provisional-bill/print', element: <ProvisionalBillPrintPage /> },
         ],
       },
       {
