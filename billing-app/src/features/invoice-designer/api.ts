@@ -226,6 +226,7 @@ export interface BillIQPromotionConfig {
   spacing: PromotionSpacing;
   separator_line: boolean;
   qr_enabled: boolean;
+  show_description: boolean;
 }
 
 export interface ThemeConfig {

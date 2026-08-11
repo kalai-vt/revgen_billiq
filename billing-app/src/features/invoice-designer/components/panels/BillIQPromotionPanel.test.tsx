@@ -38,7 +38,8 @@ const baseConfig: InvoiceTemplateConfig = {
   qr_barcode: { invoice_qr: false, payment_qr: false, business_qr: false, website_qr: false, feedback_qr: false, barcode: false },
   signature: { show_authorized_signature: false, show_customer_signature: false },
   billiq_promotion: {
-    enabled: true, layout: 'standard', alignment: 'center', font_size: 'sm', spacing: 'normal', separator_line: true, qr_enabled: true,
+    enabled: true, layout: 'standard', alignment: 'center', font_size: 'sm', spacing: 'normal',
+    separator_line: true, qr_enabled: true, show_description: false,
   },
   theme: {
     primary_color: '#1f2937', secondary_color: '#4b5563', accent_color: '#2563eb', font_family: 'sans',
@@ -97,5 +98,21 @@ describe('BillIQPromotionPanel', () => {
     // The read-only preview strip shows the content as text, but there must be no input/textarea
     // a tenant could use to edit RevGenAI's own copy.
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('the slogan is off by default and toggling it calls onChange with show_description flipped', async () => {
+    const { onChange } = renderPanel(baseConfig);
+    const checkbox = await screen.findByRole('checkbox', { name: /show slogan/i });
+    expect(checkbox).not.toBeChecked();
+
+    checkbox.click();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0](baseConfig);
+    expect(next.billiq_promotion.show_description).toBe(true);
+  });
+
+  it('shows the actual slogan text once content has loaded', async () => {
+    renderPanel(baseConfig);
+    expect(await screen.findByText(/Show slogan \("Smart Billing for Business"\)/)).toBeInTheDocument();
   });
 });

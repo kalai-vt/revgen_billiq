@@ -88,6 +88,26 @@ describe('buildReceiptCommands — BillIQ Promotion block', () => {
     },
   );
 
+  it('omits the description line entirely when not provided (show_description off)', () => {
+    const commands = buildReceiptCommands(
+      business,
+      baseData({ title: 'Powered by RevGenAI BillIQ', website: 'revgenai.in/billiq', phone: '8680844026' }),
+      '80mm',
+    );
+    const joined = commands.join('');
+    expect(joined).toContain('Powered by RevGenAI BillIQ');
+    expect(joined).not.toContain('Smart Billing');
+  });
+
+  it('combines website and phone onto a single line', () => {
+    const commands = buildReceiptCommands(
+      business,
+      baseData({ title: 'Powered by RevGenAI BillIQ', website: 'revgenai.in/billiq', phone: '8680844026' }),
+      '80mm',
+    );
+    expect(commands.join('')).toContain('revgenai.in/billiq · 8680844026');
+  });
+
   it('prints the promotion block after the footer, not before it', () => {
     const commands = buildReceiptCommands(
       business,

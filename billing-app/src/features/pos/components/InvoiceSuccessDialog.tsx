@@ -118,7 +118,7 @@ export function InvoiceSuccessDialog({
         config?.billiq_promotion.enabled && promotionContent
           ? {
               title: promotionContent.title,
-              description: promotionContent.description,
+              description: config.billiq_promotion.show_description ? promotionContent.description : null,
               website: promotionContent.website,
               phone: promotionContent.phone,
               qrUrl: config.billiq_promotion.qr_enabled ? promotionContent.qr_url : null,

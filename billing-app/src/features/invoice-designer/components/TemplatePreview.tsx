@@ -134,10 +134,11 @@ function PromotionBlock({
   const textAlign = isThermal ? 'center' : config.alignment;
   const fontSize = PROMOTION_FONT_SIZE_PX[config.font_size];
   const gap = PROMOTION_SPACING_PX[config.spacing];
-  // A 58mm/80mm strip has no room for the tenant's chosen layout or the CTA line — always the
-  // compact title/description/website/phone/QR copy from the spec, regardless of `layout`.
-  const layout = isThermal ? 'compact' : config.layout;
+  const layout = config.layout;
 
+  // Always exactly two text lines (title, then website+phone combined) regardless of paper
+  // size — the slogan is an explicit opt-in third line, never mandatory. `layout` now only
+  // controls the banner border below, not how many lines the identity block takes.
   const body = (
     <div
       className={cn('mt-4 pt-3', config.separator_line && 'border-t')}
@@ -146,23 +147,18 @@ function PromotionBlock({
       <p className="font-bold" style={{ color: BILLIQ_BRAND_COLOR, marginBottom: gap }}>
         {content.title}
       </p>
-      {layout === 'compact' && !isThermal ? (
-        <p className="text-muted-foreground" style={{ marginBottom: gap }}>
-          {content.description} · {content.website} · {content.phone}
-        </p>
-      ) : (
-        <>
-          <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.description}</p>
-          <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.website}</p>
-          <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.phone}</p>
-        </>
+      {config.show_description && (
+        <p className="text-muted-foreground" style={{ marginBottom: gap }}>{content.description}</p>
       )}
+      <p className="text-muted-foreground" style={{ marginBottom: gap }}>
+        {content.website} · {content.phone}
+      </p>
       {config.qr_enabled && (
         <div className={cn('flex', textAlign === 'center' ? 'justify-center' : textAlign === 'right' ? 'justify-end' : 'justify-start')} style={{ marginTop: gap }}>
           <QrPlaceholder label="Scan to learn more" />
         </div>
       )}
-      {layout !== 'compact' && !isThermal && (
+      {!isThermal && layout === 'banner' && (
         <p className="italic text-muted-foreground" style={{ marginTop: gap, fontSize: fontSize - 0.5 }}>
           {content.cta_text}
         </p>

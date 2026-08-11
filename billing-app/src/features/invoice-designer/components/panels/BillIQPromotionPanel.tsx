@@ -86,17 +86,26 @@ export function BillIQPromotionPanel({ config, onChange }: PanelProps) {
             {content ? (
               <div className="space-y-0.5 text-muted-foreground">
                 <p className="font-semibold text-foreground">{content.title}</p>
-                <p>{content.description}</p>
+                {promo.show_description && <p>{content.description}</p>}
                 <p>{content.website} · {content.phone}</p>
               </div>
             ) : (
               <p className="text-muted-foreground">Loading…</p>
             )}
             <p className="mt-2 text-[11px] text-muted-foreground">
-              This message is centrally managed by RevGenAI and can't be edited per business — only its
-              position, size, and layout below are yours to configure.
+              This message is centrally managed by RevGenAI and can't be edited per business — only
+              whether the slogan shows and the position, size, and layout below are yours to
+              configure. The title and website/phone line always print — that's the minimum, fixed
+              at two lines regardless of paper size.
             </p>
           </div>
+
+          <FieldToggle
+            id="promo-show-description"
+            label={content ? `Show slogan ("${content.description}")` : 'Show slogan'}
+            checked={promo.show_description}
+            onChange={(v) => set('show_description', v)}
+          />
 
           <OptionRow label="Layout" value={promo.layout} options={LAYOUT_OPTIONS} onChange={(v) => set('layout', v)} />
           <OptionRow

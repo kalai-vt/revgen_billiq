@@ -148,7 +148,9 @@ export interface ReceiptQrCode {
  * (compact/standard/banner only apply to A4/PDF; a 58mm/80mm strip has no room for those). */
 export interface ReceiptPromotion {
   title: string;
-  description: string;
+  /** Omitted (or empty) when the tenant's billiq_promotion.show_description is off — the
+   * slogan is an explicit opt-in extra line, never mandatory. See InvoiceSuccessDialog.tsx. */
+  description?: string | null;
   website: string;
   phone: string;
   qrUrl?: string | null;
@@ -374,12 +376,15 @@ export function buildReceiptCommands(
   }
 
   if (data.promotion) {
+    // Always exactly two text lines (title, then website+phone combined) — the slogan is an
+    // explicit opt-in extra line, never mandatory. See ReceiptPromotion's own comment.
     out.push(divider(width), align('center'), bold(true));
     for (const wrapped of wrapText(data.promotion.title, width)) out.push(`${wrapped}\n`);
     out.push(bold(false));
-    for (const wrapped of wrapText(data.promotion.description, width)) out.push(`${wrapped}\n`);
-    for (const wrapped of wrapText(data.promotion.website, width)) out.push(`${wrapped}\n`);
-    for (const wrapped of wrapText(data.promotion.phone, width)) out.push(`${wrapped}\n`);
+    if (data.promotion.description) {
+      for (const wrapped of wrapText(data.promotion.description, width)) out.push(`${wrapped}\n`);
+    }
+    for (const wrapped of wrapText(`${data.promotion.website} · ${data.promotion.phone}`, width)) out.push(`${wrapped}\n`);
     if (data.promotion.qrUrl) {
       // Smaller module size than the default (6) so the QR still fits a 58mm head comfortably.
       out.push(feed(1), qrCode(data.promotion.qrUrl, 4), feed(1));

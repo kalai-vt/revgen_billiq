@@ -39,7 +39,8 @@ const baseConfig: InvoiceTemplateConfig = {
   qr_barcode: { invoice_qr: false, payment_qr: false, business_qr: false, website_qr: false, feedback_qr: false, barcode: false },
   signature: { show_authorized_signature: false, show_customer_signature: false },
   billiq_promotion: {
-    enabled: true, layout: 'standard', alignment: 'center', font_size: 'sm', spacing: 'normal', separator_line: true, qr_enabled: true,
+    enabled: true, layout: 'standard', alignment: 'center', font_size: 'sm', spacing: 'normal',
+    separator_line: true, qr_enabled: true, show_description: false,
   },
   theme: {
     primary_color: '#1f2937', secondary_color: '#4b5563', accent_color: '#2563eb', font_family: 'sans',
@@ -68,7 +69,23 @@ describe('TemplatePreview — BillIQ Promotion footer', () => {
       />,
     );
     expect(screen.getByText('Powered by RevGenAI BillIQ')).toBeInTheDocument();
-    expect(screen.getByText('revgenai.in/billiq')).toBeInTheDocument();
+    // Website and phone are always combined onto a single line — a fixed, minimum footprint.
+    expect(screen.getByText('revgenai.in/billiq · 8680844026')).toBeInTheDocument();
+    expect(screen.queryByText('Smart Billing for Business')).not.toBeInTheDocument();
+  });
+
+  it('shows the slogan as an extra line only when show_description is on', () => {
+    render(
+      <TemplatePreview
+        config={{ ...baseConfig, billiq_promotion: { ...baseConfig.billiq_promotion, show_description: true } }}
+        branding={branding}
+        mode="a4"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={promotionContent}
+      />,
+    );
+    expect(screen.getByText('Smart Billing for Business')).toBeInTheDocument();
+    expect(screen.getByText('revgenai.in/billiq · 8680844026')).toBeInTheDocument();
   });
 
   it('renders nothing when billiq_promotion.enabled is false, even with content loaded', () => {

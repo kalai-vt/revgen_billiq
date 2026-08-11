@@ -175,6 +175,9 @@ class BillIQPromotionConfig(BaseModel):
     font_size: FontSize = "sm"
     spacing: PromotionSpacing = "normal"
     separator_line: bool = True
+    # Off by default — the footer's base identity (title + website/phone) is always exactly two
+    # lines; this adds the RevGenAI slogan as an explicit opt-in third line, never mandatory.
+    show_description: bool = False
     qr_enabled: bool = True
 
 

@@ -108,21 +108,14 @@ def _promotion_flowables(
         flow.append(rule)
     flow.append(Spacer(1, gap))
 
-    # Thermal receipts get the compact, address-agnostic copy from the spec regardless of the
-    # tenant's chosen layout — a 58mm/80mm strip has no room for a "banner" or multi-line CTA.
-    if is_thermal:
-        flow.append(Paragraph(xml_escape(promo.title), title_style))
+    # Always exactly two text lines (title, then website+phone combined) regardless of paper
+    # size or layout — the slogan is an explicit opt-in third line, never mandatory. Keeping the
+    # footer's footprint fixed and small was the whole point of this format; "layout" now only
+    # controls the banner border below, not how many lines the identity block takes.
+    flow.append(Paragraph(xml_escape(promo.title), title_style))
+    if config.show_description:
         flow.append(Paragraph(xml_escape(promo.description), body_style))
-        flow.append(Paragraph(xml_escape(promo.website), body_style))
-        flow.append(Paragraph(xml_escape(promo.phone), body_style))
-    elif config.layout == "compact":
-        flow.append(Paragraph(xml_escape(promo.title), title_style))
-        flow.append(Paragraph(xml_escape(f"{promo.description} | {promo.website} | {promo.phone}"), body_style))
-    else:
-        flow.append(Paragraph(xml_escape(promo.title), title_style))
-        flow.append(Paragraph(xml_escape(promo.description), body_style))
-        flow.append(Paragraph(xml_escape(promo.website), body_style))
-        flow.append(Paragraph(xml_escape(promo.phone), body_style))
+    flow.append(Paragraph(xml_escape(f"{promo.website} · {promo.phone}"), body_style))
 
     if config.qr_enabled and qr_url:
         qr = _qr_flowable(qr_url, size=16 * mm if is_thermal else 20 * mm)
@@ -132,7 +125,7 @@ def _promotion_flowables(
             qr_row.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
             flow.append(qr_row)
 
-    if not is_thermal and config.layout != "compact":
+    if not is_thermal and config.layout == "banner":
         flow.append(Spacer(1, gap))
         flow.append(Paragraph(xml_escape(promo.cta_text), cta_style))
 
