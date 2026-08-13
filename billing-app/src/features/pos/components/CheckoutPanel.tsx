@@ -8,6 +8,7 @@ import { TaxInput } from '@/features/pos/components/TaxInput';
 import { PaymentMethodSelector } from '@/features/pos/components/PaymentMethodSelector';
 import { getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
 import type { CheckoutElementKey } from '@/features/pos/lib/checkoutElements';
+import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import type { Customer } from '@/features/customers/api';
 import type { CartLine } from '@/features/pos/hooks/useCart';
 import type { CartTotals } from '@/features/pos/lib/calc';
@@ -91,6 +92,9 @@ export function CheckoutPanel({
   onCustomerSelect,
   checkoutConfig,
 }: CheckoutPanelProps) {
+  // Print Order Bill renders through the Invoice Designer template — hide it when that feature
+  // isn't available on this tenant's plan rather than opening a tab that's guaranteed to fail.
+  const invoiceDesignerEnabled = useFeatureFlag('invoice_designer');
   const requiresCustomer = outstandingEnabled && paymentType !== 'paid';
   // Amount tendered is a cashier balance/change aid only — it must never block checkout, even
   // for the paid-in-full + cash default.
@@ -192,8 +196,8 @@ export function CheckoutPanel({
         )}
         {/* Total is mandatory — always visible, never configurable. */}
         <div className="mt-1 flex items-center justify-between border-t pt-1">
-          <span className="font-semibold text-[#6C47FF]">Total</span>
-          <span className="font-bold tabular-nums text-[#6C47FF]">₹{totals.total.toFixed(2)}</span>
+          <span className="font-semibold text-primary">Total</span>
+          <span className="font-bold tabular-nums text-primary">₹{totals.total.toFixed(2)}</span>
         </div>
       </div>
 
@@ -222,21 +226,23 @@ export function CheckoutPanel({
        * Print Order Bill is its own row — a pre-checkout step, distinct from the final actions
        * below it, that never touches the backend (see onPrintOrderBill's own doc comment). */}
       <div className="mt-auto flex flex-col gap-2 border-t pt-3">
-        <Button
-          type="button"
-          variant="outline"
-          className="rounded-xl text-xs"
-          disabled={lines.length === 0}
-          onClick={onPrintOrderBill}
-        >
-          <Printer className="size-4" />
-          Print Order Bill
-        </Button>
+        {invoiceDesignerEnabled && (
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-xl text-xs"
+            disabled={lines.length === 0}
+            onClick={onPrintOrderBill}
+          >
+            <Printer className="size-4" />
+            Print Order Bill
+          </Button>
+        )}
         <div className="flex gap-2">
           {checkoutConfig.hold_bill && (
             <Button
               variant="outline"
-              className="rounded-xl border-[#6C47FF] text-xs text-[#6C47FF] hover:bg-[#6C47FF]/5"
+              className="rounded-xl border-primary text-xs text-primary hover:bg-primary/5"
               disabled={lines.length === 0 || isHolding || isSubmitting}
               onClick={onHold}
             >
@@ -244,7 +250,7 @@ export function CheckoutPanel({
             </Button>
           )}
           <Button
-            className="h-auto min-h-9 flex-1 rounded-xl bg-[#6C47FF] py-2 text-xs leading-tight whitespace-normal text-white hover:bg-[#5b3ce6]"
+            className="h-auto min-h-9 flex-1 rounded-xl bg-primary py-2 text-xs leading-tight whitespace-normal text-primary-foreground hover:bg-primary/90"
             disabled={!canCheckout || isSubmitting}
             onClick={onCheckout}
           >

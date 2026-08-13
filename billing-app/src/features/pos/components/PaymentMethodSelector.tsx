@@ -58,7 +58,7 @@ function SegmentedButtons<T extends string>({
           className={cn(
             'h-auto min-h-8 rounded-lg border px-1 py-1 text-xs leading-tight font-medium transition-colors',
             value === option
-              ? 'border-[#6C47FF] bg-[#6C47FF] text-white'
+              ? 'border-primary bg-primary text-primary-foreground'
               : 'border-border bg-background text-foreground hover:bg-muted',
           )}
         >
@@ -120,7 +120,7 @@ export function PaymentMethodSelector({
           {showChangeDue && (
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">Change Due</p>
-              <p className={cn('text-xs font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-[#6C47FF]')}>
+              <p className={cn('text-xs font-semibold', change !== null && change < 0 ? 'text-destructive' : 'text-primary')}>
                 {change !== null ? `₹${change.toFixed(2)}` : '—'}
               </p>
             </div>
@@ -149,7 +149,7 @@ export function PaymentMethodSelector({
               </div>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">Outstanding</p>
-                <p className="text-xs font-semibold text-[#6C47FF]">₹{outstanding.toFixed(2)}</p>
+                <p className="text-xs font-semibold text-primary">₹{outstanding.toFixed(2)}</p>
               </div>
             </>
           )}

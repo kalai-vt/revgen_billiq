@@ -27,7 +27,7 @@ function TenantInitialMark({ name, className }: { name?: string | null; classNam
   return (
     <div
       className={cn(
-        'flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-semibold text-muted-foreground',
+        'flex size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sm font-semibold text-sidebar-accent-foreground',
         className,
       )}
     >
@@ -67,12 +67,12 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
   return (
     <div
       className={cn(
-        'flex h-full flex-col bg-background transition-[width] duration-200 ease-out',
-        variant === 'desktop' ? cn('border-r', isCollapsed ? 'w-16' : 'w-64') : 'w-full',
+        'flex h-full flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out',
+        variant === 'desktop' ? cn('border-r border-sidebar-border', isCollapsed ? 'w-16' : 'w-64') : 'w-full',
       )}
     >
       {/* Product branding — always RevGen BillIQ, identical for every tenant, never clickable */}
-      <div className={cn('shrink-0 border-b px-4 py-3.5', isCollapsed && 'flex justify-center px-2')}>
+      <div className={cn('shrink-0 border-b border-sidebar-border px-4 py-3.5', isCollapsed && 'flex justify-center px-2')}>
         {isCollapsed ? (
           <Tooltip>
             <TooltipTrigger
@@ -107,7 +107,7 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
                     // reveal the tooltip; there is no click/activation behavior to mislead
                     // assistive tech about.
                     // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-                    <p tabIndex={0} className="truncate text-sm font-semibold tracking-tight text-foreground outline-none">
+                    <p tabIndex={0} className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground outline-none">
                       {tenant.company_name}
                     </p>
                   }
@@ -123,7 +123,7 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className={cn('shrink-0 text-muted-foreground', isCollapsed && 'mt-1')}
+            className={cn('shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground', isCollapsed && 'mt-1')}
             onClick={toggleCollapsed}
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -138,13 +138,13 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
       </div>
 
       {/* Profile — fixed bottom */}
-      <div className={cn('shrink-0 border-t p-2', isCollapsed && 'flex justify-center')}>
+      <div className={cn('shrink-0 border-t border-sidebar-border p-2', isCollapsed && 'flex justify-center')}>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               isCollapsed ? (
                 <button
-                  className="flex size-10 shrink-0 items-center justify-center rounded-md hover:bg-muted"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent"
                   aria-label={`${user?.first_name} ${user?.last_name} — account menu`}
                 >
                   <Avatar className="size-8">
@@ -153,7 +153,7 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
                   </Avatar>
                 </button>
               ) : (
-                <button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted">
+                <button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm text-sidebar-foreground hover:bg-sidebar-accent">
                   <Avatar className="size-8">
                     {user?.avatar_url && <AvatarImage src={user.avatar_url} alt="Avatar" />}
                     <AvatarFallback>{user?.first_name?.[0]?.toUpperCase() ?? '?'}</AvatarFallback>
@@ -162,7 +162,7 @@ export function Sidebar({ variant = 'desktop', onNavigate }: SidebarProps) {
                     <span className="block truncate font-medium leading-tight">
                       {user?.first_name} {user?.last_name}
                     </span>
-                    <span className="block text-xs capitalize leading-tight text-muted-foreground">{user?.role}</span>
+                    <span className="block text-xs capitalize leading-tight text-sidebar-foreground/70">{user?.role}</span>
                   </span>
                 </button>
               )

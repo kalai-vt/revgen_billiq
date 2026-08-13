@@ -56,7 +56,7 @@ function NewSaleAction() {
   return (
     <Button
       size="sm"
-      className="gap-1.5 border-black bg-black text-white hover:bg-neutral-800"
+      className="gap-1.5"
       onClick={() => navigate('/pos')}
     >
       <ShoppingCart className="size-4" />
