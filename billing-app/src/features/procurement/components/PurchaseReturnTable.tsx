@@ -66,7 +66,7 @@ export const PurchaseReturnTable = memo(function PurchaseReturnTable({ data, isL
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && error && (
+          {!isLoading && !!error && (
             <TableRow>
               <TableCell colSpan={7}>
                 <EmptyState

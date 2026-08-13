@@ -34,7 +34,7 @@ export const VendorPaymentTable = memo(function VendorPaymentTable({ data, isLoa
               </TableCell>
             </TableRow>
           ))}
-        {!isLoading && error && (
+        {!isLoading && !!error && (
           <TableRow>
             <TableCell colSpan={6}>
               <EmptyState

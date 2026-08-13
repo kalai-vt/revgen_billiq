@@ -77,7 +77,7 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && error && (
+          {!isLoading && !!error && (
             <TableRow>
               <TableCell colSpan={3}>
                 <EmptyState

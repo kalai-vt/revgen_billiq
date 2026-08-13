@@ -74,7 +74,7 @@ export const VendorTable = memo(function VendorTable({ data, isLoading, error, s
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && error && (
+          {!isLoading && !!error && (
             <TableRow>
               <TableCell colSpan={7}>
                 <EmptyState
