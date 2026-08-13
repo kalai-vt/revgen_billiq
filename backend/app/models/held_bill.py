@@ -23,7 +23,9 @@ class HeldBill(Base):
     customer_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     discount_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     discount_value: Mapped[float] = mapped_column(Float, default=0.0)
-    tax_percentage: Mapped[float] = mapped_column(Float, default=0.0)
+    # Nullable: None means "no manual tax override was set" — auto per-product tax applies on
+    # resume. A stored number means the cashier explicitly overrode tax for the whole cart.
+    tax_percentage: Mapped[float | None] = mapped_column(Float, nullable=True)
     payment_method: Mapped[str] = mapped_column(String(10), default="cash")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     lines: Mapped[list] = mapped_column(JSON)

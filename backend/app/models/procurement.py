@@ -98,6 +98,10 @@ class PurchaseReturn(Base):
     subtotal_amount: Mapped[float] = mapped_column(Float, default=0.0)
     tax_adjustment: Mapped[float] = mapped_column(Float, default=0.0)
     refund_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    # How much of refund_amount actually reduced the purchase's outstanding balance (capped at
+    # what was owed — see returns_service.create_purchase_return). The vendor ledger reads this
+    # back instead of refund_amount so it agrees with vendor.outstanding_amount.
+    applied_credit_amount: Mapped[float] = mapped_column(Float, default=0.0)
     refund_method: Mapped[str] = mapped_column(String(20), default="credit_note")  # credit_note|cash|bank_transfer
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)

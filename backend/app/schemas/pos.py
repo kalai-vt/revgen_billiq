@@ -20,7 +20,10 @@ class HeldBillCreate(BaseModel):
     lines: list[HeldBillLineIn] = Field(min_length=1)
     discount_type: Literal["flat", "percent"] | None = None
     discount_value: float = Field(default=0.0, ge=0)
-    tax_percentage: float = Field(default=0.0, ge=0, le=100)
+    # Same nullable contract as InvoiceCreate.tax_percentage — None means "no manual
+    # override was set when this bill was held," so resuming it keeps auto per-product tax
+    # instead of silently freezing in a blended rate. See InvoiceCreate's own comment.
+    tax_percentage: float | None = Field(default=None, ge=0, le=100)
     payment_method: Literal["cash", "card", "upi"] = "cash"
     notes: str | None = None
 
@@ -38,7 +41,7 @@ class HeldBillOut(BaseModel):
     customer_phone: str | None = None
     discount_type: str | None = None
     discount_value: float
-    tax_percentage: float
+    tax_percentage: float | None = None
     payment_method: str
     notes: str | None = None
     lines: list[HeldBillLineOut]

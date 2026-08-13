@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, String
+from sqlalchemy import Date, DateTime, Float, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -15,9 +15,16 @@ def _now() -> datetime:
 
 class Invoice(Base):
     __tablename__ = "invoices"
+    __table_args__ = (UniqueConstraint("tenant_id", "client_reference_id", name="uq_invoices_tenant_client_reference"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    # An opaque client-generated id (one per checkout attempt, e.g. crypto.randomUUID()) that
+    # makes create_invoice idempotent: a retried/duplicated POST with the same key returns the
+    # already-created invoice instead of creating a second one. Nullable — a null value never
+    # collides with another null under a standard unique index (every DB treats NULL <> NULL),
+    # so invoices created before this existed, or via any path that doesn't set it, are unaffected.
+    client_reference_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     invoice_number: Mapped[str] = mapped_column(String(30), index=True)
     customer_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("customers.id"), nullable=True)

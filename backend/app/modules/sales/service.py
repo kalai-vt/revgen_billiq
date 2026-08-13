@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.activity import ACTION_CANCELLED, ACTION_CREATED, MODULE_INVOICE, log_activity
 from app.core.limits import assert_under_limit
 from app.core.notifications import TYPE_CREDIT_LIMIT_EXCEEDED, TYPE_INVOICE_CANCELLED, create_notification
+from app.core.tenant_time import local_day_bounds_utc, tenant_today, tenant_today_by_id, tenant_zone
 from app.models.audit import PriceOverrideAudit
 from app.models.catalog import Product
 from app.models.customer import Customer
@@ -19,7 +20,7 @@ from app.models.settings import Settings
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.modules.inventory.service import write_stock_history
-from app.modules.payments.service import record_initial_payment
+from app.modules.payments.service import net_ledger_adjustment_balance, record_initial_payment
 from app.schemas.sales import InvoiceCreate, ReturnCreate, ReturnsDashboardOut
 
 
@@ -51,11 +52,7 @@ def _next_invoice_number(db: Session, tenant_id: str) -> str:
 
 
 def _month_start_utc(tenant: Tenant | None) -> datetime:
-    tz_name = tenant.timezone if tenant else "UTC"
-    try:
-        tz = ZoneInfo(tz_name)
-    except ZoneInfoNotFoundError:
-        tz = ZoneInfo("UTC")
+    tz = tenant_zone(tenant)
     local_now = datetime.now(tz)
     local_month_start = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return local_month_start.astimezone(timezone.utc)
@@ -114,7 +111,7 @@ def list_invoices(
     order = sort_column.asc() if sort_dir == "asc" else sort_column.desc()
 
     items = query.order_by(order).offset((page - 1) * page_size).limit(page_size).all()
-    today = date.today()
+    today = tenant_today_by_id(db, tenant_id)
     for item in items:
         item.is_overdue = _is_overdue(item, today)  # type: ignore[attr-defined]
     return items, total
@@ -167,6 +164,15 @@ def _is_overdue(invoice: Invoice, today: date) -> bool:
     return invoice.payment_status in ("credit", "partially_paid") and invoice.due_date is not None and invoice.due_date < today
 
 
+def _derive_payment_status(paid_amount: float, total_amount: float) -> str:
+    """Same formula create_invoice uses at creation time — reused wherever paid_amount changes
+    after the fact (returns, return-cancellation) so payment_status stays derived consistently
+    rather than hand-adjusted per call site."""
+    if paid_amount >= total_amount:
+        return "paid"
+    return "credit" if paid_amount <= 0 else "partially_paid"
+
+
 def _annotate_invoice(db: Session, invoice: Invoice, today: date) -> Invoice:
     user = db.get(User, invoice.created_by)
     invoice.created_by_name = f"{user.first_name} {user.last_name}" if user else ""  # type: ignore[attr-defined]
@@ -182,17 +188,21 @@ def get_invoice(db: Session, tenant_id: str, invoice_id: str) -> Invoice | None:
         .first()
     )
     if invoice is not None:
-        invoice = _annotate_invoice(db, invoice, date.today())
+        invoice = _annotate_invoice(db, invoice, tenant_today_by_id(db, tenant_id))
     return invoice
 
 
 def _customer_total_outstanding(db: Session, tenant_id: str, customer_id: str) -> float:
-    return (
+    invoice_outstanding = (
         db.query(func.coalesce(func.sum(Invoice.outstanding_amount), 0.0))
         .filter(Invoice.tenant_id == tenant_id, Invoice.customer_id == customer_id, Invoice.status != "cancelled")
         .scalar()
         or 0.0
     )
+    # Ledger adjustments aren't tied to an invoice (see net_ledger_adjustment_balance's own
+    # docstring) but still represent real debt owed — a manager could otherwise bypass
+    # credit_limit entirely by recording adjustments instead of a sale.
+    return invoice_outstanding + net_ledger_adjustment_balance(db, tenant_id, customer_id)
 
 
 def _check_credit_limit(db: Session, customer: Customer, additional_amount: float, current_user: User) -> None:
@@ -234,6 +244,19 @@ def _check_credit_limit(db: Session, customer: Customer, additional_amount: floa
 
 
 def create_invoice(db: Session, tenant_id: str, current_user: User, payload: InvoiceCreate) -> Invoice:
+    # Idempotent replay: a retried/duplicated checkout request (double-click past the
+    # disabled-button window, a flaky network layer replaying the POST, two tabs on the same
+    # login) with the same client-generated key returns the invoice already created for it
+    # instead of creating — and double stock-decrementing/double-charging for — a second one.
+    if payload.idempotency_key:
+        existing = (
+            db.query(Invoice)
+            .filter(Invoice.tenant_id == tenant_id, Invoice.client_reference_id == payload.idempotency_key)
+            .first()
+        )
+        if existing is not None:
+            return existing
+
     tenant = db.get(Tenant, tenant_id)
     settings = db.query(Settings).filter(Settings.tenant_id == tenant_id).first()
 
@@ -284,8 +307,32 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
     discount_amount = round(discount_amount, 2)
 
     taxable_amount = round(subtotal - discount_amount, 2)
-    tax_amount = round(taxable_amount * (payload.tax_percentage / 100), 2)
+
+    # None means "tax each line at its own product's rate" (a mixed-tax-rate cart is taxed
+    # correctly per line), a number means the cashier manually overrode tax uniformly for the
+    # whole cart — see InvoiceCreate.tax_percentage's own comment. line_tax_rates/line_taxes
+    # are index-aligned with `resolved` and reused below when building each InvoiceItem, so
+    # the aggregate tax_amount and the per-line figures can never drift apart.
+    line_tax_rates = [
+        payload.tax_percentage if payload.tax_percentage is not None else (product.tax_rate_percent or 0.0)
+        for product, _, _, _ in resolved
+    ]
+    line_taxes: list[float] = []
+    for (_, _, _, line_subtotal), rate in zip(resolved, line_tax_rates):
+        proportional_discount = (line_subtotal / subtotal * discount_amount) if subtotal > 0 else 0.0
+        line_taxable = line_subtotal - proportional_discount
+        line_taxes.append(round(line_taxable * (rate / 100), 2))
+    tax_amount = round(sum(line_taxes), 2)
     total_amount = round(taxable_amount + tax_amount, 2)
+
+    # Informational aggregate for the invoice header — the authoritative per-line rates live
+    # on each InvoiceItem.tax_rate_percent. Matches the frontend's own effectiveTaxPercentage
+    # definition so the displayed "Tax (X%)" figure agrees with what was actually charged.
+    effective_tax_percentage = (
+        payload.tax_percentage
+        if payload.tax_percentage is not None
+        else (round(tax_amount / taxable_amount * 100, 2) if taxable_amount else 0.0)
+    )
 
     customer_name = payload.customer_name
     customer_phone = payload.customer_phone
@@ -321,7 +368,7 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
         payment_terms = None
     else:
         paid_amount = round(payload.paid_now, 2)
-        payment_status = "paid" if paid_amount >= total_amount else ("credit" if paid_amount == 0 else "partially_paid")
+        payment_status = _derive_payment_status(paid_amount, total_amount)
         due_date = payload.due_date
         payment_terms = f"Net {customer.credit_days}" if customer and customer.credit_days else "Custom"
     outstanding_amount = round(total_amount - paid_amount, 2)
@@ -330,6 +377,7 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
         tenant_id=tenant_id,
         created_by=current_user.id,
         invoice_number=_next_invoice_number(db, tenant_id),
+        client_reference_id=payload.idempotency_key,
         customer_id=payload.customer_id,
         customer_name=customer_name,
         customer_phone=customer_phone,
@@ -340,7 +388,7 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
         discount_value=payload.discount_value,
         discount_amount=discount_amount,
         taxable_amount=taxable_amount,
-        tax_percentage=payload.tax_percentage,
+        tax_percentage=effective_tax_percentage,
         tax_amount=tax_amount,
         total_amount=total_amount,
         payment_method=payload.payment_method,
@@ -356,10 +404,9 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
 
     record_initial_payment(db, tenant_id, invoice, current_user, paid_amount)
 
-    for product, quantity, unit_price, line_subtotal in resolved:
+    for (product, quantity, unit_price, line_subtotal), rate, line_tax in zip(resolved, line_tax_rates, line_taxes):
         proportional_discount = (line_subtotal / subtotal * discount_amount) if subtotal > 0 else 0.0
         line_taxable = line_subtotal - proportional_discount
-        line_tax = round(line_taxable * (payload.tax_percentage / 100), 2)
         line_total = round(line_taxable + line_tax, 2)
 
         db.add(
@@ -371,7 +418,7 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
                 identifier_value=product.identifier_value,
                 quantity=quantity,
                 unit_price=unit_price,
-                tax_rate_percent=payload.tax_percentage,
+                tax_rate_percent=rate,
                 tax_amount=line_tax,
                 line_subtotal=line_subtotal,
                 line_total=line_total,
@@ -427,7 +474,26 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
         entity_id=invoice.id,
     )
 
-    db.commit()
+    if payload.idempotency_key:
+        # Two near-simultaneous requests with the same key can both pass the lookup at the top
+        # of this function before either commits — the unique constraint on
+        # (tenant_id, client_reference_id) is what actually prevents a duplicate invoice in
+        # that race; this just turns the resulting IntegrityError into "return the invoice the
+        # other request created" instead of a raw 500.
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            existing = (
+                db.query(Invoice)
+                .filter(Invoice.tenant_id == tenant_id, Invoice.client_reference_id == payload.idempotency_key)
+                .first()
+            )
+            if existing is not None:
+                return existing
+            raise
+    else:
+        db.commit()
     return get_invoice(db, tenant_id, invoice.id)  # type: ignore[return-value]
 
 
@@ -634,6 +700,21 @@ def create_return(db: Session, invoice: Invoice, current_user: User, payload: Re
         2,
     )
 
+    # Mirrors procurement/returns_service.py's applied_credit pattern: a return only ever
+    # credits back what's actually still owed on this invoice. A return against an
+    # already-fully-paid invoice records the refund amount (for the audit trail/refund_method)
+    # but applies zero credit here — there's no outstanding balance to reduce, and converting
+    # that into a tracked cash-refund/credit-note is a deliberately separate, not-yet-built
+    # feature (same documented Phase-1 limitation procurement's return flow already has).
+    applied_credit = min(return_record.refund_amount, invoice.outstanding_amount)
+    if applied_credit > 0:
+        # A walk-in "paid" sale always has outstanding_amount == 0, so applied_credit is
+        # naturally 0 here and payment_status is never touched for it — this block only ever
+        # fires for a credit/partially_paid invoice.
+        invoice.outstanding_amount = round(invoice.outstanding_amount - applied_credit, 2)
+        invoice.paid_amount = round(invoice.total_amount - invoice.outstanding_amount, 2)
+        invoice.payment_status = _derive_payment_status(invoice.paid_amount, invoice.total_amount)
+
     fully_returned = all(item.returned_quantity >= item.quantity for item in invoice.items)
     invoice.status = "refunded" if fully_returned else "partial"
     db.add(invoice)
@@ -684,6 +765,17 @@ def cancel_return(db: Session, ret: Return, current_user: User, reason: str) -> 
                     created_by=current_user.id,
                     reference_id=ret.id,
                 )
+
+    # Symmetric reversal of create_return's applied_credit, capped the same way
+    # procurement/returns_service.py's cancel-return path caps it: can't restore more credit
+    # than was ever actually applied (total_amount - outstanding_amount is how much is
+    # currently "paid off", by cash or by return credit combined).
+    applied_credit = min(ret.refund_amount, invoice.total_amount - invoice.outstanding_amount)
+    applied_credit = max(0.0, applied_credit)
+    if applied_credit > 0:
+        invoice.outstanding_amount = round(invoice.outstanding_amount + applied_credit, 2)
+        invoice.paid_amount = round(invoice.total_amount - invoice.outstanding_amount, 2)
+        invoice.payment_status = _derive_payment_status(invoice.paid_amount, invoice.total_amount)
 
     any_returned = any(item.returned_quantity > 0 for item in invoice.items)
     all_returned = invoice.items and all(item.returned_quantity >= item.quantity for item in invoice.items)
@@ -809,20 +901,9 @@ def list_returns_for_export(
     return [_to_return_out(db, r) for r in items]
 
 
-def _today_start_utc(tenant: Tenant | None) -> datetime:
-    tz_name = tenant.timezone if tenant else "UTC"
-    try:
-        tz = ZoneInfo(tz_name)
-    except ZoneInfoNotFoundError:
-        tz = ZoneInfo("UTC")
-    local_now = datetime.now(tz)
-    local_midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    return local_midnight.astimezone(timezone.utc)
-
-
 def get_returns_dashboard(db: Session, tenant_id: str) -> ReturnsDashboardOut:
     tenant = db.get(Tenant, tenant_id)
-    today_start = _today_start_utc(tenant)
+    today_start = local_day_bounds_utc(tenant, tenant_today(tenant))
     month_start = _month_start_utc(tenant)
 
     today_query = db.query(Return).filter(

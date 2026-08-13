@@ -208,6 +208,7 @@ def create_purchase_return(db: Session, tenant_id: str, current_user: User, payl
     # records a refund but doesn't manufacture a negative payable; true credit-note carry-forward
     # to a future purchase is out of scope for this phase).
     applied_credit = min(total_refund, purchase.outstanding_amount)
+    return_record.applied_credit_amount = round(applied_credit, 2)
     if applied_credit > 0:
         purchase.outstanding_amount = round(purchase.outstanding_amount - applied_credit, 2)
         db.add(purchase)
@@ -274,6 +275,7 @@ def cancel_purchase_return(db: Session, ret: PurchaseReturn, current_user: User,
                 vendor.outstanding_amount = round(vendor.outstanding_amount + applied_credit, 2)
                 db.add(vendor)
 
+    ret.applied_credit_amount = 0.0
     ret.status = "cancelled"
     ret.cancelled_by = current_user.id
     ret.cancelled_at = datetime.now(timezone.utc)
