@@ -92,7 +92,7 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, er
               </TableCell>
             </TableRow>
           ))}
-        {!isLoading && error && (
+        {!isLoading && !!error && (
           <TableRow>
             <TableCell colSpan={columnCount}>
               <EmptyState

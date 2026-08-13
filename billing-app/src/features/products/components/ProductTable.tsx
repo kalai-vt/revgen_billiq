@@ -99,7 +99,7 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, error,
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && error && (
+          {!isLoading && !!error && (
             <TableRow>
               <TableCell colSpan={7}>
                 <EmptyState

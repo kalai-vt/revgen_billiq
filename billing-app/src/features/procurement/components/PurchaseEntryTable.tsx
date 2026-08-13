@@ -88,7 +88,7 @@ export const PurchaseEntryTable = memo(function PurchaseEntryTable({ data, isLoa
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && error && (
+          {!isLoading && !!error && (
             <TableRow>
               <TableCell colSpan={8}>
                 <EmptyState
