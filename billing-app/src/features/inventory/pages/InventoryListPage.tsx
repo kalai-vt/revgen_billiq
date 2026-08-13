@@ -54,7 +54,7 @@ export function InventoryListPage() {
     [sortBy],
   );
 
-  const { data, isLoading } = usePaginatedInventory({
+  const { data, isLoading, error } = usePaginatedInventory({
     q: q || undefined,
     category_id: categoryId || undefined,
     stock_status: stockStatus === 'all' ? undefined : stockStatus,
@@ -102,7 +102,7 @@ export function InventoryListPage() {
         <TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="product" />
       }
     >
-      <InventoryTable data={data} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <InventoryTable data={data} isLoading={isLoading} error={error} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
     </ModulePage>
   );
 }

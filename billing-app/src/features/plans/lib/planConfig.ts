@@ -36,21 +36,22 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     maxStorageMb: 1024,
     features: { whatsapp_invoice: false, advanced_analytics: false, user_management: false, barcode_support: true },
   },
-  explore: {
-    label: 'Explore',
-    priceInr: 1999,
-    maxUsers: 5,
+  advance: {
+    label: 'Advanced',
+    priceInr: 2999,
+    maxUsers: null,
     maxProducts: null,
     maxCustomers: null,
     maxMonthlyInvoices: null,
-    maxBranches: 3,
-    maxWarehouses: 3,
-    maxStorageMb: 10240,
+    maxBranches: null,
+    maxWarehouses: null,
+    maxStorageMb: null,
     features: { whatsapp_invoice: true, advanced_analytics: true, user_management: true, barcode_support: true },
   },
-  advance: {
-    label: 'Advance',
-    priceInr: 2999,
+  custom: {
+    // Admin-configured per tenant, not a self-serve payable tier — see backend/app/core/plans.py.
+    label: 'Custom',
+    priceInr: 0,
     maxUsers: null,
     maxProducts: null,
     maxCustomers: null,
@@ -62,7 +63,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   },
 };
 
-export const PLAN_ORDER: PlanId[] = ['basic', 'explore', 'advance'];
+export const PLAN_ORDER: PlanId[] = ['basic', 'advance', 'custom'];
 
 export function getPlanConfig(plan: PlanId | null | undefined): PlanConfig {
   return PLANS[plan ?? 'basic'];

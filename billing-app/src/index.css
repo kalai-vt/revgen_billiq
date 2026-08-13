@@ -49,38 +49,41 @@
 }
 
 :root {
+    /* Indigo Royal — primary is the same #6C47FF already used as BILLIQ_BRAND_COLOR in the
+       invoice designer (see lib/echarts/theme.ts's violet chart-1 for the data-viz sibling of
+       this hue) — centralizing it here instead of inventing a new brand hex. */
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
+    --primary: #6C47FF;
     --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
+    --secondary: #F1EDFF;
+    --secondary-foreground: #4E32B8;
+    --muted: #F5F4FB;
     --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --accent: #F1EDFF;
+    --accent-foreground: #4E32B8;
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    --border: #E4E1F0;
+    --input: #E4E1F0;
+    --ring: #6C47FF;
+    --chart-1: #4a3aa7;
+    --chart-2: #1baf7a;
+    --chart-3: #eb6834;
+    --chart-4: #2a78d6;
+    --chart-5: #eda100;
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar: #241B5E;
+    --sidebar-foreground: #EDEAFB;
+    --sidebar-primary: #6C47FF;
     --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar-accent: #332766;
+    --sidebar-accent-foreground: #F5F3FF;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: #9B82FF;
 }
 
 .dark {
@@ -90,31 +93,31 @@
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
+    --primary: #B3A3FF;
+    --primary-foreground: #241C5C;
+    --secondary: #262244;
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
     --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --accent: #2E294D;
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
+    --ring: #B3A3FF;
+    --chart-1: #9085e9;
+    --chart-2: #199e70;
+    --chart-3: #d95926;
+    --chart-4: #3987e5;
+    --chart-5: #c98500;
+    --sidebar: #17122E;
     --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary: #6C47FF;
     --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent: #221C40;
     --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: #9B82FF;
 }
 
 @layer base {

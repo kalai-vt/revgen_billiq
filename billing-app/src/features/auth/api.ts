@@ -2,7 +2,7 @@ import { request } from '@/lib/api-client';
 
 export type UserRole = 'owner' | 'manager' | 'staff';
 export type PhoneType = 'mobile' | 'landline';
-export type PlanId = 'basic' | 'explore' | 'advance';
+export type PlanId = 'basic' | 'advance' | 'custom';
 
 export interface User {
   id: string;

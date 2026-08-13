@@ -27,6 +27,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
 import { downloadBlob } from '@/lib/download-blob';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const PAGE_SIZE = 20;
 
@@ -100,7 +101,7 @@ export function ReturnHistoryPage() {
 
   const { data: team } = useQuery({ queryKey: ['team-members'], queryFn: () => authApi.listTeamMembers() });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['returns', page, q, status, refundMethod, cashier, dateFrom, dateTo, sort],
     queryFn: () =>
       posApi.listReturns({
@@ -279,7 +280,18 @@ export function ReturnHistoryPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                {!isLoading && data?.items.length === 0 && (
+                {!isLoading && error && (
+                  <TableRow>
+                    <TableCell colSpan={10}>
+                      <EmptyState
+                        icon={Undo2}
+                        title="Couldn't load returns"
+                        description={apiErrorMessage(error, 'Something went wrong loading returns.')}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && !error && data?.items.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10}>
                       <EmptyState

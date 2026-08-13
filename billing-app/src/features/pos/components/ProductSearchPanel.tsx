@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Search, Plus } from 'lucide-react';
+import { AlertTriangle, Search, Plus } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,6 +9,7 @@ import * as categoriesApi from '@/features/categories/api';
 import { productAvatarClasses, productInitial } from '@/features/pos/lib/productAvatar';
 import type { PrimarySearchField } from '@/features/settings/api';
 import type { Product } from '@/features/products/api';
+import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 
 interface ProductSearchPanelProps {
@@ -23,7 +24,7 @@ const SEARCH_PLACEHOLDER: Record<PrimarySearchField, string> = {
 };
 
 export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
-  const { qInput, setQInput, categoryId, setCategoryId, data, isLoading } = usePosProductSearch();
+  const { qInput, setQInput, categoryId, setCategoryId, data, isLoading, error } = usePosProductSearch();
   const { data: productConfig } = useProductConfig();
   const { data: categoriesData } = useQuery({
     queryKey: ['categories', 'pos-filter'],
@@ -67,7 +68,15 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
           Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-36 shrink-0 md:h-11 md:w-full md:shrink" />
           ))}
-        {!isLoading && data?.items.length === 0 && (
+        {!isLoading && error && (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Couldn't load products"
+            description={apiErrorMessage(error, 'Something went wrong loading products.')}
+            className="w-full py-4"
+          />
+        )}
+        {!isLoading && !error && data?.items.length === 0 && (
           <EmptyState icon={Search} title="No products found" className="w-full py-4" />
         )}
         {data?.items.map((product) => (
@@ -75,7 +84,7 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
             key={product.id}
             type="button"
             onClick={() => onAdd(product)}
-            className="flex w-36 shrink-0 flex-col items-start gap-2 rounded-xl border bg-card px-3 py-2 text-left text-xs shadow-sm transition-colors hover:border-[#6C47FF] hover:bg-[#6C47FF]/5 md:w-full md:shrink md:flex-row md:items-center"
+            className="flex w-36 shrink-0 flex-col items-start gap-2 rounded-xl border bg-card px-3 py-2 text-left text-xs shadow-sm transition-colors hover:border-primary hover:bg-primary/5 md:w-full md:shrink md:flex-row md:items-center"
           >
             <span
               className={cn(
@@ -94,7 +103,7 @@ export function ProductSearchPanel({ onAdd }: ProductSearchPanelProps) {
             </span>
             <span className="flex w-full shrink-0 items-center justify-between gap-2 md:w-auto md:justify-end">
               <span className="font-medium">₹{product.selling_price.toFixed(2)}</span>
-              <span className="flex size-6 items-center justify-center rounded-full bg-[#6C47FF]/10 text-[#6C47FF]">
+              <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Plus className="size-3.5" />
               </span>
             </span>
@@ -117,7 +126,7 @@ function CategoryPill({ label, active, onClick }: { label: string; active: boole
       onClick={onClick}
       className={cn(
         'shrink-0 rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors',
-        active ? 'bg-[#6C47FF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70',
+        active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70',
       )}
     >
       {label}

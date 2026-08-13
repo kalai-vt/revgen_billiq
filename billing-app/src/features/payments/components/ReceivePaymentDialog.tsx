@@ -14,6 +14,7 @@ import * as paymentsApi from '@/features/payments/api';
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '@/features/payments/api';
 import type { PaymentMethod } from '@/features/payments/api';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface ReceivePaymentDialogProps {
   open: boolean;
@@ -51,10 +52,15 @@ export function ReceivePaymentDialog({ open, onClose, customerId: fixedCustomerI
     enabled: open && !fixedCustomerId,
   });
 
-  const { data: outstandingInvoices, isLoading: invoicesLoading } = useQuery({
+  const {
+    data: outstandingInvoices,
+    isLoading: invoicesLoading,
+    error: invoicesError,
+  } = useQuery({
     queryKey: ['outstanding-invoices', customerId],
     queryFn: () => paymentsApi.getOutstandingInvoices(customerId!),
     enabled: open && !!customerId,
+    retry: false,
   });
 
   const totalManualAllocated = Object.values(manualAllocations).reduce((sum, v) => sum + (v || 0), 0);
@@ -154,7 +160,14 @@ export function ReceivePaymentDialog({ open, onClose, customerId: fixedCustomerI
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {outstandingInvoices?.items.length === 0 && (
+                    {invoicesError && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-4 text-center text-sm text-destructive">
+                          {apiErrorMessage(invoicesError, "Couldn't load this customer's outstanding invoices.")}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {!invoicesError && outstandingInvoices?.items.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4} className="py-4 text-center text-sm text-muted-foreground">
                           No outstanding invoices for this customer.

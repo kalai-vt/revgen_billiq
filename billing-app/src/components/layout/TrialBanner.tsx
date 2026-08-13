@@ -69,13 +69,13 @@ export function TrialBanner({ tenantId, trialEndsAt }: TrialBannerProps) {
   if (!copy || dismissed) return null;
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-b bg-blue-500/10 px-4 py-2 text-center text-sm text-blue-700 dark:text-blue-400">
+    <div className="flex shrink-0 items-center justify-center gap-3 border-b bg-primary/10 px-4 py-2 text-center text-sm text-primary">
       <span>{copy}</span>
       <IconButton
         tooltip="Dismiss"
         aria-label="Dismiss trial banner"
         size="icon-xs"
-        className="shrink-0 text-blue-700 hover:bg-blue-500/20 dark:text-blue-400"
+        className="shrink-0 text-primary hover:bg-primary/20"
         onClick={() => {
           writeDismissed(key);
           setDismissed(true);

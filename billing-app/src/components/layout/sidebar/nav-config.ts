@@ -127,7 +127,7 @@ export const NAV_ENTRIES: NavEntry[] = [
       },
     ],
   },
-  { to: '/activity-log', label: 'Activity Log', icon: ScrollText, roles: ['owner', 'manager'] },
+  { to: '/activity-log', label: 'Activity Log', icon: ScrollText, roles: ['owner', 'manager'], moduleKey: 'activity_log' },
   { to: '/settings', label: 'Settings', icon: UserCircle, roles: ['owner', 'manager', 'staff'] },
 ];
 

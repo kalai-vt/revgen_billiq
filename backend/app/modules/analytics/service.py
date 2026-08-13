@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.core.tenant_time import local_day_bounds_utc, tenant_today, tenant_zone
 from app.models.catalog import Category, Product
 from app.models.customer import Customer
 from app.models.payment import Payment
@@ -68,31 +68,14 @@ class AnalyticsWindow:
     preset: str | None
 
 
-def _tenant_zone(tenant: Tenant) -> ZoneInfo:
-    try:
-        return ZoneInfo(tenant.timezone)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
-
-
-def _local_day_bounds_utc(tenant: Tenant, d: date) -> datetime:
-    tz = _tenant_zone(tenant)
-    local_midnight = datetime(d.year, d.month, d.day, tzinfo=tz)
-    return local_midnight.astimezone(timezone.utc)
-
-
-def _tenant_today(tenant: Tenant) -> date:
-    return datetime.now(timezone.utc).astimezone(_tenant_zone(tenant)).date()
-
-
 def resolve_window(tenant: Tenant, date_from: date, date_to: date, preset: str | None = None) -> AnalyticsWindow:
     if date_to < date_from:
         raise AnalyticsError(422, "date_to must be on or after date_from")
     days = (date_to - date_from).days + 1
     if days > 366:
         raise AnalyticsError(422, "Date range cannot exceed 366 days")
-    start_utc = _local_day_bounds_utc(tenant, date_from)
-    end_utc = _local_day_bounds_utc(tenant, date_to + timedelta(days=1))
+    start_utc = local_day_bounds_utc(tenant, date_from)
+    end_utc = local_day_bounds_utc(tenant, date_to + timedelta(days=1))
     granularity: Granularity = "day" if days <= 62 else ("week" if days <= 366 else "month")
     return AnalyticsWindow(
         tenant_id=tenant.id, date_from=date_from, date_to=date_to,
@@ -334,7 +317,7 @@ def get_hourly_sales(db: Session, window: AnalyticsWindow, tenant: Tenant) -> li
     # be misleading, so this widget is simply empty outside that case.
     if window.date_from != window.date_to:
         return []
-    tz = _tenant_zone(tenant)
+    tz = tenant_zone(tenant)
     rows = db.query(Invoice.created_at, Invoice.total_amount).filter(*_window_filter(window)).all()
     buckets: dict[int, list[float]] = {h: [] for h in range(24)}
     for created_at, total_amount in rows:
@@ -643,7 +626,7 @@ _COMPARISON_UNIT_LABELS: dict[ComparisonUnit, str] = {
 
 
 def get_trend_comparison(db: Session, tenant: Tenant, unit: ComparisonUnit) -> TrendComparisonOut:
-    today_local = _tenant_today(tenant)
+    today_local = tenant_today(tenant)
     if unit == "day":
         period_start = today_local
     elif unit == "week":

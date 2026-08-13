@@ -18,10 +18,12 @@ import { ProductFormDialog } from '@/features/products/components/ProductFormDia
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface ProductTableProps {
   data?: ProductListResult;
   isLoading: boolean;
+  error?: unknown;
   sortBy: ProductSortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: ProductSortField) => void;
@@ -29,7 +31,7 @@ interface ProductTableProps {
 
 const INITIAL_WIDTHS = { name: 220, identifier: 160, category: 140, cost: 100, price: 100, tax: 90 };
 
-export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy, sortDir, onSort }: ProductTableProps) {
+export const ProductTable = memo(function ProductTable({ data, isLoading, error, sortBy, sortDir, onSort }: ProductTableProps) {
   const { user } = useAuth();
   const canEdit = user?.role === 'owner' || user?.role === 'manager';
   const canDelete = user?.role === 'owner';
@@ -97,7 +99,18 @@ export const ProductTable = memo(function ProductTable({ data, isLoading, sortBy
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={7}>
+                <EmptyState
+                  icon={Package}
+                  title="Couldn't load products"
+                  description={apiErrorMessage(error, 'Something went wrong loading products.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && data?.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={7}>
                 <EmptyState icon={Package} title="No products found" description="Create a product or adjust your filters." />

@@ -147,6 +147,68 @@ def test_vendor_ledger_reflects_purchase_and_payment(client: TestClient, admin_d
     assert "payment" in types
 
 
+def test_vendor_ledger_offsets_immediate_payment_purchase(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client)
+    headers = _headers(owner["access_token"])
+    _enable_procurement(client, admin_db_session, owner)
+    vendor = _create_vendor(client, headers)
+    product = _create_product(client, headers)
+    response = client.post(
+        "/api/procurement/purchases",
+        json={
+            "vendor_id": vendor["id"],
+            "purchase_date": "2026-01-01",
+            "payment_mode": "cash",
+            "items": [{"product_id": product["id"], "quantity": 10, "unit_cost_price": 4.0}],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+
+    vendor_after = client.get(f"/api/procurement/vendors/{vendor['id']}", headers=headers).json()["data"]
+    assert vendor_after["outstanding_amount"] == 0.0
+
+    ledger = client.get(f"/api/procurement/vendors/{vendor['id']}/ledger", headers=headers)
+    data = ledger.json()["data"]
+    assert data["closing_balance"] == 0.0
+    types = [e["type"] for e in data["entries"]]
+    assert types.count("payment") == 1
+
+
+def test_vendor_ledger_caps_return_credit_on_paid_purchase(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client)
+    headers = _headers(owner["access_token"])
+    _enable_procurement(client, admin_db_session, owner)
+    vendor = _create_vendor(client, headers)
+    product = _create_product(client, headers)
+    purchase = _create_purchase(client, headers, vendor["id"], product["id"], quantity=10, unit_cost=4.0)  # total 40
+    client.post(
+        "/api/procurement/vendor-payments",
+        json={"vendor_id": vendor["id"], "amount": 40.0, "payment_method": "cash"},
+        headers=headers,
+    )
+    purchase_detail = client.get(f"/api/procurement/purchases/{purchase['id']}", headers=headers).json()["data"]
+    item_id = purchase_detail["items"][0]["id"]
+
+    return_response = client.post(
+        "/api/procurement/returns",
+        json={
+            "purchase_entry_id": purchase["id"],
+            "lines": [{"purchase_entry_item_id": item_id, "quantity": 5, "reason": "damaged"}],
+        },
+        headers=headers,
+    )
+    assert return_response.status_code == 200, return_response.text
+    assert return_response.json()["data"]["refund_amount"] == 20.0
+
+    vendor_after = client.get(f"/api/procurement/vendors/{vendor['id']}", headers=headers).json()["data"]
+    assert vendor_after["outstanding_amount"] == 0.0
+
+    ledger = client.get(f"/api/procurement/vendors/{vendor['id']}/ledger", headers=headers)
+    data = ledger.json()["data"]
+    assert data["closing_balance"] == 0.0
+
+
 def test_staff_cannot_create_vendor_payment(client: TestClient, admin_db_session: Session) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])

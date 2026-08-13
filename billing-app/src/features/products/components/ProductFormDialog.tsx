@@ -20,6 +20,7 @@ import { useCategories } from '@/features/categories/hooks/useCategories';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { hasFeature } from '@/features/plans/lib/planConfig';
 import { useProductConfig } from '@/features/settings/hooks/useProductConfig';
+import { useFeatureFlags } from '@/features/settings/hooks/useFeatureFlags';
 import * as productsApi from '@/features/products/api';
 import { IDENTIFIER_TYPES, IDENTIFIER_TYPE_LABELS } from '@/features/products/api';
 import type { DuplicateCheckResult, IdentifierItem, IdentifierType, Product, ProductPayload } from '@/features/products/api';
@@ -60,7 +61,9 @@ export function ProductFormDialog({ product, trigger }: ProductFormDialogProps) 
   const { data: categoriesData } = useCategories();
   const { plan } = useAuth();
   const { data: productConfig } = useProductConfig();
-  const canUseBarcode = hasFeature(plan, 'barcode_support');
+  const { data: featureFlags } = useFeatureFlags();
+  // Admin Portal can grant/revoke this per-tenant regardless of plan — see AdvancedAnalyticsPage.
+  const canUseBarcode = featureFlags?.barcode_support ?? hasFeature(plan, 'barcode_support');
   const canUseMultipleIdentifiers = productConfig?.enable_multiple_identifiers ?? false;
 
   useEffect(() => {

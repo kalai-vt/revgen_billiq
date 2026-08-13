@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.core.activity import ACTION_CREDIT_SETTINGS_UPDATED, MODULE_CUSTOMER, log_activity
 from app.core.limits import assert_under_limit
+from app.core.tenant_time import tenant_today_by_id
 from app.models.customer import Customer
-from app.models.payment import Payment
+from app.models.payment import CustomerLedgerAdjustment, Payment
 from app.models.sales import Invoice
 from app.models.user import User
 from app.schemas.customer import CustomerCreate, CustomerUpdate
@@ -27,7 +28,7 @@ _SORTABLE_FIELDS = {"name": Customer.name, "mobile": Customer.mobile, "email": C
 
 def _customer_aggregates(db: Session, tenant_id: str, customer_ids: list[str] | None = None) -> dict[str, dict]:
     """customer_id -> {outstanding, overdue_amount, due_count, overdue_count, last_payment_date}."""
-    today = date.today()
+    today = tenant_today_by_id(db, tenant_id)
     query = db.query(Invoice).filter(
         Invoice.tenant_id == tenant_id, Invoice.status != "cancelled", Invoice.outstanding_amount > 0
     )
@@ -57,6 +58,24 @@ def _customer_aggregates(db: Session, tenant_id: str, customer_ids: list[str] | 
             {"outstanding": 0.0, "overdue_amount": 0.0, "due_count": 0, "overdue_count": 0, "last_payment_date": None},
         )
         agg[customer_id]["last_payment_date"] = last_date
+
+    # A manual ledger adjustment isn't tied to any one invoice — see
+    # payments/service.py::net_ledger_adjustment_balance's own docstring — so it has to be
+    # folded into "outstanding" here as a second term, or this list disagrees with the Ledger
+    # tab's closing balance and the Credit & Outstanding tab the same way the original bug did.
+    adjustment_query = db.query(
+        CustomerLedgerAdjustment.customer_id, func.coalesce(func.sum(CustomerLedgerAdjustment.amount), 0.0)
+    ).filter(CustomerLedgerAdjustment.tenant_id == tenant_id)
+    if customer_ids is not None:
+        adjustment_query = adjustment_query.filter(CustomerLedgerAdjustment.customer_id.in_(customer_ids))
+    for customer_id, net_amount in adjustment_query.group_by(CustomerLedgerAdjustment.customer_id).all():
+        if not net_amount:
+            continue
+        agg.setdefault(
+            customer_id,
+            {"outstanding": 0.0, "overdue_amount": 0.0, "due_count": 0, "overdue_count": 0, "last_payment_date": None},
+        )
+        agg[customer_id]["outstanding"] = round(agg[customer_id]["outstanding"] + net_amount, 2)
 
     return agg
 
@@ -112,7 +131,7 @@ def list_customers(
         return [_annotate_customer(c, agg) for c in page_items], total
 
     agg = _customer_aggregates(db, tenant_id, [c.id for c in all_matching])
-    today = date.today()
+    today = tenant_today_by_id(db, tenant_id)
     week_end = today + timedelta(days=7)
     due_today_ids, due_week_ids = _due_invoice_customer_ids(db, tenant_id, today, week_end)
 

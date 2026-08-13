@@ -9,7 +9,7 @@ import { usePaySubscription } from '@/features/plans/hooks/usePaySubscription';
 const PAYABLE_STATUSES: SubscriptionStatus[] = ['trialing', 'suspended', 'expired'];
 
 const STATUS_BADGE: Record<SubscriptionStatus, { label: string; className: string }> = {
-  trialing: { label: 'Trialing', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  trialing: { label: 'Trialing', className: 'bg-primary/10 text-primary' },
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
   suspended: { label: 'Suspended', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
   expired: { label: 'Expired', className: 'bg-destructive/10 text-destructive' },

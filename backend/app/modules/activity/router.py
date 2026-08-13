@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_role
+from app.core.limits import require_feature
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.activity import service
 
-router = APIRouter(prefix="/api", tags=["activity"])
+router = APIRouter(prefix="/api", tags=["activity"], dependencies=[Depends(require_feature("activity_log"))])
 
 
 @router.get("/activity-log")

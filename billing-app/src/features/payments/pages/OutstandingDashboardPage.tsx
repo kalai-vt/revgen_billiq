@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
-import { FileSpreadsheet, FileText, Sheet } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileText, Sheet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { ModulePage } from '@/components/layout/ModulePage';
 import * as paymentsApi from '@/features/payments/api';
 import type { AgeingBucketKey } from '@/features/payments/api';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const BUCKET_LABELS: Record<AgeingBucketKey, string> = {
   current: 'Current',
@@ -31,14 +32,24 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 export function OutstandingDashboardPage() {
-  const { data: dashboard, isLoading: dashboardLoading } = useQuery({
+  const {
+    data: dashboard,
+    isLoading: dashboardLoading,
+    error: dashboardError,
+  } = useQuery({
     queryKey: ['outstanding-dashboard'],
     queryFn: () => paymentsApi.getOutstandingDashboard(),
+    retry: false,
   });
 
-  const { data: ageing, isLoading: ageingLoading } = useQuery({
+  const {
+    data: ageing,
+    isLoading: ageingLoading,
+    error: ageingError,
+  } = useQuery({
     queryKey: ['ageing-report'],
     queryFn: () => paymentsApi.getAgeingReport(),
+    retry: false,
   });
 
   async function handleExport(kind: 'ageing' | 'outstanding', format: 'excel' | 'pdf' | 'csv') {
@@ -92,20 +103,28 @@ export function OutstandingDashboardPage() {
       bodyClassName="space-y-4 border-0 p-0 overflow-visible"
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {dashboardLoading &&
-            Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
-          {tiles.map((tile) => (
-            <Card key={tile.label}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{tile.label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-2xl font-semibold tracking-tight ${tile.destructive ? 'text-destructive' : ''}`}>{tile.value}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {dashboardError ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Couldn't load the outstanding summary"
+            description={apiErrorMessage(dashboardError, 'Something went wrong loading the dashboard.')}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {dashboardLoading &&
+              Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+            {tiles.map((tile) => (
+              <Card key={tile.label}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{tile.label}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-2xl font-semibold tracking-tight ${tile.destructive ? 'text-destructive' : ''}`}>{tile.value}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {dashboard && (
           <Card>
@@ -166,7 +185,18 @@ export function OutstandingDashboardPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                  {!ageingLoading && ageing?.invoices.length === 0 && (
+                  {!ageingLoading && ageingError && (
+                    <TableRow>
+                      <TableCell colSpan={6}>
+                        <EmptyState
+                          icon={AlertTriangle}
+                          title="Couldn't load the ageing report"
+                          description={apiErrorMessage(ageingError, 'Something went wrong loading outstanding invoices.')}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!ageingLoading && !ageingError && ageing?.invoices.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6}>
                         <EmptyState title="No outstanding invoices" description="Every credit and partial sale has been settled." />
@@ -215,7 +245,18 @@ export function OutstandingDashboardPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                  {!ageingLoading && ageing?.by_customer.length === 0 && (
+                  {!ageingLoading && ageingError && (
+                    <TableRow>
+                      <TableCell colSpan={7}>
+                        <EmptyState
+                          icon={AlertTriangle}
+                          title="Couldn't load the ageing report"
+                          description={apiErrorMessage(ageingError, 'Something went wrong loading outstanding balances.')}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!ageingLoading && !ageingError && ageing?.by_customer.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7}>
                         <EmptyState title="No outstanding balances" description="No customer currently owes a balance." />

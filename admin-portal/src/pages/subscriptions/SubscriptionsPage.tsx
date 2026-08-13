@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@shared/components/ui/tabs';
 import { listSubscriptions, type SubscriptionStatusFilter } from '@/services/subscriptionsApi';
 import { planLabel } from '@/lib/plans';
+import { apiErrorMessage } from '@/lib/query-error';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
@@ -52,9 +53,10 @@ function daysRemainingClass(days: number | null): string {
 export function SubscriptionsPage() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatusFilter>('all');
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['admin-subscriptions', statusFilter],
     queryFn: () => listSubscriptions(statusFilter),
+    retry: false,
   });
 
   const mrr = data?.reduce((sum, row) => (row.subscription_status === 'active' ? sum + row.price_inr : sum), 0) ?? 0;
@@ -78,7 +80,11 @@ export function SubscriptionsPage() {
         </TabsList>
       </Tabs>
 
-      {isLoading || !data ? (
+      {error ? (
+        <div className="rounded-lg border p-8 text-center text-sm text-destructive">
+          {apiErrorMessage(error, 'Something went wrong loading subscriptions.')}
+        </div>
+      ) : isLoading || !data ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />

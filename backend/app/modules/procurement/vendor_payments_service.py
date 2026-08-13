@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.activity import ACTION_PAYMENT_RECEIVED, MODULE_VENDOR_PAYMENT, log_activity
 from app.models.procurement import PurchaseEntry, PurchaseReturn, Vendor, VendorPayment, VendorPaymentAllocation
 from app.models.user import User
+from app.modules.procurement.purchases_service import _IMMEDIATE_PAYMENT_MODES
 from app.schemas.vendor_payments import (
     OutstandingPurchaseOut,
     VendorLedgerEntryOut,
@@ -213,6 +214,20 @@ def get_vendor_ledger(db: Session, tenant_id: str, vendor_id: str) -> VendorLedg
                 "credit": 0.0,
             }
         )
+        # Immediate-payment purchases (cash/card/upi) never create a VendorPayment row and
+        # never touch vendor.outstanding_amount (see purchases_service.create_purchase_entry) —
+        # without this offsetting credit the ledger would show a debit with no matching payment.
+        if p.payment_mode in _IMMEDIATE_PAYMENT_MODES and p.paid_amount > 0:
+            raw_entries.append(
+                {
+                    "date": p.created_at,
+                    "type": "payment",
+                    "reference": p.purchase_number,
+                    "description": f"Paid at purchase ({p.payment_mode})",
+                    "debit": 0.0,
+                    "credit": p.paid_amount,
+                }
+            )
 
     payments = db.query(VendorPayment).filter(VendorPayment.tenant_id == tenant_id, VendorPayment.vendor_id == vendor_id).all()
     for pay in payments:
@@ -233,6 +248,9 @@ def get_vendor_ledger(db: Session, tenant_id: str, vendor_id: str) -> VendorLedg
         .all()
     )
     for r in returns:
+        # Credit only what actually reduced the purchase's outstanding balance (capped — see
+        # returns_service.create_purchase_return), not the full refund_amount, so a return on an
+        # already-fully-paid purchase doesn't manufacture a negative ledger balance.
         raw_entries.append(
             {
                 "date": r.created_at,
@@ -240,7 +258,7 @@ def get_vendor_ledger(db: Session, tenant_id: str, vendor_id: str) -> VendorLedg
                 "reference": r.return_number,
                 "description": "Purchase return",
                 "debit": 0.0,
-                "credit": r.refund_amount,
+                "credit": r.applied_credit_amount,
             }
         )
 

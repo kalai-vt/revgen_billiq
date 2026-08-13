@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Printer, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Printer, RefreshCw } from 'lucide-react';
 import { DateRangeSelector } from '@/components/shared/DateRangeSelector';
 import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as analyticsApi from '@/features/analytics/api';
@@ -23,6 +24,7 @@ import { TopProductsChart } from '@/features/analytics/components/TopProductsCha
 import { TopProductsTable } from '@/features/analytics/components/TopProductsTable';
 import { useDashboardData } from '@/features/analytics/hooks/useDashboardData';
 import { downloadBlob } from '@/lib/download-blob';
+import { apiErrorMessage } from '@/lib/query-error';
 import { resolveDateRangePreset, type DateRangePreset } from '@/lib/date-range';
 
 const EXPORT_EXTENSIONS: Record<ExportFormat, string> = { excel: 'xlsx', pdf: 'pdf', csv: 'csv' };
@@ -42,7 +44,7 @@ export function DashboardShell({ title, description, defaultPreset, advanced, va
   const { tenant } = useAuth();
   const timezone = tenant?.timezone ?? 'UTC';
   const [range, setRange] = useState(() => resolveDateRangePreset(defaultPreset, timezone));
-  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useDashboardData(range, advanced);
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useDashboardData(range, advanced);
 
   async function exportWidget(widget: DashboardWidget, format: ExportFormat) {
     const blob = await analyticsApi.exportDashboardWidget(widget, format, range.from, range.to, advanced, range.preset);
@@ -82,6 +84,14 @@ export function DashboardShell({ title, description, defaultPreset, advanced, va
         </div>
       </div>
 
+      {error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load the dashboard"
+          description={apiErrorMessage(error, 'Something went wrong loading analytics.')}
+        />
+      ) : (
+      <>
       <KpiCards kpis={data?.kpis} isLoading={isLoading} tiles={variant === 'overview' ? OVERVIEW_KPI_KEYS : undefined} />
 
       {variant === 'overview' ? (
@@ -145,6 +155,8 @@ export function DashboardShell({ title, description, defaultPreset, advanced, va
             <TopProductsTable data={data?.top_products ?? []} isLoading={isLoading} onExport={(f) => exportWidget('top_products', f)} />
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   );

@@ -279,7 +279,14 @@ export const router = createBrowserRouter([
                       </RequireModule>
                     ),
                   },
-                  { path: '/activity-log', element: <ActivityLogPage /> },
+                  {
+                    path: '/activity-log',
+                    element: (
+                      <RequireModule moduleKey="activity_log" label="Activity Log">
+                        <ActivityLogPage />
+                      </RequireModule>
+                    ),
+                  },
                 ],
               },
               {

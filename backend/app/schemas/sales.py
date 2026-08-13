@@ -21,12 +21,22 @@ class InvoiceCreate(BaseModel):
     lines: list[InvoiceLineCreate] = Field(min_length=1)
     discount_type: Literal["flat", "percent"] | None = None
     discount_value: float = Field(default=0.0, ge=0)
-    tax_percentage: float = Field(default=0.0, ge=0, le=100)
+    # None (the default) means "tax each line at its own product's rate" — the correct
+    # behavior for a mixed-tax-rate cart, computed server-side from each line's product. A
+    # number means the cashier manually overrode tax for the whole cart, applied uniformly to
+    # every line as before (see create_invoice) — that path is unchanged and still tested by
+    # test_manual_tax.py.
+    tax_percentage: float | None = Field(default=None, ge=0, le=100)
     payment_method: Literal["cash", "card", "upi"]
     amount_tendered: float | None = Field(default=None, ge=0)
     payment_type: PaymentType = "paid"
     paid_now: float = Field(default=0.0, ge=0)
     due_date: date | None = None
+    # One opaque id per checkout attempt (e.g. crypto.randomUUID() on the frontend, reused
+    # across retries of the SAME attempt). A repeated request with the same key returns the
+    # already-created invoice instead of creating a second one — see create_invoice. Optional
+    # so any other caller of this API that doesn't send one just gets today's behavior.
+    idempotency_key: str | None = Field(default=None, max_length=64)
 
 
 class InvoiceItemOut(BaseModel):

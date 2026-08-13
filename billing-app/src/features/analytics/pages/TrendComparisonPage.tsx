@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Printer, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Printer, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,6 +13,7 @@ import { ComparisonMetricCard } from '@/features/analytics/components/Comparison
 import { useFeatureFlags } from '@/features/settings/hooks/useFeatureFlags';
 import { useTrendComparison } from '@/features/analytics/hooks/useTrendComparison';
 import { downloadBlob } from '@/lib/download-blob';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const UNIT_OPTIONS: { value: ComparisonUnit; label: string }[] = [
   { value: 'day', label: 'Day' },
@@ -34,7 +35,7 @@ export function TrendComparisonPage() {
   const { data: featureFlags } = useFeatureFlags();
   const canUseTrendComparison = featureFlags?.trend_comparison ?? false;
   const [unit, setUnit] = useState<ComparisonUnit>('month');
-  const { data, isLoading, isFetching, refetch } = useTrendComparison(unit);
+  const { data, isLoading, isFetching, error, refetch } = useTrendComparison(unit);
 
   if (!canUseTrendComparison) {
     return (
@@ -92,7 +93,13 @@ export function TrendComparisonPage() {
         </p>
       )}
 
-      {isLoading || !data ? (
+      {error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load the comparison"
+          description={apiErrorMessage(error, 'Something went wrong loading trend comparison.')}
+        />
+      ) : isLoading || !data ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-40" />

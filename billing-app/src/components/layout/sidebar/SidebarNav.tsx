@@ -34,7 +34,9 @@ function ChildLink({ leaf, onNavigate }: { leaf: NavLeaf; onNavigate?: () => voi
       className={({ isActive }) =>
         cn(
           'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
-          isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+          isActive
+            ? 'bg-sidebar-accent font-semibold text-sidebar-foreground'
+            : 'text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground',
         )
       }
     >
@@ -54,12 +56,17 @@ function TopLevelLink({ leaf, collapsed, onNavigate }: { leaf: NavLeaf; collapse
         cn(
           'text-sm font-medium transition-colors',
           collapsed
-            ? cn(COLLAPSED_ICON_BOX, isActive ? 'bg-primary/10 text-primary' : 'text-foreground/80 hover:bg-muted/70 hover:text-foreground')
+            ? cn(
+                COLLAPSED_ICON_BOX,
+                isActive
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+              )
             : cn(
                 'flex items-center gap-2.5 rounded-md border-l-[3px] px-2.5 py-2',
                 isActive
-                  ? 'border-primary bg-primary/10 font-semibold text-primary'
-                  : 'border-transparent text-foreground/80 hover:bg-muted/70 hover:text-foreground',
+                  ? 'border-sidebar-primary-foreground/40 bg-sidebar-primary font-semibold text-sidebar-primary-foreground'
+                  : 'border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
               ),
         )
       }
@@ -97,7 +104,7 @@ function ModuleGroup({
       <button
         type="button"
         onClick={() => onGroupIconClick?.(group.label)}
-        className={cn(COLLAPSED_ICON_BOX, 'text-foreground/80 transition-colors hover:bg-muted/70 hover:text-foreground')}
+        className={cn(COLLAPSED_ICON_BOX, 'text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground')}
         aria-label={`Expand ${group.label}`}
       >
         <group.icon className="size-[18px] shrink-0" />
@@ -113,7 +120,7 @@ function ModuleGroup({
 
   return (
     <AccordionItem value={group.label}>
-      <AccordionTrigger className="w-full rounded-md px-2.5 py-2 text-foreground/80 hover:bg-muted/70">
+      <AccordionTrigger className="w-full rounded-md px-2.5 py-2 text-sidebar-foreground/70 hover:bg-sidebar-accent">
         <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium">
           <group.icon className="size-[18px] shrink-0" />
           <span className="truncate">{group.label}</span>
@@ -163,7 +170,10 @@ export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpa
     return (
       <nav aria-label="Main navigation" className={cn('flex flex-col gap-1.5', collapsed ? 'items-center px-2' : 'px-2.5')}>
         {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className={collapsed ? 'size-10 shrink-0 rounded-md' : 'h-9 w-full rounded-md'} />
+          <Skeleton
+            key={i}
+            className={cn('bg-sidebar-accent', collapsed ? 'size-10 shrink-0 rounded-md' : 'h-9 w-full rounded-md')}
+          />
         ))}
       </nav>
     );
@@ -184,7 +194,7 @@ export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpa
       <Accordion value={expanded} onValueChange={(value) => setExpanded(value as string[])} multiple className="contents">
         {entries.map(({ entry, children }, index) => (
           <div key={isGroup(entry) ? entry.label : entry.to} className={cn('w-full', collapsed && 'flex flex-col items-center')}>
-            {index > 0 && <Separator className={collapsed ? 'my-1 opacity-70' : 'my-1.5 opacity-70'} />}
+            {index > 0 && <Separator className={cn('bg-sidebar-border', collapsed ? 'my-1 opacity-70' : 'my-1.5 opacity-70')} />}
             {children ? (
               <ModuleGroup
                 group={entry as NavGroup}

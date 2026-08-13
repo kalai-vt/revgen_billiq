@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { PackageOpen } from 'lucide-react';
@@ -59,6 +59,15 @@ export function POSPage() {
   const [error, setError] = useState<string | null>(null);
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null);
   const [heldBillsOpen, setHeldBillsOpen] = useState(false);
+  // Set on resume, cleared once that resumed bill's checkout actually succeeds (or a fresh
+  // sale starts) — the held bill itself is only deleted server-side at that point, not at
+  // resume time, so a crash/refresh/failed checkout in between leaves it recoverable. See
+  // resumeHeldBill/handleCheckout.
+  const [resumedHeldBillId, setResumedHeldBillId] = useState<string | null>(null);
+  // One id per checkout attempt, sent as InvoiceCreate.idempotency_key so a retried/duplicated
+  // request can't create two invoices — see useCreateInvoice/handleCheckout. Regenerated only
+  // once an attempt actually succeeds or the cart is cleared, never on every render/retry.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const createInvoice = useCreateInvoice();
   const queryClient = useQueryClient();
@@ -126,7 +135,7 @@ export function POSPage() {
         })),
         discount_type: discountType,
         discount_value: discountValue,
-        tax_percentage: taxOverride ?? totals.effectiveTaxPercentage,
+        tax_percentage: taxOverride,
         payment_method: paymentMethod,
       }),
     onSuccess: () => {
@@ -155,7 +164,10 @@ export function POSPage() {
     setCustomerName(heldBill.customer_name ?? '');
     setCustomerPhone(heldBill.customer_phone ?? '');
     setHeldBillsOpen(false);
-    posApi.deleteHeldBill(heldBill.id).then(() => queryClient.invalidateQueries({ queryKey: ['held-bills'] }));
+    // Deliberately NOT deleted here — only once this resumed bill's checkout actually
+    // succeeds (see handleCheckout). A browser crash/refresh, or a checkout that fails,
+    // between resume and checkout must leave the held bill recoverable, not silently gone.
+    setResumedHeldBillId(heldBill.id);
   }
 
   function handleDiscountChange(type: DiscountType, value: number) {
@@ -199,6 +211,8 @@ export function POSPage() {
     setCustomerPhone('');
     setError(null);
     setCompletedInvoice(null);
+    setResumedHeldBillId(null);
+    idempotencyKeyRef.current = crypto.randomUUID();
   }
 
   async function handleCheckout() {
@@ -215,14 +229,21 @@ export function POSPage() {
         })),
         discount_type: discountType,
         discount_value: discountValue,
-        tax_percentage: taxOverride ?? totals.effectiveTaxPercentage,
+        tax_percentage: taxOverride,
         payment_method: paymentMethod,
         amount_tendered: paymentType === 'paid' && paymentMethod === 'cash' ? amountTendered : null,
         payment_type: paymentType,
         paid_now: paymentType === 'partial' ? (paidNow ?? 0) : paymentType === 'credit' ? 0 : undefined,
         due_date: paymentType !== 'paid' ? dueDate || null : null,
+        idempotency_key: idempotencyKeyRef.current,
       });
       setCompletedInvoice(invoice);
+      // Only now — checkout actually succeeded — is it safe to delete the held bill this sale
+      // resumed from. Fire-and-forget: even if this specific call fails, the sale itself is
+      // already done, and an orphaned held bill is a harmless cleanup nit, not a data-loss risk.
+      if (resumedHeldBillId) {
+        posApi.deleteHeldBill(resumedHeldBillId).then(() => queryClient.invalidateQueries({ queryKey: ['held-bills'] }));
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
     }

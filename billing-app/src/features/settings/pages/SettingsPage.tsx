@@ -25,7 +25,7 @@ import { DataPrivacyCard } from '@/features/settings/components/DataPrivacyCard'
 import { InvoiceSettingsForm } from '@/features/settings/components/InvoiceSettingsForm';
 import { LoginHistoryTable } from '@/features/settings/components/LoginHistoryTable';
 import { ProductConfigurationForm } from '@/features/settings/components/ProductConfigurationForm';
-import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
+import { useFeatureFlag, useFeatureFlags } from '@/features/settings/hooks/useFeatureFlags';
 import { cn } from '@/lib/utils';
 import { ApiError } from '@/lib/api-client';
 
@@ -39,7 +39,9 @@ export function SettingsPage() {
   const { user, tenant, plan, setTenant, setUser } = useAuth();
   const isOwner = user?.role === 'owner';
   const isManager = user?.role === 'manager';
-  const canManageUsers = hasFeature(plan, 'user_management');
+  const { data: featureFlags } = useFeatureFlags();
+  // Admin Portal can grant/revoke this per-tenant regardless of plan — see AdvancedAnalyticsPage.
+  const canManageUsers = featureFlags?.user_management ?? hasFeature(plan, 'user_management');
   const invoiceDesignerEnabled = useFeatureFlag('invoice_designer');
 
   const [form, setForm] = useState({

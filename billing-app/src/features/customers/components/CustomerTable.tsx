@@ -18,10 +18,12 @@ import { CustomerFormDialog } from '@/features/customers/components/CustomerForm
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface CustomerTableProps {
   data?: CustomerListResult;
   isLoading: boolean;
+  error?: unknown;
   sortBy: CustomerSortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: CustomerSortField) => void;
@@ -29,7 +31,7 @@ interface CustomerTableProps {
 
 const INITIAL_WIDTHS = { name: 200, mobile: 140, email: 220, address: 180, outstanding: 130 };
 
-export const CustomerTable = memo(function CustomerTable({ data, isLoading, sortBy, sortDir, onSort }: CustomerTableProps) {
+export const CustomerTable = memo(function CustomerTable({ data, isLoading, error, sortBy, sortDir, onSort }: CustomerTableProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const canEdit = user?.role === 'owner' || user?.role === 'manager';
@@ -97,7 +99,18 @@ export const CustomerTable = memo(function CustomerTable({ data, isLoading, sort
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={8}>
+                <EmptyState
+                  icon={Users}
+                  title="Couldn't load customers"
+                  description={apiErrorMessage(error, 'Something went wrong loading customers.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && data?.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={8}>
                 <EmptyState icon={Users} title="No customers found" description="Add a customer or adjust your search." />

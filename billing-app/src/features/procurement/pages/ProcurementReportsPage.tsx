@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { AlertTriangle } from 'lucide-react';
 import { DateRangeSelector } from '@/components/shared/DateRangeSelector';
 import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -10,6 +12,7 @@ import * as procurementApi from '@/features/procurement/api';
 import type { ReportWidget } from '@/features/procurement/api';
 import { downloadBlob } from '@/lib/download-blob';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 import { resolveDateRangePreset, OVERVIEW_PRESETS } from '@/lib/date-range';
 
 const EXPORT_EXTENSIONS: Record<ExportFormat, string> = { excel: 'xlsx', pdf: 'pdf', csv: 'csv' };
@@ -26,7 +29,7 @@ export function ProcurementReportsPage() {
   const { tenant } = useAuth();
   const timezone = tenant?.timezone ?? 'UTC';
   const [range, setRange] = useState(() => resolveDateRangePreset('this_month', timezone));
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['procurement-reports', range.from, range.to],
     queryFn: () => procurementApi.getProcurementReports(range.from, range.to),
   });
@@ -53,6 +56,13 @@ export function ProcurementReportsPage() {
         </div>
       </div>
 
+      {error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load procurement reports"
+          description={apiErrorMessage(error, 'Something went wrong loading reports.')}
+        />
+      ) : (
       <Tabs defaultValue="purchase_report">
         <TabsList>
           {REPORT_TABS.map((tab) => (
@@ -197,6 +207,7 @@ export function ProcurementReportsPage() {
           </ReportSection>
         </TabsContent>
       </Tabs>
+      )}
     </div>
   );
 }

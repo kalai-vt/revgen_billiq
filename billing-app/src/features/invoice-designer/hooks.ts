@@ -7,10 +7,12 @@ import type { DocumentType, InvoiceTemplate } from '@/features/invoice-designer/
 export function useTemplateForDocument(documentType: DocumentType): {
   template: InvoiceTemplate | undefined;
   isLoading: boolean;
+  error: unknown;
 } {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['invoice-templates-defaults'],
     queryFn: () => invoiceDesignerApi.getDefaultTemplates(),
+    retry: false,
   });
-  return { template: data?.[documentType], isLoading };
+  return { template: data?.[documentType], isLoading, error };
 }

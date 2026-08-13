@@ -4,13 +4,15 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { VendorPaymentListResult } from '@/features/procurement/api';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface VendorPaymentTableProps {
   data?: VendorPaymentListResult;
   isLoading: boolean;
+  error?: unknown;
 }
 
-export const VendorPaymentTable = memo(function VendorPaymentTable({ data, isLoading }: VendorPaymentTableProps) {
+export const VendorPaymentTable = memo(function VendorPaymentTable({ data, isLoading, error }: VendorPaymentTableProps) {
   return (
     <Table>
       <TableHeader>
@@ -32,7 +34,18 @@ export const VendorPaymentTable = memo(function VendorPaymentTable({ data, isLoa
               </TableCell>
             </TableRow>
           ))}
-        {!isLoading && data?.items.length === 0 && (
+        {!isLoading && error && (
+          <TableRow>
+            <TableCell colSpan={6}>
+              <EmptyState
+                icon={Wallet}
+                title="Couldn't load vendor payments"
+                description={apiErrorMessage(error, 'Something went wrong loading vendor payments.')}
+              />
+            </TableCell>
+          </TableRow>
+        )}
+        {!isLoading && !error && data?.items.length === 0 && (
           <TableRow>
             <TableCell colSpan={6}>
               <EmptyState icon={Wallet} title="No vendor payments found" description="Payments made against vendor purchases will show up here." />

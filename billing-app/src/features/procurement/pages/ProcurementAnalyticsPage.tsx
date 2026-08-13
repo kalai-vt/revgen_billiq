@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { DateRangeSelector } from '@/components/shared/DateRangeSelector';
 import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import { PurchaseTrendChart } from '@/features/procurement/components/PurchaseTr
 import { useQuery } from '@tanstack/react-query';
 import { downloadBlob } from '@/lib/download-blob';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 import { resolveDateRangePreset, OVERVIEW_PRESETS } from '@/lib/date-range';
 
 const EXPORT_EXTENSIONS: Record<ExportFormat, string> = { excel: 'xlsx', pdf: 'pdf', csv: 'csv' };
@@ -21,7 +23,7 @@ export function ProcurementAnalyticsPage() {
   const { tenant } = useAuth();
   const timezone = tenant?.timezone ?? 'UTC';
   const [range, setRange] = useState(() => resolveDateRangePreset('this_month', timezone));
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['procurement-analytics', range.from, range.to],
     queryFn: () => procurementApi.getProcurementAnalytics(range.from, range.to),
   });
@@ -51,81 +53,91 @@ export function ProcurementAnalyticsPage() {
         </div>
       </div>
 
-      <ProcurementAnalyticsKpiCards kpis={data?.kpis} isLoading={isLoading} />
+      {error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load procurement analytics"
+          description={apiErrorMessage(error, 'Something went wrong loading analytics.')}
+        />
+      ) : (
+        <>
+          <ProcurementAnalyticsKpiCards kpis={data?.kpis} isLoading={isLoading} />
 
-      <PurchaseTrendChart data={data?.purchase_trend ?? []} isLoading={isLoading} />
+          <PurchaseTrendChart data={data?.purchase_trend ?? []} isLoading={isLoading} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Vendor Analysis</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(data?.vendor_analysis ?? []).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                      No purchases in this period.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {data?.vendor_analysis.map((v) => (
-                  <TableRow key={v.vendor_id}>
-                    <TableCell className="max-w-[140px] truncate">{v.vendor_name}</TableCell>
-                    <TableCell className="text-right">{v.purchase_value.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{v.purchase_quantity}</TableCell>
-                    <TableCell className="text-right">{v.outstanding_amount.toFixed(2)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Vendor Analysis</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Outstanding</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(data?.vendor_analysis ?? []).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                          No purchases in this period.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {data?.vendor_analysis.map((v) => (
+                      <TableRow key={v.vendor_id}>
+                        <TableCell className="max-w-[140px] truncate">{v.vendor_name}</TableCell>
+                        <TableCell className="text-right">{v.purchase_value.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{v.purchase_quantity}</TableCell>
+                        <TableCell className="text-right">{v.outstanding_amount.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Most Purchased Products</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead className="text-right">Avg Cost</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(data?.product_analysis ?? []).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                      No purchases in this period.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {data?.product_analysis.map((p) => (
-                  <TableRow key={p.product_id}>
-                    <TableCell className="max-w-[140px] truncate">{p.product_name}</TableCell>
-                    <TableCell className="text-right">{p.quantity_purchased}</TableCell>
-                    <TableCell className="text-right">{p.purchase_value.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{p.avg_cost_price.toFixed(2)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Most Purchased Products</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead className="text-right">Avg Cost</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(data?.product_analysis ?? []).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                          No purchases in this period.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {data?.product_analysis.map((p) => (
+                      <TableRow key={p.product_id}>
+                        <TableCell className="max-w-[140px] truncate">{p.product_name}</TableCell>
+                        <TableCell className="text-right">{p.quantity_purchased}</TableCell>
+                        <TableCell className="text-right">{p.purchase_value.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{p.avg_cost_price.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }

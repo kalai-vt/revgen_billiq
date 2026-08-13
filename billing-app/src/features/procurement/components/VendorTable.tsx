@@ -16,16 +16,18 @@ import type { Vendor, VendorListResult, VendorSortField } from '@/features/procu
 import { VendorFormDialog } from '@/features/procurement/components/VendorFormDialog';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface VendorTableProps {
   data?: VendorListResult;
   isLoading: boolean;
+  error?: unknown;
   sortBy: VendorSortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: VendorSortField) => void;
 }
 
-export const VendorTable = memo(function VendorTable({ data, isLoading, sortBy, sortDir, onSort }: VendorTableProps) {
+export const VendorTable = memo(function VendorTable({ data, isLoading, error, sortBy, sortDir, onSort }: VendorTableProps) {
   const { user } = useAuth();
   const canEdit = user?.role === 'owner' || user?.role === 'manager';
   const canDelete = user?.role === 'owner';
@@ -72,7 +74,18 @@ export const VendorTable = memo(function VendorTable({ data, isLoading, sortBy, 
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={7}>
+                <EmptyState
+                  icon={Truck}
+                  title="Couldn't load vendors"
+                  description={apiErrorMessage(error, 'Something went wrong loading vendors.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && data?.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={7}>
                 <EmptyState icon={Truck} title="No vendors found" description="Add a vendor or adjust your search." />

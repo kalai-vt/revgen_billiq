@@ -67,12 +67,18 @@ export interface InvoiceCreatePayload {
   lines: { product_id: string; quantity: number; unit_price?: number | null }[];
   discount_type?: DiscountType;
   discount_value?: number;
-  tax_percentage?: number;
+  /** null (or omitted) means "tax each line at its own product's rate" — the correct default
+   * for a mixed-tax-rate cart. A number means the cashier manually overrode tax for the whole
+   * cart. See backend InvoiceCreate.tax_percentage's own comment for the full contract. */
+  tax_percentage?: number | null;
   payment_method: PaymentMethod;
   amount_tendered?: number | null;
   payment_type?: PaymentType;
   paid_now?: number;
   due_date?: string | null;
+  /** One id per checkout attempt (crypto.randomUUID()) — a retried request with the same key
+   * returns the already-created invoice instead of creating a duplicate. */
+  idempotency_key?: string;
 }
 
 export interface InvoiceListParams {
@@ -319,7 +325,7 @@ export interface HeldBillCreatePayload {
   lines: HeldBillLineCreate[];
   discount_type?: DiscountType;
   discount_value?: number;
-  tax_percentage?: number;
+  tax_percentage?: number | null;
   payment_method?: PaymentMethod;
   notes?: string | null;
 }
@@ -337,7 +343,7 @@ export interface HeldBill {
   customer_phone: string | null;
   discount_type: DiscountType;
   discount_value: number;
-  tax_percentage: number;
+  tax_percentage: number | null;
   payment_method: PaymentMethod;
   notes: string | null;
   lines: HeldBillLine[];

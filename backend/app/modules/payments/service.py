@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.activity import ACTION_PAYMENT_RECEIVED, MODULE_PAYMENT, log_activity
 from app.core.notifications import TYPE_PAYMENT_RECEIVED, create_notification
+from app.core.tenant_time import tenant_today_by_id
 from app.models.customer import Customer
 from app.models.payment import CustomerLedgerAdjustment, Payment, PaymentAllocation
 from app.models.returns import Return
@@ -27,14 +28,6 @@ from app.schemas.payment import (
 )
 
 
-def _today_utc() -> date:
-    # Payment/Invoice timestamps are always stored in UTC (see Invoice/Payment's `_now()`
-    # default) — using the server process's OS-local `date.today()` here would silently
-    # miscount "today" (due-today, today's collections, ageing/trend windows) on any host
-    # whose local timezone isn't UTC.
-    return datetime.now(timezone.utc).date()
-
-
 class PaymentError(Exception):
     def __init__(self, status_code: int, message: str) -> None:
         self.status_code = status_code
@@ -50,6 +43,21 @@ def _user_name(db: Session, user_id: str | None) -> str:
 
 def _is_overdue(invoice: Invoice, today: date) -> bool:
     return invoice.payment_status in ("credit", "partially_paid") and invoice.due_date is not None and invoice.due_date < today
+
+
+def net_ledger_adjustment_balance(db: Session, tenant_id: str, customer_id: str) -> float:
+    """A manual ledger adjustment (see create_ledger_adjustment) is deliberately not tied to
+    any one invoice — a bounced-cheque fee or goodwill credit isn't "against" a specific sale
+    — so it can't live on Invoice.outstanding_amount. Every place that computes a customer's
+    total outstanding balance needs to add this in as a second term, or it silently disagrees
+    with the Ledger tab's own closing balance (which already nets adjustments correctly via
+    the same amount/debit-positive convention used here)."""
+    total = (
+        db.query(func.coalesce(func.sum(CustomerLedgerAdjustment.amount), 0.0))
+        .filter(CustomerLedgerAdjustment.tenant_id == tenant_id, CustomerLedgerAdjustment.customer_id == customer_id)
+        .scalar()
+    )
+    return round(total or 0.0, 2)
 
 
 def _next_payment_number(db: Session, tenant_id: str) -> str:
@@ -89,7 +97,7 @@ def record_initial_payment(db: Session, tenant_id: str, invoice: Invoice, curren
 
 
 def list_outstanding_invoices(db: Session, tenant_id: str, customer_id: str) -> list[Invoice]:
-    today = _today_utc()
+    today = tenant_today_by_id(db, tenant_id)
     invoices = (
         db.query(Invoice)
         .filter(
@@ -354,7 +362,7 @@ def _average_payment_days(db: Session, tenant_id: str, customer_id: str | None) 
 
 
 def _outstanding_trend(db: Session, tenant_id: str, customer_id: str | None, days: int = 30) -> list[TrendPoint]:
-    today = _today_utc()
+    today = tenant_today_by_id(db, tenant_id)
     start = today - timedelta(days=days - 1)
 
     query = db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.status != "cancelled")
@@ -385,7 +393,7 @@ def _outstanding_trend(db: Session, tenant_id: str, customer_id: str | None, day
 
 
 def _collection_trend(db: Session, tenant_id: str, days: int = 30) -> list[TrendPoint]:
-    today = _today_utc()
+    today = tenant_today_by_id(db, tenant_id)
     start = today - timedelta(days=days - 1)
     start_dt = datetime.combine(start, time.min, tzinfo=timezone.utc)
     rows = db.query(Payment.created_at, Payment.amount).filter(Payment.tenant_id == tenant_id, Payment.created_at >= start_dt).all()
@@ -403,13 +411,15 @@ def get_credit_summary(db: Session, tenant_id: str, customer_id: str) -> CreditS
     if not customer:
         raise PaymentError(404, "Customer not found")
 
-    today = _today_utc()
+    today = tenant_today_by_id(db, tenant_id)
     invoices = (
         db.query(Invoice)
         .filter(Invoice.tenant_id == tenant_id, Invoice.customer_id == customer_id, Invoice.outstanding_amount > 0, Invoice.status != "cancelled")
         .all()
     )
-    current_outstanding = round(sum(i.outstanding_amount for i in invoices), 2)
+    current_outstanding = round(
+        sum(i.outstanding_amount for i in invoices) + net_ledger_adjustment_balance(db, tenant_id, customer_id), 2
+    )
     overdue = [i for i in invoices if i.due_date and i.due_date < today]
     total_overdue_amount = round(sum(i.outstanding_amount for i in overdue), 2)
 
@@ -442,7 +452,7 @@ def _bucket_for(due_date: date | None, today: date) -> AgeingBucket:
 
 
 def get_outstanding_dashboard(db: Session, tenant_id: str) -> OutstandingDashboardOut:
-    today = _today_utc()
+    today = tenant_today_by_id(db, tenant_id)
     week_end = today + timedelta(days=7)
 
     outstanding_invoices = (
@@ -485,7 +495,7 @@ def get_outstanding_dashboard(db: Session, tenant_id: str) -> OutstandingDashboa
 
 
 def get_ageing_report(db: Session, tenant_id: str) -> AgeingReportOut:
-    today = _today_utc()
+    today = tenant_today_by_id(db, tenant_id)
     invoices = (
         db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.status != "cancelled", Invoice.outstanding_amount > 0).all()
     )

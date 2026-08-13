@@ -45,7 +45,7 @@ export function PurchaseEntriesPage() {
     [sortBy],
   );
 
-  const { data, isLoading } = usePaginatedPurchases({
+  const { data, isLoading, error } = usePaginatedPurchases({
     q: q || undefined,
     page,
     page_size: PAGE_SIZE,
@@ -106,7 +106,7 @@ export function PurchaseEntriesPage() {
         <TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="purchase" />
       }
     >
-      <PurchaseEntryTable data={data} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <PurchaseEntryTable data={data} isLoading={isLoading} error={error} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
     </ModulePage>
   );
 }

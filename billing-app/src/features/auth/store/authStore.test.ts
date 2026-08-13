@@ -176,11 +176,11 @@ describe('useAuthStore', () => {
   it('setTenant()/setPlan()/setUser() update the store directly', () => {
     useAuthStore.getState().setUser(user);
     useAuthStore.getState().setTenant(tenant);
-    useAuthStore.getState().setPlan('explore');
+    useAuthStore.getState().setPlan('custom');
 
     const state = useAuthStore.getState();
     expect(state.user).toEqual(user);
     expect(state.tenant).toEqual(tenant);
-    expect(state.plan).toBe('explore');
+    expect(state.plan).toBe('custom');
   });
 });

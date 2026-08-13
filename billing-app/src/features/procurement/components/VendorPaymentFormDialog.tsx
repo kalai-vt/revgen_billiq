@@ -10,6 +10,7 @@ import { VendorPicker } from '@/features/procurement/components/VendorPicker';
 import * as procurementApi from '@/features/procurement/api';
 import type { VendorPaymentMethod } from '@/features/procurement/api';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const PAYMENT_METHOD_LABELS: Record<VendorPaymentMethod, string> = {
   cash: 'Cash',
@@ -45,10 +46,14 @@ export function VendorPaymentFormDialog({ vendorId: initialVendorId, trigger }: 
     }
   }, [open, initialVendorId]);
 
-  const { data: outstandingPurchases } = useQuery({
+  const {
+    data: outstandingPurchases,
+    error: outstandingError,
+  } = useQuery({
     queryKey: ['procurement-vendor-outstanding-purchases', vendorId],
     queryFn: () => procurementApi.listOutstandingPurchases(vendorId!),
     enabled: !!vendorId,
+    retry: false,
   });
   const totalOutstanding = outstandingPurchases?.reduce((sum, p) => sum + p.outstanding_amount, 0) ?? 0;
 
@@ -84,7 +89,10 @@ export function VendorPaymentFormDialog({ vendorId: initialVendorId, trigger }: 
         </DialogHeader>
         <div className="space-y-4">
           <VendorPicker vendorId={vendorId} onSelect={setVendorId} />
-          {vendorId && (
+          {vendorId && outstandingError && (
+            <p className="text-xs text-destructive">{apiErrorMessage(outstandingError, "Couldn't load this vendor's outstanding purchases.")}</p>
+          )}
+          {vendorId && !outstandingError && (
             <p className="text-xs text-muted-foreground">
               Outstanding: <span className="font-medium text-foreground">{totalOutstanding.toFixed(2)}</span> across{' '}
               {outstandingPurchases?.length ?? 0} purchase(s). Payment auto-applies oldest-due-first.

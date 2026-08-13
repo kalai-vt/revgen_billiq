@@ -26,6 +26,7 @@ import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaym
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
 import { downloadBlob } from '@/lib/download-blob';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const PAGE_SIZE = 20;
 
@@ -102,7 +103,7 @@ export function InvoicesListPage() {
     setSort(`${field}:${nextDir}` as SortValue);
   }
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['invoices', page, q, status, dateFrom, dateTo, sort],
     queryFn: () =>
       posApi.listInvoices({
@@ -260,7 +261,18 @@ export function InvoicesListPage() {
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={8}>
+                <EmptyState
+                  icon={Receipt}
+                  title="Couldn't load invoices"
+                  description={apiErrorMessage(error, 'Something went wrong loading invoices.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && data?.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={8}>
                 <EmptyState icon={Receipt} title="No invoices found" description="Create a sale in POS or adjust your filters." />
