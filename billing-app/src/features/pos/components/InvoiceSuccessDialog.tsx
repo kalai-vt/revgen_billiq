@@ -66,7 +66,7 @@ export function InvoiceSuccessDialog({
   // The tenant's tax_invoice template drives which phone/round-off/footer/QR elements the
   // thermal receipt shows — same template AutoPrintSettingsForm.tsx already checks paper size
   // against, so thermal output stays in sync with what's actually configured in Designer.
-  const { template: taxInvoiceTemplate } = useTemplateForDocument('tax_invoice');
+  const { template: taxInvoiceTemplate, isLoading: isTemplateLoading } = useTemplateForDocument('tax_invoice');
   const { data: promotionContent } = useQuery({
     queryKey: ['promotion-config'],
     queryFn: getPromotionConfig,
@@ -75,9 +75,10 @@ export function InvoiceSuccessDialog({
 
   useEffect(() => {
     if (!invoice || !autoPrint || autoPrintedFor.current === invoice.id) return;
-    // Thermal receipts need business/branding fields (address, GST, footer) from Settings
-    // before they can be laid out — wait for that fetch rather than firing prematurely.
-    if (needsThermalSettings && !settings) return;
+    // Thermal receipts need business/branding fields (address, GST, footer) from Settings, plus
+    // the tax_invoice template's element toggles (logo/QR/footer sections) — wait for both fetches
+    // rather than firing with a half-loaded config on the first auto-print after login.
+    if (needsThermalSettings && (!settings || isTemplateLoading)) return;
     autoPrintedFor.current = invoice.id;
     const invoiceId = invoice.id;
     const currentInvoice = invoice;
@@ -260,6 +261,7 @@ export function InvoiceSuccessDialog({
     deviceMode,
     usesWebTransport,
     taxInvoiceTemplate,
+    isTemplateLoading,
     promotionContent,
   ]);
 

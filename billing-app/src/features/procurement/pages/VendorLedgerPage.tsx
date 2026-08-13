@@ -1,13 +1,15 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as procurementApi from '@/features/procurement/api';
 import { VendorPaymentFormDialog } from '@/features/procurement/components/VendorPaymentFormDialog';
 import type { VendorLedgerEntryType } from '@/features/procurement/api';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const TYPE_BADGE: Record<VendorLedgerEntryType, { label: string; className: string }> = {
   purchase: { label: 'Purchase', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
@@ -17,11 +19,22 @@ const TYPE_BADGE: Record<VendorLedgerEntryType, { label: string; className: stri
 
 export function VendorLedgerPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['procurement-vendor-ledger', id],
     queryFn: () => procurementApi.getVendorLedger(id!),
     enabled: !!id,
+    retry: false,
   });
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="Couldn't load the vendor ledger"
+        description={apiErrorMessage(error, 'Something went wrong loading this vendor.')}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return (

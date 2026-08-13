@@ -14,13 +14,15 @@ import * as procurementApi from '@/features/procurement/api';
 import type { PurchaseReturnListItem, PurchaseReturnListResult } from '@/features/procurement/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface PurchaseReturnTableProps {
   data?: PurchaseReturnListResult;
   isLoading: boolean;
+  error?: unknown;
 }
 
-export const PurchaseReturnTable = memo(function PurchaseReturnTable({ data, isLoading }: PurchaseReturnTableProps) {
+export const PurchaseReturnTable = memo(function PurchaseReturnTable({ data, isLoading, error }: PurchaseReturnTableProps) {
   const { user } = useAuth();
   const canCancel = user?.role === 'owner';
   const queryClient = useQueryClient();
@@ -64,7 +66,18 @@ export const PurchaseReturnTable = memo(function PurchaseReturnTable({ data, isL
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={7}>
+                <EmptyState
+                  icon={Undo2}
+                  title="Couldn't load returns"
+                  description={apiErrorMessage(error, 'Something went wrong loading returns.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && data?.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={7}>
                 <EmptyState icon={Undo2} title="No returns found" description="Returns recorded against purchases will show up here." />

@@ -61,7 +61,7 @@ export function ProductsPage() {
     [sortBy],
   );
 
-  const { data, isLoading } = usePaginatedProducts({
+  const { data, isLoading, error } = usePaginatedProducts({
     q: q || undefined,
     category_id: categoryId || undefined,
     page,
@@ -115,7 +115,7 @@ export function ProductsPage() {
         <TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="product" />
       }
     >
-      <ProductTable data={data} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <ProductTable data={data} isLoading={isLoading} error={error} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
     </ModulePage>
   );
 }

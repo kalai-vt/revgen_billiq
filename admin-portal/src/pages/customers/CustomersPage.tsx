@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@shared/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/components/ui/table';
 import { listCustomers } from '@/services/customersApi';
+import { apiErrorMessage } from '@/lib/query-error';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -61,9 +62,10 @@ export function CustomersPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['admin-customers', search, status],
     queryFn: () => listCustomers({ search: search || undefined, status: status === 'all' ? undefined : status }),
+    retry: false,
   });
 
   const rows = useMemo(() => data ?? [], [data]);
@@ -121,7 +123,13 @@ export function CustomersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 ? (
+              {error ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-sm text-destructive">
+                    {apiErrorMessage(error, 'Something went wrong loading customers.')}
+                  </TableCell>
+                </TableRow>
+              ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
                     No customers found.

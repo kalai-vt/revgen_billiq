@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Ban, CheckCircle2, Printer, Undo2 } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Ban, CheckCircle2, Printer, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,6 +17,7 @@ import { PurchaseReturnFormDialog } from '@/features/procurement/components/Purc
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 export function PurchaseEntryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,10 +26,15 @@ export function PurchaseEntryDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
-  const { data: purchase, isLoading } = useQuery({
+  const {
+    data: purchase,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['procurement-purchase', id],
     queryFn: () => procurementApi.getPurchase(id!),
     enabled: !!id,
+    retry: false,
   });
   const returnsEnabled = useFeatureFlag('purchase_returns');
 
@@ -53,6 +60,16 @@ export function PurchaseEntryDetailPage() {
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Something went wrong'),
   });
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="Couldn't load this purchase"
+        description={apiErrorMessage(error, 'Something went wrong loading this purchase.')}
+      />
+    );
+  }
 
   if (isLoading || !purchase) {
     return (

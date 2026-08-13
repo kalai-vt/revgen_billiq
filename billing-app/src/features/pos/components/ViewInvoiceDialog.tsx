@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Printer, Undo2, Wallet } from 'lucide-react';
+import { AlertTriangle, Download, Printer, Undo2, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as posApi from '@/features/pos/api';
 import { InvoiceReceiptSummary } from '@/features/pos/components/InvoiceReceiptSummary';
@@ -13,6 +14,7 @@ import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/paym
 import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface ViewInvoiceDialogProps {
   invoiceId: string | null;
@@ -24,10 +26,11 @@ interface ViewInvoiceDialogProps {
 export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onReturn }: ViewInvoiceDialogProps) {
   const queryClient = useQueryClient();
   const [receivePaymentOpen, setReceivePaymentOpen] = useState(false);
-  const { data: invoice, isLoading } = useQuery({
+  const { data: invoice, isLoading, error } = useQuery({
     queryKey: ['invoice', invoiceId],
     queryFn: () => posApi.getInvoice(invoiceId!),
     enabled: !!invoiceId,
+    retry: false,
   });
 
   async function handleDownloadPdf() {
@@ -53,13 +56,19 @@ export function ViewInvoiceDialog({ invoiceId, onClose, canReturn = false, onRet
   return (
     <Dialog open={!!invoiceId} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        {isLoading || !invoice ? (
+        {isLoading ? (
           <div className="space-y-2 py-2">
             <Skeleton className="h-6 w-2/3" />
             <Skeleton className="h-5 w-full" />
             <Skeleton className="h-5 w-full" />
             <Skeleton className="h-5 w-full" />
           </div>
+        ) : error || !invoice ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Couldn't load invoice"
+            description={apiErrorMessage(error, 'Something went wrong loading this invoice.')}
+          />
         ) : (
           <>
             <DialogHeader>

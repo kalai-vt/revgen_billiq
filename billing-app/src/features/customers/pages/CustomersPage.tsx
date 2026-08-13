@@ -72,7 +72,7 @@ export function CustomersPage() {
     [sortBy],
   );
 
-  const { data, isLoading } = usePaginatedCustomers({
+  const { data, isLoading, error } = usePaginatedCustomers({
     q: q || undefined,
     page,
     page_size: PAGE_SIZE,
@@ -147,7 +147,7 @@ export function CustomersPage() {
         <TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="customer" />
       }
     >
-      <CustomerTable data={data} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <CustomerTable data={data} isLoading={isLoading} error={error} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
     </ModulePage>
   );
 }

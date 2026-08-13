@@ -3,10 +3,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { hasFeature } from '@/features/plans/lib/planConfig';
+import { useFeatureFlags } from '@/features/settings/hooks/useFeatureFlags';
 
 export function WhatsAppShareButton() {
   const { plan } = useAuth();
-  const enabled = hasFeature(plan, 'whatsapp_invoice');
+  const { data: featureFlags } = useFeatureFlags();
+  // Admin Portal can grant/revoke this per-tenant regardless of plan — see AdvancedAnalyticsPage.
+  const enabled = featureFlags?.whatsapp_invoice ?? hasFeature(plan, 'whatsapp_invoice');
 
   if (!enabled) {
     return (

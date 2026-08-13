@@ -16,10 +16,12 @@ import * as procurementApi from '@/features/procurement/api';
 import type { PurchaseEntryListItem, PurchaseEntryListResult, PurchaseSortField } from '@/features/procurement/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface PurchaseEntryTableProps {
   data?: PurchaseEntryListResult;
   isLoading: boolean;
+  error?: unknown;
   sortBy: PurchaseSortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: PurchaseSortField) => void;
@@ -37,7 +39,7 @@ const PAYMENT_BADGE: Record<string, { label: string; className: string }> = {
   unpaid: { label: 'Unpaid', className: 'bg-destructive/10 text-destructive' },
 };
 
-export const PurchaseEntryTable = memo(function PurchaseEntryTable({ data, isLoading, sortBy, sortDir, onSort }: PurchaseEntryTableProps) {
+export const PurchaseEntryTable = memo(function PurchaseEntryTable({ data, isLoading, error, sortBy, sortDir, onSort }: PurchaseEntryTableProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const canCancel = user?.role === 'owner';
@@ -86,7 +88,18 @@ export const PurchaseEntryTable = memo(function PurchaseEntryTable({ data, isLoa
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && data?.items.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={8}>
+                <EmptyState
+                  icon={PackageSearch}
+                  title="Couldn't load purchases"
+                  description={apiErrorMessage(error, 'Something went wrong loading purchases.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && data?.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={8}>
                 <EmptyState icon={PackageSearch} title="No purchases found" description="Record a purchase or adjust your filters." />

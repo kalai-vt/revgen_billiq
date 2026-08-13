@@ -39,10 +39,15 @@ function Workspace({ initialTenantId }: { initialTenantId: string | null }) {
   });
   const selectedCustomer = allCustomers?.find((c) => c.tenant_id === selectedTenantId);
 
-  const { data: items, isLoading: itemsLoading } = useQuery({
+  const {
+    data: items,
+    isLoading: itemsLoading,
+    error: itemsError,
+  } = useQuery({
     queryKey: ['admin-features', selectedTenantId],
     queryFn: () => getFeatureFlags(selectedTenantId!),
     enabled: !!selectedTenantId,
+    retry: false,
   });
 
   const { data: tenantSummary, isLoading: summaryLoading } = useQuery({
@@ -84,6 +89,7 @@ function Workspace({ initialTenantId }: { initialTenantId: string | null }) {
               tenantId={selectedTenantId}
               items={items}
               isLoading={itemsLoading}
+              error={itemsError}
               domain={tab === 'all' ? 'general' : tab}
               onOpenConfig={setConfigItem}
               onOpenSchedule={setScheduleItem}

@@ -30,7 +30,7 @@ export function CategoriesPage() {
     [sortBy],
   );
 
-  const { data, isLoading } = useCategories({ sort_by: sortBy, sort_dir: sortDir });
+  const { data, isLoading, error } = useCategories({ sort_by: sortBy, sort_dir: sortDir });
 
   return (
     <ModulePage
@@ -53,7 +53,14 @@ export function CategoriesPage() {
         </div>
       }
     >
-      <CategoryTable categories={data?.items ?? EMPTY_CATEGORIES} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <CategoryTable
+        categories={data?.items ?? EMPTY_CATEGORIES}
+        isLoading={isLoading}
+        error={error}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSort={handleSort}
+      />
     </ModulePage>
   );
 }

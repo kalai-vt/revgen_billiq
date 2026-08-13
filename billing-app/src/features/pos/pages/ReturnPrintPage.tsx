@@ -9,6 +9,7 @@ import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { returnToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
+import { apiErrorMessage } from '@/lib/query-error';
 
 export function ReturnPrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,7 +20,7 @@ export function ReturnPrintPage() {
     enabled: !!id,
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
-  const { template, isLoading: isTemplateLoading } = useTemplateForDocument('credit_note');
+  const { template, isLoading: isTemplateLoading, error: templateError } = useTemplateForDocument('credit_note');
   const { data: promotionContent } = useQuery({ queryKey: ['promotion-config'], queryFn: getPromotionConfig });
 
   useEffect(() => {
@@ -28,6 +29,14 @@ export function ReturnPrintPage() {
       return () => clearTimeout(timer);
     }
   }, [ret, template]);
+
+  if (templateError) {
+    return (
+      <div className="p-8 text-sm text-muted-foreground">
+        {apiErrorMessage(templateError, "Couldn't load the return template — this feature may not be available on your plan.")}
+      </div>
+    );
+  }
 
   if (isLoading || isTemplateLoading || !ret || !template || !settings) {
     return <div className="p-8 text-sm text-muted-foreground">Loading return…</div>;

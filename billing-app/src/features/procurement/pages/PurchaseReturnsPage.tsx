@@ -21,7 +21,7 @@ export function PurchaseReturnsPage() {
     return () => clearTimeout(timer);
   }, [qInput]);
 
-  const { data, isLoading } = usePaginatedReturns({ q: q || undefined, page, page_size: PAGE_SIZE });
+  const { data, isLoading, error } = usePaginatedReturns({ q: q || undefined, page, page_size: PAGE_SIZE });
 
   return (
     <ModulePage
@@ -44,7 +44,7 @@ export function PurchaseReturnsPage() {
       }
       footer={<TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="return" />}
     >
-      <PurchaseReturnTable data={data} isLoading={isLoading} />
+      <PurchaseReturnTable data={data} isLoading={isLoading} error={error} />
     </ModulePage>
   );
 }

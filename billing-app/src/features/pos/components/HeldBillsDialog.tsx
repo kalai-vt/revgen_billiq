@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ClipboardList, Trash2 } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import * as posApi from '@/features/pos/api';
 import type { HeldBill } from '@/features/pos/api';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface HeldBillsDialogProps {
   open: boolean;
@@ -19,10 +20,11 @@ interface HeldBillsDialogProps {
 export function HeldBillsDialog({ open, onClose, onResume }: HeldBillsDialogProps) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['held-bills'],
     queryFn: () => posApi.listHeldBills(),
     enabled: open,
+    retry: false,
   });
 
   const deleteMutation = useMutation({
@@ -48,7 +50,14 @@ export function HeldBillsDialog({ open, onClose, onResume }: HeldBillsDialogProp
             ))}
           </div>
         )}
-        {!isLoading && (data?.items.length ?? 0) === 0 && (
+        {!isLoading && error && (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Couldn't load held bills"
+            description={apiErrorMessage(error, 'Something went wrong loading held bills.')}
+          />
+        )}
+        {!isLoading && !error && (data?.items.length ?? 0) === 0 && (
           <EmptyState icon={ClipboardList} title="No held bills" description="Bills you hold during checkout will show up here." />
         )}
 

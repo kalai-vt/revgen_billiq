@@ -16,10 +16,12 @@ import { CategoryFormDialog } from '@/features/categories/components/CategoryFor
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface CategoryTableProps {
   categories: Category[];
   isLoading: boolean;
+  error?: unknown;
   sortBy: CategorySortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: CategorySortField) => void;
@@ -27,7 +29,7 @@ interface CategoryTableProps {
 
 const INITIAL_WIDTHS = { name: 220, description: 320 };
 
-export const CategoryTable = memo(function CategoryTable({ categories, isLoading, sortBy, sortDir, onSort }: CategoryTableProps) {
+export const CategoryTable = memo(function CategoryTable({ categories, isLoading, error, sortBy, sortDir, onSort }: CategoryTableProps) {
   const { user } = useAuth();
   const canEdit = user?.role === 'owner' || user?.role === 'manager';
   const canDelete = user?.role === 'owner';
@@ -75,7 +77,18 @@ export const CategoryTable = memo(function CategoryTable({ categories, isLoading
                 </TableCell>
               </TableRow>
             ))}
-          {!isLoading && categories.length === 0 && (
+          {!isLoading && error && (
+            <TableRow>
+              <TableCell colSpan={3}>
+                <EmptyState
+                  icon={Tags}
+                  title="Couldn't load categories"
+                  description={apiErrorMessage(error, 'Something went wrong loading categories.')}
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !error && categories.length === 0 && (
             <TableRow>
               <TableCell colSpan={3}>
                 <EmptyState icon={Tags} title="No categories yet" description="Create a category to organize your products." />

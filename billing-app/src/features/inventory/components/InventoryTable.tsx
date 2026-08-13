@@ -14,10 +14,12 @@ import type { IdentifierType } from '@/features/products/api';
 import { StockAdjustDialog } from '@/features/inventory/components/StockAdjustDialog';
 import type { InventoryListResult, InventorySortField } from '@/features/inventory/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { apiErrorMessage } from '@/lib/query-error';
 
 interface InventoryTableProps {
   data?: InventoryListResult;
   isLoading: boolean;
+  error?: unknown;
   sortBy: InventorySortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: InventorySortField) => void;
@@ -25,7 +27,7 @@ interface InventoryTableProps {
 
 const INITIAL_WIDTHS = { name: 200, identifier: 160, category: 140, quantity: 120, cost: 110, price: 110, tax: 90, updated: 140 };
 
-export const InventoryTable = memo(function InventoryTable({ data, isLoading, sortBy, sortDir, onSort }: InventoryTableProps) {
+export const InventoryTable = memo(function InventoryTable({ data, isLoading, error, sortBy, sortDir, onSort }: InventoryTableProps) {
   const { user } = useAuth();
   const canAdjust = user?.role === 'owner' || user?.role === 'manager';
   const columnCount = canAdjust ? 8 : 7;
@@ -90,7 +92,18 @@ export const InventoryTable = memo(function InventoryTable({ data, isLoading, so
               </TableCell>
             </TableRow>
           ))}
-        {!isLoading && data?.items.length === 0 && (
+        {!isLoading && error && (
+          <TableRow>
+            <TableCell colSpan={columnCount}>
+              <EmptyState
+                icon={Boxes}
+                title="Couldn't load inventory"
+                description={apiErrorMessage(error, 'Something went wrong loading inventory.')}
+              />
+            </TableCell>
+          </TableRow>
+        )}
+        {!isLoading && !error && data?.items.length === 0 && (
           <TableRow>
             <TableCell colSpan={columnCount}>
               <EmptyState icon={Boxes} title="No inventory records found" description="Add products or adjust your filters." />

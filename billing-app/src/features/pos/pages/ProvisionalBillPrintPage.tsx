@@ -7,6 +7,7 @@ import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { consumeProvisionalBillSnapshot, provisionalBillToPreviewData, type ProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
+import { apiErrorMessage } from '@/lib/query-error';
 
 /** Opened via window.open() from POSPage's "Print Order Bill" button, reading a cart snapshot
  * left in localStorage rather than fetching anything by ID — there is no invoice, no order, no
@@ -16,7 +17,7 @@ export function ProvisionalBillPrintPage() {
   const { tenant } = useAuth();
   const [snapshot] = useState<ProvisionalBillSnapshot | null>(() => consumeProvisionalBillSnapshot());
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
-  const { template, isLoading: isTemplateLoading } = useTemplateForDocument('tax_invoice');
+  const { template, isLoading: isTemplateLoading, error: templateError } = useTemplateForDocument('tax_invoice');
   const { data: promotionContent } = useQuery({ queryKey: ['promotion-config'], queryFn: getPromotionConfig });
 
   useEffect(() => {
@@ -30,6 +31,14 @@ export function ProvisionalBillPrintPage() {
     return (
       <div className="p-8 text-sm text-muted-foreground">
         No order bill data found for this tab. Close it and click "Print Order Bill" again from the Billing page.
+      </div>
+    );
+  }
+
+  if (templateError) {
+    return (
+      <div className="p-8 text-sm text-muted-foreground">
+        {apiErrorMessage(templateError, "Couldn't load the order bill template — this feature may not be available on your plan.")}
       </div>
     );
   }

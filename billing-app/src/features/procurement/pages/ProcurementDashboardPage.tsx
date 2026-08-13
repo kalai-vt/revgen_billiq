@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { DateRangeSelector } from '@/components/shared/DateRangeSelector';
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ProcurementKpiCards } from '@/features/procurement/components/ProcurementKpiCards';
 import { TopVendorsChart } from '@/features/procurement/components/TopVendorsChart';
 import { useProcurementDashboardData } from '@/features/procurement/hooks/useProcurementDashboardData';
 import { resolveDateRangePreset, OVERVIEW_PRESETS } from '@/lib/date-range';
+import { apiErrorMessage } from '@/lib/query-error';
 
 export function ProcurementDashboardPage() {
   const { tenant } = useAuth();
   const timezone = tenant?.timezone ?? 'UTC';
   const [range, setRange] = useState(() => resolveDateRangePreset('this_month', timezone));
-  const { data, isLoading, isFetching, refetch } = useProcurementDashboardData(range);
+  const { data, isLoading, isFetching, error, refetch } = useProcurementDashboardData(range);
 
   return (
     <div className="space-y-4">
@@ -29,24 +31,34 @@ export function ProcurementDashboardPage() {
         </div>
       </div>
 
-      <ProcurementKpiCards kpis={data?.kpis} isLoading={isLoading} />
+      {error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load the procurement dashboard"
+          description={apiErrorMessage(error, 'Something went wrong loading the dashboard.')}
+        />
+      ) : (
+        <>
+          <ProcurementKpiCards kpis={data?.kpis} isLoading={isLoading} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TopVendorsChart data={data?.top_vendors ?? []} isLoading={isLoading} />
-        <div className="rounded-md border p-4 text-sm">
-          <p className="mb-3 font-medium">Selected period</p>
-          <div className="space-y-1.5 text-muted-foreground">
-            <div className="flex justify-between">
-              <span>Purchases in range</span>
-              <span className="font-medium text-foreground">{data?.kpis.range_purchase_count ?? 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Purchase value in range</span>
-              <span className="font-medium text-foreground">₹{(data?.kpis.range_purchase_value ?? 0).toFixed(2)}</span>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TopVendorsChart data={data?.top_vendors ?? []} isLoading={isLoading} />
+            <div className="rounded-md border p-4 text-sm">
+              <p className="mb-3 font-medium">Selected period</p>
+              <div className="space-y-1.5 text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>Purchases in range</span>
+                  <span className="font-medium text-foreground">{data?.kpis.range_purchase_count ?? 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Purchase value in range</span>
+                  <span className="font-medium text-foreground">₹{(data?.kpis.range_purchase_value ?? 0).toFixed(2)}</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

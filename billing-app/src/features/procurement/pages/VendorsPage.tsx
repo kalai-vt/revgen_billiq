@@ -45,7 +45,7 @@ export function VendorsPage() {
     [sortBy],
   );
 
-  const { data, isLoading } = usePaginatedVendors({
+  const { data, isLoading, error } = usePaginatedVendors({
     q: q || undefined,
     page,
     page_size: PAGE_SIZE,
@@ -106,7 +106,7 @@ export function VendorsPage() {
         <TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="vendor" />
       }
     >
-      <VendorTable data={data} isLoading={isLoading} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+      <VendorTable data={data} isLoading={isLoading} error={error} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
     </ModulePage>
   );
 }

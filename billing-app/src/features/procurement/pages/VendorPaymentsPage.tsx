@@ -11,7 +11,7 @@ const PAGE_SIZE = 20;
 
 export function VendorPaymentsPage() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = usePaginatedVendorPayments({ page, page_size: PAGE_SIZE });
+  const { data, isLoading, error } = usePaginatedVendorPayments({ page, page_size: PAGE_SIZE });
 
   return (
     <ModulePage
@@ -33,7 +33,7 @@ export function VendorPaymentsPage() {
       }
       footer={<TablePagination total={data?.total ?? 0} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="payment" />}
     >
-      <VendorPaymentTable data={data} isLoading={isLoading} />
+      <VendorPaymentTable data={data} isLoading={isLoading} error={error} />
     </ModulePage>
   );
 }

@@ -8,6 +8,7 @@ import { Input } from '@shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/components/ui/select';
 import { Skeleton } from '@shared/components/ui/skeleton';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 import { resetFeatures, scopedBulkUpdate, type FeatureDomain, type TenantFeatureItem } from '@/services/featuresApi';
 import { ModuleCard } from './ModuleCard';
 
@@ -15,6 +16,7 @@ interface ModuleDomainTabProps {
   tenantId: string;
   items: TenantFeatureItem[] | undefined;
   isLoading: boolean;
+  error?: unknown;
   domain: FeatureDomain;
   onOpenConfig: (item: TenantFeatureItem) => void;
   onOpenSchedule: (item: TenantFeatureItem) => void;
@@ -25,7 +27,7 @@ const CATEGORY_LABEL: Record<string, string> = { core: 'Core Modules', business:
 
 const ALL = '__all__';
 
-export function ModuleDomainTab({ tenantId, items, isLoading, domain, onOpenConfig, onOpenSchedule, onOpenHistory }: ModuleDomainTabProps) {
+export function ModuleDomainTab({ tenantId, items, isLoading, error, domain, onOpenConfig, onOpenSchedule, onOpenHistory }: ModuleDomainTabProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
@@ -74,6 +76,16 @@ export function ModuleDomainTab({ tenantId, items, isLoading, domain, onOpenConf
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not reset'),
   });
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={Search}
+        title="Couldn't load modules"
+        description={apiErrorMessage(error, 'Something went wrong loading modules for this tenant.')}
+      />
+    );
+  }
 
   if (isLoading || !items) {
     return (

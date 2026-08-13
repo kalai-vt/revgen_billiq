@@ -9,6 +9,7 @@ import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { invoiceToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
+import { apiErrorMessage } from '@/lib/query-error';
 
 export function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,7 +20,7 @@ export function InvoicePrintPage() {
     enabled: !!id,
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.getSettings });
-  const { template, isLoading: isTemplateLoading } = useTemplateForDocument('tax_invoice');
+  const { template, isLoading: isTemplateLoading, error: templateError } = useTemplateForDocument('tax_invoice');
   // Never gates the print flow — a slow/failed promotion fetch must not delay or block the
   // actual invoice, which is core functionality this feature must never interfere with.
   const { data: promotionContent } = useQuery({ queryKey: ['promotion-config'], queryFn: getPromotionConfig });
@@ -30,6 +31,14 @@ export function InvoicePrintPage() {
       return () => clearTimeout(timer);
     }
   }, [invoice, template]);
+
+  if (templateError) {
+    return (
+      <div className="p-8 text-sm text-muted-foreground">
+        {apiErrorMessage(templateError, "Couldn't load the invoice template — this feature may not be available on your plan.")}
+      </div>
+    );
+  }
 
   if (isLoading || isTemplateLoading || !invoice || !template || !settings) {
     return <div className="p-8 text-sm text-muted-foreground">Loading invoice…</div>;

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  AlertTriangle,
   ArrowLeft,
   Banknote,
   CalendarClock,
@@ -36,6 +37,7 @@ import * as paymentsApi from '@/features/payments/api';
 import { ReceivePaymentDialog } from '@/features/payments/components/ReceivePaymentDialog';
 import { paymentStatusBadgeClassName, paymentStatusLabel } from '@/features/payments/lib/paymentStatus';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 import { downloadBlob } from '@/lib/download-blob';
 
 const LEDGER_TYPE_ICON: Record<string, typeof FileText> = {
@@ -97,28 +99,36 @@ export function CustomerDetailPage() {
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [creditForm, setCreditForm] = useState<CustomerPayload | null>(null);
 
-  const { data: customer, isLoading: customerLoading } = useQuery({
+  const {
+    data: customer,
+    isLoading: customerLoading,
+    error: customerError,
+  } = useQuery({
     queryKey: ['customer', id],
     queryFn: () => customersApi.getCustomer(id!),
     enabled: !!id,
+    retry: false,
   });
 
-  const { data: creditSummary } = useQuery({
+  const { data: creditSummary, error: creditSummaryError } = useQuery({
     queryKey: ['credit-summary', id],
     queryFn: () => paymentsApi.getCreditSummary(id!),
     enabled: !!id,
+    retry: false,
   });
 
-  const { data: outstandingInvoices } = useQuery({
+  const { data: outstandingInvoices, error: outstandingInvoicesError } = useQuery({
     queryKey: ['outstanding-invoices', id],
     queryFn: () => paymentsApi.getOutstandingInvoices(id!),
     enabled: !!id,
+    retry: false,
   });
 
-  const { data: ledger, isLoading: ledgerLoading } = useQuery({
+  const { data: ledger, isLoading: ledgerLoading, error: ledgerError } = useQuery({
     queryKey: ['customer-ledger', id],
     queryFn: () => paymentsApi.getCustomerLedger(id!),
     enabled: !!id,
+    retry: false,
   });
 
   useEffect(() => {
@@ -179,6 +189,18 @@ export function CustomerDetailPage() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not export ledger');
     }
+  }
+
+  if (customerError) {
+    return (
+      <ModulePage header={<h1 className="text-2xl font-semibold tracking-tight">Customer</h1>} bodyClassName="border-0 p-0">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load this customer"
+          description={apiErrorMessage(customerError, 'Something went wrong loading this customer.')}
+        />
+      </ModulePage>
+    );
   }
 
   if (customerLoading || !customer) {
@@ -332,87 +354,110 @@ export function CustomerDetailPage() {
           </TabsContent>
 
           <TabsContent value="credit" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {creditSummaryError ? (
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold tracking-tight">{(creditSummary?.current_outstanding ?? 0).toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">{creditSummary?.total_outstanding_invoices ?? 0} invoices</p>
+                <CardContent className="p-0">
+                  <EmptyState
+                    icon={AlertTriangle}
+                    title="Couldn't load outstanding balance"
+                    description={apiErrorMessage(
+                      creditSummaryError,
+                      'Something went wrong loading this customer’s credit summary. Try refreshing the page.',
+                    )}
+                  />
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Overdue</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold tracking-tight text-destructive">
-                    {(creditSummary?.total_overdue_amount ?? 0).toFixed(2)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{creditSummary?.total_overdue_invoices ?? 0} invoices</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Last Payment</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold tracking-tight">
-                    {creditSummary?.last_payment_date ? new Date(creditSummary.last_payment_date).toLocaleDateString() : '—'}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Payment Days</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold tracking-tight">
-                    {creditSummary?.average_payment_days != null ? creditSummary.average_payment_days.toFixed(1) : '—'}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold tracking-tight">{(creditSummary?.current_outstanding ?? 0).toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">{creditSummary?.total_outstanding_invoices ?? 0} invoices</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Overdue</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold tracking-tight text-destructive">
+                      {(creditSummary?.total_overdue_amount ?? 0).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{creditSummary?.total_overdue_invoices ?? 0} invoices</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Last Payment</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold tracking-tight">
+                      {creditSummary?.last_payment_date ? new Date(creditSummary.last_payment_date).toLocaleDateString() : '—'}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Payment Days</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold tracking-tight">
+                      {creditSummary?.average_payment_days != null ? creditSummary.average_payment_days.toFixed(1) : '—'}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Outstanding invoices</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <Table containerClassName="overflow-x-visible overflow-y-visible">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice #</TableHead>
-                      <TableHead className="hidden sm:table-cell">Due Date</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Outstanding</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {outstandingInvoices?.items.length === 0 && (
+                {outstandingInvoicesError ? (
+                  <EmptyState
+                    icon={AlertTriangle}
+                    title="Couldn't load outstanding invoices"
+                    description={apiErrorMessage(outstandingInvoicesError, 'Something went wrong. Try refreshing the page.')}
+                  />
+                ) : (
+                  <Table containerClassName="overflow-x-visible overflow-y-visible">
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={5}>
-                          <EmptyState icon={Receipt} title="No outstanding invoices" description="This customer is fully paid up." />
-                        </TableCell>
+                        <TableHead>Invoice #</TableHead>
+                        <TableHead className="hidden sm:table-cell">Due Date</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Outstanding</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    )}
-                    {outstandingInvoices?.items.map((inv) => (
-                      <TableRow key={inv.id}>
-                        <TableCell className="font-medium">{inv.invoice_number}</TableCell>
-                        <TableCell className="hidden text-muted-foreground sm:table-cell">{inv.due_date ?? '—'}</TableCell>
-                        <TableCell className="text-right">{inv.total_amount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">{inv.outstanding_amount.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={paymentStatusBadgeClassName(inv.payment_status, inv.is_overdue)}>
-                            {paymentStatusLabel(inv.payment_status, inv.is_overdue)}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {outstandingInvoices?.items.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5}>
+                            <EmptyState icon={Receipt} title="No outstanding invoices" description="This customer is fully paid up." />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {outstandingInvoices?.items.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-medium">{inv.invoice_number}</TableCell>
+                          <TableCell className="hidden text-muted-foreground sm:table-cell">{inv.due_date ?? '—'}</TableCell>
+                          <TableCell className="text-right">{inv.total_amount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-medium">{inv.outstanding_amount.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={paymentStatusBadgeClassName(inv.payment_status, inv.is_overdue)}>
+                              {paymentStatusLabel(inv.payment_status, inv.is_overdue)}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -460,7 +505,18 @@ export function CustomerDetailPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                  {!ledgerLoading && ledger?.entries.length === 0 && (
+                  {ledgerError && (
+                    <TableRow>
+                      <TableCell colSpan={7}>
+                        <EmptyState
+                          icon={AlertTriangle}
+                          title="Couldn't load the ledger"
+                          description={apiErrorMessage(ledgerError, 'Something went wrong. Try refreshing the page.')}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!ledgerLoading && !ledgerError && ledger?.entries.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7}>
                         <EmptyState icon={ScrollText} title="No ledger entries yet" description="Invoices, payments, and returns for this customer will appear here." />
@@ -484,7 +540,13 @@ export function CustomerDetailPage() {
           </TabsContent>
 
           <TabsContent value="timeline">
-            {ledger?.entries.length === 0 ? (
+            {ledgerError ? (
+              <EmptyState
+                icon={AlertTriangle}
+                title="Couldn't load history"
+                description={apiErrorMessage(ledgerError, 'Something went wrong. Try refreshing the page.')}
+              />
+            ) : ledger?.entries.length === 0 ? (
               <EmptyState icon={CalendarClock} title="No history yet" description="This customer's invoices, payments, and adjustments will show up here in order." />
             ) : (
               <div className="space-y-3">
