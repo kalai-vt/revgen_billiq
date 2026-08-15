@@ -14,6 +14,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
 import * as qzTray from '@/lib/printing/qzTray';
+import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { loadDeviceMode } from '@/lib/printing/deviceProfile';
@@ -55,9 +56,11 @@ export function InvoiceSuccessDialog({
   // printPdf can for non-thermal paper sizes.
   const [deviceMode] = useState(() => loadDeviceMode());
   const usesQzThermal = deviceMode === 'qz' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
+  const usesAgentThermal =
+    deviceMode === 'revgenai-agent' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
   const usesWebTransport =
     (deviceMode === 'web-usb' || deviceMode === 'web-bluetooth') && isThermalPaperSize(autoPrintPaperSize);
-  const needsThermalSettings = autoPrint && (usesQzThermal || usesWebTransport);
+  const needsThermalSettings = autoPrint && (usesQzThermal || usesAgentThermal || usesWebTransport);
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: settingsApi.getSettings,
@@ -83,7 +86,12 @@ export function InvoiceSuccessDialog({
     const invoiceId = invoice.id;
     const currentInvoice = invoice;
 
-    function buildCommands(paperSize: ThermalPaperSize, logoCommand: string | null) {
+    // Returns the raw business/receipt data, unrendered — the QZ/USB/Bluetooth transports render
+    // it locally via buildReceiptCommands (see call sites below); the RevGenAI Print Agent
+    // transport instead sends this data as-is and lets the agent render it itself (it ported the
+    // same escpos.ts logic byte-for-byte — see print-agent/src/renderer/escpos.ts), so BillIQ
+    // never needs to know which printer protocol the agent ends up using.
+    function buildReceiptPayload(logoCommand: string | null) {
       if (!settings) return null;
       const companyName = tenant?.company_name ?? 'Receipt';
       const config = taxInvoiceTemplate?.config;
@@ -131,19 +139,18 @@ export function InvoiceSuccessDialog({
       const tax = config?.tax_summary.fields;
       const formatEnumLabel = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-      return buildReceiptCommands(
-        {
-          companyName,
-          addressLine1: settings.address_line1,
-          addressLine2: settings.address_line2,
-          city: settings.city,
-          state: settings.state,
-          pincode: settings.pincode,
-          gstNumber: settings.gst_number,
-          phone: config?.branding.show_phone ? tenant?.phone : null,
-          logoCommand,
-        },
-        {
+      const business = {
+        companyName,
+        addressLine1: settings.address_line1,
+        addressLine2: settings.address_line2,
+        city: settings.city,
+        state: settings.state,
+        pincode: settings.pincode,
+        gstNumber: settings.gst_number,
+        phone: config?.branding.show_phone ? tenant?.phone : null,
+        logoCommand,
+      };
+      const data = {
           invoiceNumber: currentInvoice.invoice_number,
           createdAt: currentInvoice.created_at,
           cashierName: currentInvoice.created_by_name,
@@ -208,9 +215,8 @@ export function InvoiceSuccessDialog({
                 amountInWords: tax.amount_in_words,
               }
             : undefined,
-        },
-        paperSize,
-      );
+      };
+      return { business, data };
     }
 
     (async () => {
@@ -221,9 +227,10 @@ export function InvoiceSuccessDialog({
           : null;
 
       if (usesWebTransport && thermal) {
-        const commands = buildCommands(autoPrintPaperSize, logoCommand);
-        if (commands) {
+        const receipt = buildReceiptPayload(logoCommand);
+        if (receipt) {
           try {
+            const commands = buildReceiptCommands(receipt.business, receipt.data, autoPrintPaperSize);
             if (deviceMode === 'web-usb') await webUsbPrinter.printRaw(commands);
             else await webBluetoothPrinter.printRaw(commands);
             toast.success('Receipt sent to printer');
@@ -235,9 +242,9 @@ export function InvoiceSuccessDialog({
       } else if (deviceMode === 'qz' && autoPrintPrinterName) {
         try {
           if (thermal) {
-            const commands = buildCommands(autoPrintPaperSize, logoCommand);
-            if (!commands) throw new Error('Business settings were not available for the receipt.');
-            await qzTray.printRaw(autoPrintPrinterName, commands);
+            const receipt = buildReceiptPayload(logoCommand);
+            if (!receipt) throw new Error('Business settings were not available for the receipt.');
+            await qzTray.printRaw(autoPrintPrinterName, buildReceiptCommands(receipt.business, receipt.data, autoPrintPaperSize));
           } else {
             const pdf = await posApi.downloadInvoicePdf(invoiceId);
             await qzTray.printPdf(autoPrintPrinterName, pdf);
@@ -246,6 +253,21 @@ export function InvoiceSuccessDialog({
           return;
         } catch (err) {
           console.warn('Silent print via QZ Tray failed, falling back to the print dialog:', err);
+        }
+      } else if (deviceMode === 'revgenai-agent' && autoPrintPrinterName) {
+        try {
+          if (thermal) {
+            const receipt = buildReceiptPayload(logoCommand);
+            if (!receipt) throw new Error('Business settings were not available for the receipt.');
+            await printAgentClient.printThermal(autoPrintPrinterName, receipt.business, receipt.data, autoPrintPaperSize);
+          } else {
+            const pdf = await posApi.downloadInvoicePdf(invoiceId);
+            await printAgentClient.printPdf(autoPrintPrinterName, pdf);
+          }
+          toast.success(`Receipt sent to ${autoPrintPrinterName}`);
+          return;
+        } catch (err) {
+          console.warn('Silent print via RevGenAI Print Agent failed, falling back to the print dialog:', err);
         }
       }
       window.open(appPath(`/invoices/${invoiceId}/print`), '_blank', 'noopener,noreferrer');

@@ -11,6 +11,7 @@ import * as settingsApi from '@/features/settings/api';
 import type { AutoPrintPaperSize } from '@/features/settings/api';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import * as qzTray from '@/lib/printing/qzTray';
+import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { loadDeviceMode, saveDeviceMode, type PrintDeviceMode } from '@/lib/printing/deviceProfile';
@@ -27,7 +28,8 @@ const PAPER_SIZE_LABELS: Record<AutoPrintPaperSize, string> = {
 };
 
 const DEVICE_MODE_LABELS: Record<PrintDeviceMode, string> = {
-  qz: 'Desktop (Windows/Mac/Linux) — QZ Tray',
+  qz: 'Desktop (Windows/Mac/Linux) — QZ Tray (legacy)',
+  'revgenai-agent': 'Desktop (Windows/Mac) — RevGenAI Print Agent',
   'web-usb': 'Android tablet/phone — USB',
   'web-bluetooth': 'Android tablet/phone — Bluetooth',
   'browser-dialog': "Other — use this device's print dialog",
@@ -35,6 +37,8 @@ const DEVICE_MODE_LABELS: Record<PrintDeviceMode, string> = {
 
 type QzStatus = 'idle' | 'checking' | 'connected' | 'unavailable';
 type PairStatus = 'idle' | 'pairing' | 'paired' | 'error';
+type AgentStatus = 'idle' | 'checking' | 'connected' | 'unavailable';
+type AgentPairStatus = 'idle' | 'requesting' | 'waiting' | 'paired' | 'error';
 // Mirrors qzTray.QzConnectionState's LNA branches, plus 'idle' for "haven't checked yet" and
 // 'ok' once a connection has actually been established (LNA must have been granted for that to
 // happen at all).
@@ -62,6 +66,13 @@ export function AutoPrintSettingsForm() {
   const [deviceMode, setDeviceMode] = useState<PrintDeviceMode>(() => loadDeviceMode());
   const [pairStatus, setPairStatus] = useState<PairStatus>('idle');
   const [testPrintStatus, setTestPrintStatus] = useState<TestPrintStatus>('idle');
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
+  const [agentPairStatus, setAgentPairStatus] = useState<AgentPairStatus>(() =>
+    printAgentClient.getPairedDeviceId() ? 'paired' : 'idle',
+  );
+  const [agentPairingCode, setAgentPairingCode] = useState<string | null>(null);
+  const [agentPrinters, setAgentPrinters] = useState<printAgentClient.AgentPrinterInfo[]>([]);
+  const [agentTestPrintStatus, setAgentTestPrintStatus] = useState<TestPrintStatus>('idle');
 
   // The printer connection itself is local to this device (see deviceProfile.ts) — check whether
   // it's already paired from a previous visit, separately from the tenant-wide settings below.
@@ -80,6 +91,49 @@ export function AutoPrintSettingsForm() {
       cancelled = true;
     };
   }, [deviceMode]);
+
+  // Seamless reconnect: a device paired on a previous visit shouldn't need a manual "Connect"
+  // click every time this page loads — if we already have a saved device_id, verify it's actually
+  // reachable right now (not just "was paired at some point") and populate its printers, so the
+  // form is immediately usable instead of showing a stale "Connected" badge with nothing behind it.
+  useEffect(() => {
+    if (deviceMode !== 'revgenai-agent' || !printAgentClient.getPairedDeviceId()) return;
+    let cancelled = false;
+    (async () => {
+      setAgentStatus('checking');
+      try {
+        const found = await printAgentClient.listPrinters();
+        if (cancelled) return;
+        setAgentPrinters(found);
+        setAgentStatus('connected');
+        forgetSavedPrinterIfStale(found);
+      } catch {
+        if (!cancelled) setAgentStatus('unavailable');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceMode]);
+
+  // A printer id saved under a different device mode (e.g. QZ Tray stores a bare driver name like
+  // "BillQuick-Go", with no "os:"/"usb:"/"net:" scheme prefix) silently carries over if the tenant
+  // switches to the RevGenAI Print Agent mode without re-picking a printer from this dropdown —
+  // and since the id happens to still *look* right (the raw string equals the printer's display
+  // name), the UI showed it as if correctly resolved right up until an actual print was attempted
+  // and failed with "Unsupported printer detected." Clearing it here as soon as we know it doesn't
+  // match anything the agent currently reports turns that into an honest "no printer selected"
+  // instead of a silent, print-time-only failure.
+  function forgetSavedPrinterIfStale(found: printAgentClient.AgentPrinterInfo[]) {
+    setForm((prev) => {
+      if (!prev.auto_print_printer_name) return prev;
+      if (found.some((p) => p.printerId === prev.auto_print_printer_name)) return prev;
+      toast.warning(
+        `The saved printer "${prev.auto_print_printer_name}" isn't recognized by the Print Agent — pick it again below and save.`,
+      );
+      return { ...prev, auto_print_printer_name: null };
+    });
+  }
 
   function handleDeviceModeChange(mode: PrintDeviceMode) {
     setPairStatus('idle');
@@ -199,6 +253,51 @@ export function AutoPrintSettingsForm() {
       toast.error(err instanceof Error ? err.message : 'Secure printer authorization failed. Please contact support.');
     } finally {
       setTestPrintStatus('idle');
+    }
+  }
+
+  async function connectPrintAgent() {
+    setAgentPairStatus('requesting');
+    try {
+      const { code } = await printAgentClient.requestPairingCode();
+      setAgentPairingCode(code);
+      setAgentPairStatus('waiting');
+      printAgentClient.openAgentPairingPage(code);
+      await printAgentClient.waitForPairing(Date.now());
+      setAgentPairStatus('paired');
+      setAgentPairingCode(null);
+      toast.success('RevGenAI Print Agent connected on this device');
+      await detectAgentPrinters();
+    } catch (err) {
+      setAgentPairStatus('error');
+      toast.error(err instanceof Error ? err.message : 'Could not connect to the Print Agent');
+    }
+  }
+
+  async function detectAgentPrinters() {
+    setAgentStatus('checking');
+    try {
+      const found = await printAgentClient.listPrinters();
+      setAgentPrinters(found);
+      setAgentStatus('connected');
+      forgetSavedPrinterIfStale(found);
+      if (found.length === 0) toast.info('Print Agent is connected but reported no printers.');
+    } catch (err) {
+      setAgentStatus('unavailable');
+      toast.error(err instanceof Error ? err.message : 'Could not connect to the Print Agent');
+    }
+  }
+
+  async function runAgentTestPrint() {
+    if (!form.auto_print_printer_name) return;
+    setAgentTestPrintStatus('printing');
+    try {
+      await printAgentClient.testPrint(form.auto_print_printer_name, form.auto_print_paper_size);
+      toast.success('Test print sent — check the printer.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Print Agent test print failed.');
+    } finally {
+      setAgentTestPrintStatus('idle');
     }
   }
 
@@ -410,6 +509,133 @@ export function AutoPrintSettingsForm() {
             {taxInvoiceTemplate!.config.paper.size}, but this printer's default paper size is set to{' '}
             {form.auto_print_paper_size}. Update one of them for a consistent print.
           </p>
+        )}
+      </div>
+      )}
+
+      {deviceMode === 'revgenai-agent' && (
+      <div className="rounded-md border p-4 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Printer (via RevGenAI Print Agent)</p>
+            <p className="text-xs text-muted-foreground">
+              Works with USB, network (LAN/WiFi), and thermal printers installed on this computer.
+              Install the RevGenAI Print Agent once on this till, then connect it below — no
+              certificates or trust popups to manage, and no need to reconfirm on every print.
+            </p>
+            <a
+              href="/api/printing/agent/download"
+              className="mt-1 inline-block text-xs font-medium text-primary underline underline-offset-2"
+            >
+              Don't have it installed yet? Download for Windows
+            </a>
+          </div>
+          {agentPairStatus === 'paired' && <Badge variant="secondary">Connected</Badge>}
+          {agentPairStatus === 'error' && <Badge variant="destructive">Not connected</Badge>}
+        </div>
+
+        {agentPairStatus !== 'paired' && (
+          <div className="space-y-2">
+            <Button type="button" onClick={connectPrintAgent} disabled={agentPairStatus === 'requesting' || agentPairStatus === 'waiting'}>
+              {(agentPairStatus === 'requesting' || agentPairStatus === 'waiting') && <Loader2 className="size-4 animate-spin" />}
+              Connect Print Agent
+            </Button>
+            {agentPairStatus === 'waiting' && agentPairingCode && (
+              <p className="text-xs text-muted-foreground">
+                A pairing window opened with the code <span className="font-mono font-medium">{agentPairingCode}</span>{' '}
+                pre-filled — just click Pair there. If the window didn't open, make sure the
+                RevGenAI Print Agent is running on this computer, then click Pair on its page.
+              </p>
+            )}
+          </div>
+        )}
+
+        {agentPairStatus === 'paired' && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Default printer</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={form.auto_print_printer_name ?? ''}
+                    onValueChange={(v) => setForm((prev) => ({ ...prev, auto_print_printer_name: v || null }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {() =>
+                          agentPrinters.find((p) => p.printerId === form.auto_print_printer_name)?.name ||
+                          form.auto_print_printer_name ||
+                          'No printer selected'
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agentPrinters.length === 0 && form.auto_print_printer_name && (
+                        <SelectItem value={form.auto_print_printer_name}>{form.auto_print_printer_name}</SelectItem>
+                      )}
+                      {agentPrinters.map((printer) => (
+                        <SelectItem key={printer.printerId} value={printer.printerId}>
+                          {printer.name} ({printer.connectionType})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={detectAgentPrinters}
+                    disabled={agentStatus === 'checking'}
+                    title="Detect printers via RevGenAI Print Agent"
+                  >
+                    {agentStatus === 'checking' ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={runAgentTestPrint}
+                    disabled={!form.auto_print_printer_name || agentTestPrintStatus === 'printing'}
+                    title="Print a test page — never creates an invoice or sale"
+                  >
+                    {agentTestPrintStatus === 'printing' && <Loader2 className="size-4 animate-spin" />}
+                    Test Print
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Default paper size</Label>
+                <Select
+                  value={form.auto_print_paper_size}
+                  onValueChange={(v) => setForm((prev) => ({ ...prev, auto_print_paper_size: v as AutoPrintPaperSize }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(value: string | null) => PAPER_SIZE_LABELS[(value as AutoPrintPaperSize) ?? '80mm']}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(PAPER_SIZE_LABELS) as AutoPrintPaperSize[]).map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {PAPER_SIZE_LABELS[key]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              58mm and 80mm print a compact ESC/POS receipt sized for thermal paper (with
+              auto-cut). A5, A4, Letter, and Legal instead print the full Tax Invoice template
+              from <span className="font-medium">Invoice Designer</span> to a regular printer.
+            </p>
+            {sizeMismatch && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                Heads up: your Tax Invoice template in Invoice Designer is set to{' '}
+                {taxInvoiceTemplate!.config.paper.size}, but this printer's default paper size is set to{' '}
+                {form.auto_print_paper_size}. Update one of them for a consistent print.
+              </p>
+            )}
+          </>
         )}
       </div>
       )}

@@ -15,9 +15,7 @@ from app.modules.invoice_designer import service
 from app.modules.invoice_designer.service import InvoiceTemplateError
 from app.schemas.invoice_template import DocumentType, InvoiceTemplateCreate, InvoiceTemplateOut, InvoiceTemplateUpdate
 
-router = APIRouter(
-    prefix="/api/invoice-templates", tags=["invoice-designer"], dependencies=[Depends(require_feature("invoice_designer"))]
-)
+router = APIRouter(prefix="/api/invoice-templates", tags=["invoice-designer"])
 
 
 def _out(template: InvoiceTemplate) -> dict[str, Any]:
@@ -71,7 +69,7 @@ def get_template(
     return make_response(True, "Invoice template loaded", _out(template))
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_feature("invoice_designer"))])
 def create_template(
     payload: InvoiceTemplateCreate,
     current_user: User = Depends(require_role("owner")),
@@ -86,7 +84,7 @@ def create_template(
     return make_response(True, "Invoice template created", _out(template))
 
 
-@router.post("/{template_id}/duplicate")
+@router.post("/{template_id}/duplicate", dependencies=[Depends(require_feature("invoice_designer"))])
 def duplicate_template(
     template_id: str,
     current_user: User = Depends(require_role("owner")),
@@ -97,7 +95,7 @@ def duplicate_template(
     return make_response(True, "Invoice template duplicated", _out(copy))
 
 
-@router.put("/{template_id}")
+@router.put("/{template_id}", dependencies=[Depends(require_feature("invoice_designer"))])
 def update_template(
     template_id: str,
     payload: InvoiceTemplateUpdate,
@@ -112,7 +110,7 @@ def update_template(
     return make_response(True, "Invoice template updated", _out(template))
 
 
-@router.delete("/{template_id}")
+@router.delete("/{template_id}", dependencies=[Depends(require_feature("invoice_designer"))])
 def delete_template(
     template_id: str,
     current_user: User = Depends(require_role("owner")),
@@ -126,7 +124,7 @@ def delete_template(
     return make_response(True, "Invoice template deleted")
 
 
-@router.post("/{template_id}/set-default")
+@router.post("/{template_id}/set-default", dependencies=[Depends(require_feature("invoice_designer"))])
 def set_default_template(
     template_id: str,
     current_user: User = Depends(require_role("owner")),

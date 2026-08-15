@@ -5,11 +5,11 @@
  * so a phone's Bluetooth pairing can't be pushed from a dashboard. This is stored locally instead,
  * following the same convention as `components/layout/sidebar/sidebarStorage.ts`. */
 
-export type PrintDeviceMode = 'qz' | 'web-usb' | 'web-bluetooth' | 'browser-dialog';
+export type PrintDeviceMode = 'qz' | 'revgenai-agent' | 'web-usb' | 'web-bluetooth' | 'browser-dialog';
 
 const DEVICE_MODE_KEY = 'revgeniq_print_device_mode';
 
-const VALID_MODES: PrintDeviceMode[] = ['qz', 'web-usb', 'web-bluetooth', 'browser-dialog'];
+const VALID_MODES: PrintDeviceMode[] = ['qz', 'revgenai-agent', 'web-usb', 'web-bluetooth', 'browser-dialog'];
 
 /** Best-effort default suggestion only — every mode stays selectable regardless of this guess
  * (e.g. a Chromebook or a mouse-driven Android device shouldn't be blocked from picking QZ). */

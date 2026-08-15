@@ -1,0 +1,37 @@
+{
+  "name": "@revgenai/print-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RevGenAI Print Agent — local background service that lets RevGenAI SaaS apps (BillIQ, SalesIQ, ...) print to local thermal/OS printers without QZ Tray.",
+  "type": "module",
+  "bin": {
+    "revgenai-print-agent": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "pdf-to-printer": "^5.6.0",
+    "systray2": "^2.1.4",
+    "usb": "^2.14.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.7.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

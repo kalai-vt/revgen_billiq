@@ -67,6 +67,24 @@ class Settings(BaseSettings):
     qz_tray_private_key: str = ""
     qz_tray_certificate: str = ""
 
+    # RevGenAI Print Agent session-token signing (see app/modules/printing) — a distinct RSA
+    # keypair from the QZ Tray one above, used to sign short-lived {device_id, tenant_id,
+    # user_id, expires_at} tokens the browser hands to the locally-running Print Agent process so
+    # it can verify, offline, which tenant/user is asking it to print. Both empty (the default)
+    # means the /agent/session-token endpoint returns a clear "isn't configured" error instead of
+    # signing — pairing and device management still work either way. Set both to give the app a
+    # working session-token flow.
+    print_agent_signing_private_key: str = ""
+    print_agent_signing_public_key: str = ""
+
+    # Public URL of the current RevGenAI Print Agent Windows installer (see print-agent/release/
+    # README.md for how it's built) — cut a new release by uploading the new installer wherever
+    # this points (Vercel Blob via app.core.blob, same as logo uploads, or any other public URL)
+    # and updating this value; nothing else needs to change. Empty (the default) means the
+    # Settings page's download button shows a clear "not available yet" state instead of a dead
+    # link.
+    print_agent_download_url: str = ""
+
     # Trial length for every newly registered tenant (app/modules/auth/service.py:register_tenant)
     # — the single source of truth so "14 days" is never hard-coded elsewhere. See
     # app/core/subscription_access.py for how this and trial_ends_at are used to compute and

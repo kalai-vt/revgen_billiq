@@ -1,14 +1,18 @@
-/** ESC/POS command + receipt builder for silent thermal printing via QZ Tray (see qzTray.ts,
- * printRaw). Produces plain command/text fragments — QZ Tray sends string array items to the
- * printer as raw bytes with no rendering step, so the same output works identically whether the
- * printer is attached over USB, LAN/WiFi, or Bluetooth. */
+/** ESC/POS command + receipt builder — ported from `billing-app/src/lib/printing/escpos.ts` so
+ * the agent renders byte-for-byte the same receipt layout BillIQ already relies on, then extended
+ * with the two commands that file never needed while QZ Tray/Web USB/Web Bluetooth were the only
+ * transports and no adapter exposed cash-drawer or barcode support: `cashDrawerPulse` and
+ * `barcode`. Every other command (init, align, bold, double-size, QR, dividers, wrapping) is kept
+ * identical to the source so a tenant's printed receipt looks the same regardless of which
+ * transport (QZ vs this agent) produced it during the migration window. */
 
 const ESC = '\x1B';
 const GS = '\x1D';
 
 export type ThermalPaperSize = '58mm' | '80mm';
 
-// Standard Font-A character width for commodity thermal printers at each paper size.
+// Standard Font-A character width for commodity thermal printers at each paper size — same table
+// as billing-app's escpos.ts; keep these two in sync if either changes.
 const CHARS_PER_LINE: Record<ThermalPaperSize, number> = {
   '58mm': 32,
   '80mm': 48,
@@ -26,10 +30,12 @@ function bold(on: boolean): string {
 function doubleSize(on: boolean): string {
   return `${GS}!${on ? '\x11' : '\x00'}`;
 }
-// Literal newline characters, not the `ESC d n` control sequence — confirmed on real hardware that
-// `ESC d` is not reliably honored by some generic/clone ESC/POS firmware, while plain `\n`
-// characters (normal printable-line advances, not a control command) work everywhere. See
-// print-agent's escpos.ts for the physical-hardware repro this was confirmed against.
+// Literal newline characters, not the `ESC d n` control sequence — confirmed on real hardware
+// (a generic/clone 58mm printer, TECH CLA58 chipset) that `ESC d` is not reliably honored: raising
+// its line count 3→5→8 kept under-feeding, while switching to plain `\n` characters (which every
+// ESC/POS-compatible firmware must support, since they're normal printable-line advances rather
+// than a control command some clones only partially implement) behaved exactly as expected at
+// every tested value. `\n` is guaranteed to work everywhere `ESC d` might silently be a no-op.
 function feed(lines: number): string {
   return '\n'.repeat(lines);
 }
@@ -40,12 +46,40 @@ function divider(width: number): string {
   return `${'-'.repeat(width)}\n`;
 }
 
+/** ESC p m t1 t2 — fires the drawer-kick pulse on pin 2 (m=0, the near-universal default) for
+ * 100ms on / 250ms off (t1/t2 in 2ms units: 50*2=100, 125*2=250), the standard values every
+ * ESC/POS cash-drawer wiring guide recommends. Not present in billing-app's escpos.ts because no
+ * transport there had a drawer-kick UI action to call it from (spec §8/§17's "Open Cash Drawer"). */
+export function cashDrawerPulse(pin: 0 | 1 = 0): string {
+  return `${ESC}p${String.fromCharCode(pin)}\x32\x7d`;
+}
+
+const BARCODE_HRI_BELOW = `${GS}H\x02`;
+const BARCODE_HEIGHT = (dots: number) => `${GS}h${String.fromCharCode(dots)}`;
+const BARCODE_WIDTH = (module: number) => `${GS}w${String.fromCharCode(module)}`;
+
+export type BarcodeSymbology = 'CODE128' | 'CODE39' | 'EAN13';
+
+// GS k m d1...dk NUL — symbology selector byte per the ESC/POS spec's "function type A" table.
+const BARCODE_SYMBOLOGY_CODE: Record<BarcodeSymbology, number> = {
+  CODE39: 4,
+  EAN13: 2,
+  CODE128: 73,
+};
+
+/** Renders a 1D barcode via `GS k` — not present in billing-app's escpos.ts (which only ever
+ * needed QR, since barcode scanning in BillIQ is input-side, on the POS product-search panel, not
+ * something a receipt prints). CODE128 needs its data prefixed with a code-set selector (`{B` for
+ * the common all-ASCII case) per the spec; CODE39/EAN13 take the raw digits/text directly. */
+export function barcode(data: string, symbology: BarcodeSymbology = 'CODE128', height = 80, moduleWidth = 2): string {
+  const payload = symbology === 'CODE128' ? `{B${data}` : data;
+  const header = BARCODE_HRI_BELOW + BARCODE_HEIGHT(height) + BARCODE_WIDTH(moduleWidth);
+  const command = `${GS}k${String.fromCharCode(BARCODE_SYMBOLOGY_CODE[symbology])}${String.fromCharCode(payload.length)}${payload}`;
+  return header + command;
+}
+
 const QR_ERROR_CORRECTION = { L: 48, M: 49, Q: 50, H: 51 } as const;
 
-/** Standard ESC/POS "GS ( k" QR code sequence (select model 2 → set module size → set error
- * correction → store data → print), supported across most modern ESC/POS thermal printers —
- * renders the QR on the printer itself, no bitmap/image library needed. `data` is written as raw
- * bytes (QR byte mode), same convention as the rest of this file. */
 function qrCode(data: string, moduleSize = 6, errorCorrection: keyof typeof QR_ERROR_CORRECTION = 'M'): string {
   const GSk = `${GS}(k`;
   const selectModel = `${GSk}\x04\x00\x31\x41\x32\x00`;
@@ -80,47 +114,6 @@ function twoCol(left: string, right: string, width: number): string {
   return `${left}${' '.repeat(gap)}${right}\n`;
 }
 
-const ONES = [
-  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-  'Seventeen', 'Eighteen', 'Nineteen',
-];
-const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-
-function underThousand(n: number): string {
-  if (n === 0) return '';
-  if (n < 20) return ONES[n];
-  if (n < 100) return (TENS[Math.floor(n / 10)] + (n % 10 ? ` ${ONES[n % 10]}` : '')).trim();
-  return (ONES[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ` and ${underThousand(n % 100)}` : '')).trim();
-}
-
-function integerToWordsIndian(n: number): string {
-  if (n === 0) return 'Zero';
-  const parts: string[] = [];
-  const crore = Math.floor(n / 10_000_000);
-  n %= 10_000_000;
-  const lakh = Math.floor(n / 100_000);
-  n %= 100_000;
-  const thousand = Math.floor(n / 1_000);
-  n %= 1_000;
-  if (crore) parts.push(`${underThousand(crore)} Crore`);
-  if (lakh) parts.push(`${underThousand(lakh)} Lakh`);
-  if (thousand) parts.push(`${underThousand(thousand)} Thousand`);
-  if (n) parts.push(underThousand(n));
-  return parts.join(' ');
-}
-
-/** Ports `backend/app/modules/invoice_designer/amount_words.py::amount_in_words_inr` so the
- * "Amount in Words" line reads identically whether it came from the thermal or PDF path — Indian
- * numbering (lakh/crore) regardless of tenant currency, matching that function's own tradeoff. */
-export function numberToWordsInr(amount: number, currencyLabel = 'Rupees'): string {
-  const rupees = Math.trunc(amount);
-  const paise = Math.round((amount - rupees) * 100);
-  let words = `${currencyLabel} ${integerToWordsIndian(rupees)}`;
-  if (paise) words += ` and ${underThousand(paise)} Paise`;
-  return `${words} Only`;
-}
-
 export interface ReceiptBusinessInfo {
   companyName: string;
   addressLine1?: string | null;
@@ -129,12 +122,7 @@ export interface ReceiptBusinessInfo {
   state?: string | null;
   pincode?: string | null;
   gstNumber?: string | null;
-  /** Only passed when the tenant's Invoice Designer template has branding.show_phone enabled —
-   * see InvoiceSuccessDialog.tsx. */
   phone?: string | null;
-  /** Pre-rendered ESC/POS raster bit-image command for the tenant's logo — see
-   * `escposLogo.ts::buildLogoCommand`. Built separately (it's async; loads and rasterizes an
-   * image) and passed in already-built, so this function itself stays synchronous. */
   logoCommand?: string | null;
 }
 
@@ -147,13 +135,14 @@ export interface ReceiptQrCode {
   data: string;
 }
 
-/** The RevGenAI lead-gen footer — always the compact title/description/website/phone/QR form
- * from the BillIQ Promotion spec regardless of the tenant's Invoice Designer layout choice
- * (compact/standard/banner only apply to A4/PDF; a 58mm/80mm strip has no room for those). */
+export interface ReceiptBarcode {
+  caption: string;
+  data: string;
+  symbology: BarcodeSymbology;
+}
+
 export interface ReceiptPromotion {
   title: string;
-  /** Omitted (or empty) when the tenant's billiq_promotion.show_description is off — the
-   * slogan is an explicit opt-in extra line, never mandatory. See InvoiceSuccessDialog.tsx. */
   description?: string | null;
   website: string;
   phone: string;
@@ -167,12 +156,6 @@ export interface ReceiptItem {
   lineTotal: number;
 }
 
-/** Mirrors the checkbox fields under Invoice Designer's Invoice Info / Customer Details / Tax &
- * Summary sections (`InvoiceInfoConfig.fields`, `CustomerDetailsConfig.fields`,
- * `TaxSummaryConfig.fields`) — every field here has real backing data on `Invoice`; fields with
- * no backing data anywhere in the system (counter, order_number, customer email/address,
- * cess/shipping/packing — see escpos.ts's module comment) aren't represented here since there's
- * nothing to gate. Defaults to all-`true` when omitted, matching this file's pre-toggle behavior. */
 export interface ReceiptFieldVisibility {
   invoiceNumber: boolean;
   date: boolean;
@@ -233,42 +216,29 @@ export interface ReceiptData {
   footer?: string | null;
   currency: string;
   decimalPrecision: number;
-  /** From the tenant's Invoice Designer tax_summary.fields.round_off toggle — always 0 for
-   * regular invoices today (see backend document_data.py), but a real, tenant-enabled line item
-   * rather than a fabricated one, so it's shown when enabled for parity with the on-screen/PDF
-   * receipt. */
   roundOff?: number;
-  /** Enabled sections from the Designer template's footer.sections, already filtered/ordered by
-   * the caller. Printed before the legacy single `footer` string above, so tenants using either
-   * or both fields see everything they've configured. */
   footerSections?: ReceiptFooterSection[];
-  /** Enabled QR codes from the Designer template's qr_barcode.* flags, already built by the
-   * caller (see InvoiceSuccessDialog.tsx for the exact payload per QR type). */
   qrCodes?: ReceiptQrCode[];
+  /** New vs. billing-app's escpos.ts — thermal barcode printing (spec §8), independent of the
+   * customer-facing product barcode scanning already implemented elsewhere in BillIQ. */
+  barcodes?: ReceiptBarcode[];
   dueDate?: string | null;
   customerId?: string | null;
-  /** Already formatted ("Partially Paid", "Paid" — title-cased, underscores replaced), matching
-   * backend document_data.py's own formatting so thermal/PDF read identically. */
   paymentStatus?: string | null;
   invoiceStatus?: string | null;
-  /** Same value as `ReceiptBusinessInfo.gstNumber` — the backend's own document_data.py labels
-   * this "customer_gstin" but sources it from the business's own GST snapshot on the invoice
-   * (there's no separate customer-GSTIN concept in the data model); kept faithful to that
-   * existing PDF behavior rather than diverging on thermal. */
   customerGstin?: string | null;
   paidAmount?: number | null;
   outstandingAmount?: number | null;
-  /** CGST/SGST/IGST are a derived 50/50 (or full) split of the single stored `taxAmount`, not a
-   * real stored breakdown — same convention backend document_data.py already uses. When any of
-   * these are present, they replace the combined "Tax (X%)" line. */
   cgst?: number | null;
   sgst?: number | null;
   igst?: number | null;
   amountInWords?: string | null;
   visibility?: Partial<ReceiptFieldVisibility>;
-  /** Present only when the tenant's Designer template has billiq_promotion.enabled — see
-   * InvoiceSuccessDialog.tsx. Printed last, after everything else, never before it. */
   promotion?: ReceiptPromotion | null;
+  /** Set by the web app when Settings > Automatic Printing has "Open Cash Drawer" enabled for
+   * this document type (spec §17). The renderer just appends the pulse; the adapter layer decides
+   * whether the target printer's capabilities actually support it (see `getCapabilities`). */
+  openCashDrawer?: boolean;
 }
 
 function money(value: number, data: ReceiptData): string {
@@ -277,12 +247,9 @@ function money(value: number, data: ReceiptData): string {
 }
 
 /** Builds the ordered list of ESC/POS command/text fragments for a full receipt, sized to the
- * given thermal paper width. Pass the result straight to `qzTray.printRaw`. */
-export function buildReceiptCommands(
-  business: ReceiptBusinessInfo,
-  data: ReceiptData,
-  paperSize: ThermalPaperSize,
-): string[] {
+ * given thermal paper width. Adapters convert this to raw bytes via `toBytes` before writing to
+ * USB/network/serial. */
+export function buildReceiptCommands(business: ReceiptBusinessInfo, data: ReceiptData, paperSize: ThermalPaperSize): string[] {
   const width = CHARS_PER_LINE[paperSize];
   const out: string[] = [];
   const createdAt = new Date(data.createdAt);
@@ -326,9 +293,7 @@ export function buildReceiptCommands(
 
   for (const item of data.items) {
     for (const wrapped of wrapText(item.name, width)) out.push(`${wrapped}\n`);
-    out.push(
-      twoCol(`  ${item.quantity} x ${item.unitPrice.toFixed(data.decimalPrecision)}`, money(item.lineTotal, data), width),
-    );
+    out.push(twoCol(`  ${item.quantity} x ${item.unitPrice.toFixed(data.decimalPrecision)}`, money(item.lineTotal, data), width));
   }
   out.push(divider(width));
 
@@ -361,10 +326,9 @@ export function buildReceiptCommands(
     for (const wrapped of wrapText(data.amountInWords, width)) out.push(`${wrapped}\n`);
   }
 
-  const footerLines = [
-    ...(data.footerSections ?? []).map((section) => section.text),
-    data.footer,
-  ].filter((text): text is string => Boolean(text && text.trim()));
+  const footerLines = [...(data.footerSections ?? []).map((section) => section.text), data.footer].filter(
+    (text): text is string => Boolean(text && text.trim()),
+  );
   if (footerLines.length > 0) {
     out.push(divider(width), align('center'));
     for (const text of footerLines) {
@@ -379,9 +343,14 @@ export function buildReceiptCommands(
     }
   }
 
+  if (data.barcodes && data.barcodes.length > 0) {
+    out.push(align('center'));
+    for (const { caption, data: barcodeData, symbology } of data.barcodes) {
+      out.push(feed(1), `${caption}\n`, barcode(barcodeData, symbology), feed(1));
+    }
+  }
+
   if (data.promotion) {
-    // Always exactly two text lines (title, then website+phone combined) — the slogan is an
-    // explicit opt-in extra line, never mandatory. See ReceiptPromotion's own comment.
     out.push(divider(width), align('center'), bold(true));
     for (const wrapped of wrapText(data.promotion.title, width)) out.push(`${wrapped}\n`);
     out.push(bold(false));
@@ -390,28 +359,28 @@ export function buildReceiptCommands(
     }
     for (const wrapped of wrapText(`${data.promotion.website} · ${data.promotion.phone}`, width)) out.push(`${wrapped}\n`);
     if (data.promotion.qrUrl) {
-      // Smaller module size than the default (6) so the QR still fits a 58mm head comfortably.
       out.push(feed(1), qrCode(data.promotion.qrUrl, 4), feed(1));
     }
   }
 
-  // 3 lines before cutting — kept in sync with print-agent's escpos.ts (see feed()'s own comment
-  // for why this switched to literal newlines; tuned down from 6 on real hardware) so QZ Tray/Web
-  // USB/Web Bluetooth receipts eject the same way as this agent's.
+  // Real hardware showed `ESC d n` (the old `feed()` implementation) wasn't reliably feeding the
+  // claimed number of lines at all — switching feed() to literal `\n` (see its own comment) is the
+  // actual fix. Tuned down from 6 (about 1cm too much) to 4 (still ~0.5cm too much) to 3 on real
+  // hardware — each line is roughly 4-5mm at this printer's default line spacing.
   out.push(feed(3), cut());
+  if (data.openCashDrawer) out.push(cashDrawerPulse());
   return out;
 }
 
-/** A standalone printer/connectivity check for Settings > Automatic Printing's "Test Print"
- * button. Deliberately independent of ReceiptData/any invoice — no amount, customer, or
- * transaction data of any kind, so it can never be mistaken for (or accidentally create) a real
- * sale record. */
+/** A standalone printer/connectivity check for the pairing/Settings "Test Print" action —
+ * deliberately independent of ReceiptData/any invoice, matching billing-app's own
+ * `buildTestPrintCommands` intent (never mistakable for, or able to create, a real sale record). */
 export function buildTestPrintCommands(paperSize: ThermalPaperSize): string[] {
   const width = CHARS_PER_LINE[paperSize];
   const now = new Date();
   const out: string[] = [];
   out.push(init(), align('center'), bold(true), doubleSize(true));
-  out.push('RevGen BillIQ\n');
+  out.push('RevGenAI Print Agent\n');
   out.push(doubleSize(false));
   out.push('Printer Test\n');
   out.push(bold(false));
@@ -422,4 +391,15 @@ export function buildTestPrintCommands(paperSize: ThermalPaperSize): string[] {
   out.push(divider(width));
   out.push(feed(3), cut());
   return out;
+}
+
+/** Converts command/text fragments (each char code already the intended raw byte) into a single
+ * `Uint8Array` for USB/network/serial transports — ported from billing-app's `escposBytes.ts`. */
+export function toBytes(commands: string[]): Uint8Array {
+  const joined = commands.join('');
+  const bytes = new Uint8Array(joined.length);
+  for (let i = 0; i < joined.length; i++) {
+    bytes[i] = joined.charCodeAt(i) & 0xff;
+  }
+  return bytes;
 }

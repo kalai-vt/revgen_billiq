@@ -21,6 +21,7 @@ from app.models.subscription_payment import SubscriptionPayment
 from app.models.support_ticket import SupportTicket, SupportTicketMessage
 from app.models.tenant_limit import TenantLimitOverride
 from app.models.promotion import PromotionConfig, PromotionEvent
+from app.models.print_agent import PairingCode, PrintAgentDevice, PrintJob
 
 __all__ = [
     "Tenant",
@@ -64,4 +65,7 @@ __all__ = [
     "TenantLimitOverride",
     "PromotionConfig",
     "PromotionEvent",
+    "PairingCode",
+    "PrintAgentDevice",
+    "PrintJob",
 ]
