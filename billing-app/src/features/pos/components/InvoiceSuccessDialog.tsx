@@ -18,8 +18,9 @@ import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { loadDeviceMode } from '@/lib/printing/deviceProfile';
-import { buildReceiptCommands, numberToWordsInr, type ReceiptPromotion, type ThermalPaperSize } from '@/lib/printing/escpos';
+import { buildReceiptCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { buildLogoCommand } from '@/lib/printing/escposLogo';
+import { buildInvoiceReceiptPayload } from '@/features/pos/lib/silentPrint';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
 
@@ -90,133 +91,16 @@ export function InvoiceSuccessDialog({
     // it locally via buildReceiptCommands (see call sites below); the RevGenAI Print Agent
     // transport instead sends this data as-is and lets the agent render it itself (it ported the
     // same escpos.ts logic byte-for-byte — see print-agent/src/renderer/escpos.ts), so BillIQ
-    // never needs to know which printer protocol the agent ends up using.
+    // never needs to know which printer protocol the agent ends up using. Shared with
+    // silentPrint.ts's own manual-print entry points so an invoice's receipt renders identically
+    // whether it was auto-printed here or reprinted later from the Invoices list.
     function buildReceiptPayload(logoCommand: string | null) {
       if (!settings) return null;
-      const companyName = tenant?.company_name ?? 'Receipt';
-      const config = taxInvoiceTemplate?.config;
-
-      // Mirrors backend/app/modules/invoice_designer/pdf_renderer.py's QR payloads exactly, so
-      // thermal, on-screen, and PDF receipts encode the same data for each QR type.
-      const qrCodes: { caption: string; data: string }[] = [];
-      if (config?.qr_barcode.invoice_qr) {
-        qrCodes.push({
-          caption: 'Invoice QR',
-          data: `Invoice:${currentInvoice.invoice_number}|Amount:${currentInvoice.total_amount.toFixed(2)}`,
-        });
-      }
-      if (config?.qr_barcode.payment_qr) {
-        qrCodes.push({ caption: 'Scan to Pay', data: `upi://pay?pn=${companyName}&am=${currentInvoice.total_amount.toFixed(2)}` });
-      }
-      if (config?.qr_barcode.business_qr) {
-        qrCodes.push({ caption: 'Business Card', data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}` });
-      }
-      if (config?.qr_barcode.website_qr && settings.website) {
-        qrCodes.push({ caption: 'Visit Us', data: settings.website });
-      }
-      if (config?.qr_barcode.feedback_qr && settings.feedback_url) {
-        qrCodes.push({ caption: 'Feedback', data: settings.feedback_url });
-      }
-
-      const footerSections = (config?.footer.sections ?? [])
-        .filter((section) => section.enabled)
-        .sort((a, b) => a.order - b.order)
-        .map((section) => ({ text: section.text }));
-
-      const promotion: ReceiptPromotion | null =
-        config?.billiq_promotion.enabled && promotionContent
-          ? {
-              title: promotionContent.title,
-              description: config.billiq_promotion.show_description ? promotionContent.description : null,
-              website: promotionContent.website,
-              phone: promotionContent.phone,
-              qrUrl: config.billiq_promotion.qr_enabled ? promotionContent.qr_url : null,
-            }
-          : null;
-
-      const info = config?.invoice_info.fields;
-      const customerFields = config?.customer_details.fields;
-      const tax = config?.tax_summary.fields;
-      const formatEnumLabel = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
-      const business = {
-        companyName,
-        addressLine1: settings.address_line1,
-        addressLine2: settings.address_line2,
-        city: settings.city,
-        state: settings.state,
-        pincode: settings.pincode,
-        gstNumber: settings.gst_number,
-        phone: config?.branding.show_phone ? tenant?.phone : null,
+      return buildInvoiceReceiptPayload(
+        currentInvoice,
+        { settings, template: taxInvoiceTemplate, promotionContent: promotionContent ?? null, tenant },
         logoCommand,
-      };
-      const data = {
-          invoiceNumber: currentInvoice.invoice_number,
-          createdAt: currentInvoice.created_at,
-          cashierName: currentInvoice.created_by_name,
-          customerName: currentInvoice.customer_name,
-          customerPhone: currentInvoice.customer_phone,
-          items: currentInvoice.items.map((item) => ({
-            name: item.product_name,
-            quantity: item.quantity,
-            unitPrice: item.unit_price,
-            lineTotal: item.line_total,
-          })),
-          subtotal: currentInvoice.subtotal,
-          discountAmount: currentInvoice.discount_amount,
-          taxAmount: currentInvoice.tax_amount,
-          taxPercentage: currentInvoice.tax_percentage,
-          totalAmount: currentInvoice.total_amount,
-          paymentMethod: currentInvoice.payment_method,
-          amountTendered: currentInvoice.amount_tendered,
-          changeDue: currentInvoice.change_due,
-          footer: settings.receipt_footer,
-          currency: settings.currency,
-          decimalPrecision: settings.decimal_precision,
-          roundOff: tax?.round_off ? 0 : undefined,
-          footerSections,
-          qrCodes,
-          dueDate: currentInvoice.due_date,
-          customerId: currentInvoice.customer_id,
-          paymentStatus: formatEnumLabel(currentInvoice.payment_status),
-          invoiceStatus: formatEnumLabel(currentInvoice.status),
-          // The backend's own PDF path labels this "customer_gstin" but actually sources it from
-          // the same business GST snapshot as `gstNumber` above — see escpos.ts's field comment.
-          customerGstin: settings.gst_number,
-          paidAmount: currentInvoice.paid_amount,
-          outstandingAmount: currentInvoice.outstanding_amount,
-          // Mirrors backend document_data.py's derivation exactly: no real CGST/SGST/IGST split
-          // is stored, only the one tax_amount — CGST/SGST assume the common intra-state 50/50
-          // split, IGST shows the full amount.
-          cgst: tax?.cgst ? currentInvoice.tax_amount / 2 : null,
-          sgst: tax?.sgst ? currentInvoice.tax_amount / 2 : null,
-          igst: tax?.igst ? currentInvoice.tax_amount : null,
-          amountInWords: tax?.amount_in_words ? numberToWordsInr(currentInvoice.total_amount) : null,
-          promotion,
-          visibility: info && customerFields && tax
-            ? {
-                invoiceNumber: info.invoice_number,
-                date: info.date,
-                time: info.time,
-                dueDate: info.due_date,
-                cashier: info.cashier,
-                customerId: info.customer_id,
-                paymentMethod: info.payment_method,
-                paymentStatus: info.payment_status,
-                invoiceStatus: info.invoice_status,
-                customerName: customerFields.name,
-                customerMobile: customerFields.mobile,
-                customerGstin: customerFields.gstin,
-                subtotal: tax.subtotal,
-                discount: tax.discount,
-                grandTotal: tax.grand_total,
-                paid: tax.paid,
-                outstanding: tax.outstanding || tax.balance,
-                amountInWords: tax.amount_in_words,
-              }
-            : undefined,
-      };
-      return { business, data };
+      );
     }
 
     (async () => {

@@ -19,6 +19,7 @@ import { computeTotals } from '@/features/pos/lib/calc';
 import { useCheckoutConfig } from '@/features/pos/lib/checkoutElements';
 import { computeCheckoutGridColumns, getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
 import { buildProvisionalBillSnapshot, storeProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
+import { printProvisionalBillSilently } from '@/features/pos/lib/silentPrint';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
@@ -177,9 +178,12 @@ export function POSPage() {
 
   // Provisional/Order Bill: a print preview of the current cart for the customer to review and
   // pay against before Checkout. Deliberately makes no API call at all — no invoice, payment, or
-  // inventory change happens here; only a real Checkout does that. The snapshot is handed to the
-  // new tab via localStorage (see provisionalBill.ts) rather than any backend round-trip.
-  function handlePrintOrderBill() {
+  // inventory change happens here; only a real Checkout does that. Tries the configured silent
+  // print transport first (Settings > Automatic Printing), same as a real invoice would use —
+  // only opens the print-preview tab (via the snapshot handed off through localStorage, see
+  // provisionalBill.ts) as a fallback when nothing's configured, printing fails, or the default
+  // paper size isn't thermal (there's no saved invoice yet to render a PDF from).
+  async function handlePrintOrderBill() {
     const snapshot = buildProvisionalBillSnapshot({
       lines: cart.lines,
       totals,
@@ -191,6 +195,11 @@ export function POSPage() {
       paymentType,
       paymentMethod,
     });
+    const printedSilently = await printProvisionalBillSilently(snapshot).catch(() => false);
+    if (printedSilently) {
+      toast.success('Order bill sent to printer');
+      return;
+    }
     storeProvisionalBillSnapshot(snapshot);
     window.open(appPath('/pos/provisional-bill/print'), '_blank', 'noopener,noreferrer');
   }

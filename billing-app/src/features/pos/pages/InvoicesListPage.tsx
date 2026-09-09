@@ -17,6 +17,7 @@ import { TablePagination } from '@/components/shared/TablePagination';
 import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import * as posApi from '@/features/pos/api';
+import { printInvoiceSilently } from '@/features/pos/lib/silentPrint';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ReturnDialog } from '@/features/pos/components/ReturnDialog';
 import { ViewInvoiceDialog } from '@/features/pos/components/ViewInvoiceDialog';
@@ -135,6 +136,18 @@ export function InvoicesListPage() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not download PDF');
     }
+  }
+
+  // Tries the configured silent print transport first (Settings > Automatic Printing), same as a
+  // fresh checkout's auto-print — only opens the print-preview tab as a fallback when nothing's
+  // configured or printing fails, instead of unconditionally opening a new tab every time.
+  async function handlePrintInvoice(id: string) {
+    const printedSilently = await printInvoiceSilently(id).catch(() => false);
+    if (printedSilently) {
+      toast.success('Receipt sent to printer');
+      return;
+    }
+    window.open(appPath(`/invoices/${id}/print`), '_blank', 'noopener,noreferrer');
   }
 
   async function handleExport(format: ExportFormat) {
@@ -314,7 +327,7 @@ export function InvoicesListPage() {
                     tooltip="Print Invoice"
                     className="size-8"
                     aria-label={`Print invoice ${invoice.invoice_number}`}
-                    onClick={() => window.open(appPath(`/invoices/${invoice.id}/print`), '_blank', 'noopener,noreferrer')}
+                    onClick={() => handlePrintInvoice(invoice.id)}
                   >
                     <Printer className="size-4" />
                   </IconButton>
