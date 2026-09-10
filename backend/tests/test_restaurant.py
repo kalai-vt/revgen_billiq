@@ -63,8 +63,8 @@ def _product(client: TestClient, headers: dict, name: str = "Chicken Biryani", p
     return response.json()["data"]
 
 
-def _setup(client: TestClient, db_session: Session) -> tuple[dict, dict]:
-    auth = _register(client)
+def _setup(client: TestClient, db_session: Session, email: str = "owner@dine.test") -> tuple[dict, dict]:
+    auth = _register(client, email=email)
     _enable_restaurant(db_session, auth["tenant"]["id"])
     headers = _headers(auth["access_token"])
     return auth, headers

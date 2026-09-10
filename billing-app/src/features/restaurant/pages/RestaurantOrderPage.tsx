@@ -145,6 +145,9 @@ export function RestaurantOrderPage() {
     // print_count means "times this ticket physically came out of a printer", so only a real
     // print bumps it — otherwise a failed reprint would read as a successful one.
     if (result.ok) await restaurantApi.markKotPrinted(kot.id).catch(() => undefined);
+    // A failure is recorded rather than swallowed, so the ticket shows as unprinted on the order
+    // and can be retried instead of quietly never reaching the kitchen.
+    else await restaurantApi.markKotPrintFailed(kot.id, kotPrintFailureMessage(result)).catch(() => undefined);
     return result;
   }
 
@@ -386,7 +389,23 @@ export function RestaurantOrderPage() {
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         {kot.items.map((i) => `${i.quantity} × ${i.product_name}`).join(', ')}
                       </p>
-                      {kot.cancel_reason && (
+                      {kot.print_status === 'failed' && kot.status !== 'cancelled' && (
+                      <div className="mt-1 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                        <p className="text-[11px] text-destructive">
+                          ⚠ {kot.last_print_error ?? 'This ticket did not print.'}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-1 h-7 text-[11px]"
+                          disabled={reprintKot.isPending}
+                          onClick={() => reprintKot.mutate(kot)}
+                        >
+                          Retry print
+                        </Button>
+                      </div>
+                    )}
+                    {kot.cancel_reason && (
                         <p className="mt-0.5 text-[11px] italic text-destructive">Cancelled: {kot.cancel_reason}</p>
                       )}
                       {kot.status !== 'cancelled' && (

@@ -692,6 +692,23 @@ def mark_kot_printed(db: Session, tenant_id: str, kot_id: str) -> Kot:
     kitchen to cook the food twice."""
     kot = get_kot(db, tenant_id, kot_id)
     kot.print_count += 1
+    kot.print_status = "printed"
+    kot.last_print_error = None
+    db.add(kot)
+    db.commit()
+    return get_kot(db, tenant_id, kot_id)
+
+
+def mark_kot_print_failed(db: Session, tenant_id: str, kot_id: str, error: str | None) -> Kot:
+    """Records that a ticket did not reach the printer.
+
+    The KOT itself is never touched: the food was ordered whether or not paper came out, so the
+    ticket stays on the kitchen screen, keeps its number, and can be retried. Losing it because a
+    printer was offline is the failure this exists to prevent.
+    """
+    kot = get_kot(db, tenant_id, kot_id)
+    kot.print_status = "failed"
+    kot.last_print_error = (error or "The printer did not respond.")[:1000]
     db.add(kot)
     db.commit()
     return get_kot(db, tenant_id, kot_id)

@@ -141,6 +141,11 @@ class Kot(Base):
     # A reprint is not a new KOT (that would double-send the food) — it's a counter on this one,
     # kept so "the kitchen never got it" can be told apart from "it was printed three times".
     print_count: Mapped[int] = mapped_column(Integer, default=0)
+    # How the last print attempt actually went. A ticket that failed to print stays 'failed' and
+    # retryable rather than disappearing — the kitchen not knowing about the food is the failure
+    # this guards against, and it is worse than a duplicate ticket.
+    print_status: Mapped[str] = mapped_column(String(20), default="pending")
+    last_print_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

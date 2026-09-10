@@ -97,6 +97,8 @@ export interface Kot {
   notes: string | null;
   cancel_reason: string | null;
   print_count: number;
+  print_status: 'pending' | 'printed' | 'failed';
+  last_print_error: string | null;
   created_at: string;
   items: KotItem[];
 }
@@ -319,6 +321,15 @@ export function cancelKot(kotId: string, reason: string): Promise<Kot> {
 
 /** A reprint bumps the counter on the same KOT — a second KOT would tell the kitchen to cook
  * the food twice. */
+/** Records that a ticket could not be printed. The KOT itself is untouched — the food was
+ * ordered whether or not paper came out — so it stays on screen and can be retried. */
+export function markKotPrintFailed(kotId: string, error?: string | null): Promise<Kot> {
+  return request(`/api/restaurant/kots/${kotId}/print-failed`, {
+    method: 'POST',
+    body: JSON.stringify({ error: error ?? null }),
+  });
+}
+
 export function markKotPrinted(kotId: string): Promise<Kot> {
   return request(`/api/restaurant/kots/${kotId}/printed`, { method: 'POST' });
 }

@@ -20,6 +20,7 @@ from app.schemas.restaurant import (
     FloorOut,
     FloorUpdate,
     KotCancelRequest,
+    KotPrintFailure,
     KotCreate,
     KotOut,
     KotStatusUpdate,
@@ -474,3 +475,18 @@ def post_kot_printed(
     except RestaurantError as err:
         raise _handle(err) from err
     return make_response(True, "KOT reprinted", KotOut.model_validate(kot).model_dump(mode="json"))
+
+
+@router.post("/kots/{kot_id}/print-failed", dependencies=[Depends(require_feature("kot"))])
+def post_kot_print_failed(
+    kot_id: str,
+    payload: KotPrintFailure,
+    current_user: User = Depends(require_role("owner", "manager", "staff")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Records that a ticket could not be printed, so it stays visible and retryable."""
+    try:
+        kot = service.mark_kot_print_failed(db, current_user.tenant_id, kot_id, payload.error)
+    except RestaurantError as err:
+        raise _handle(err) from err
+    return make_response(True, "Print failure recorded", KotOut.model_validate(kot).model_dump(mode="json"))
