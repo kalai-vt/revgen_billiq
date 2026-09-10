@@ -1,5 +1,7 @@
+import type { ReactElement, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CheckoutPanel } from '@/features/pos/components/CheckoutPanel';
 import { DEFAULT_CHECKOUT_CONFIG, type CheckoutElementKey } from '@/features/pos/lib/checkoutElements';
@@ -40,6 +42,8 @@ const baseProps = {
   paymentType: 'paid' as const,
   onPaymentTypeChange: vi.fn(),
   outstandingEnabled: false,
+  paymentReference: '',
+  onPaymentReferenceChange: vi.fn(),
   amountTendered: null,
   onAmountTenderedChange: vi.fn(),
   paidNow: null,
@@ -69,6 +73,25 @@ function configWith(overrides: Partial<Record<CheckoutElementKey, boolean>>) {
   return { ...DEFAULT_CHECKOUT_CONFIG, ...overrides };
 }
 
+/** CheckoutPanel reads `invoice_designer` through TanStack Query, so every render of it needs a
+ * QueryClient in context. Wrapping here instead of at each call site is what keeps a newly added
+ * test from failing on a missing provider — which is exactly how this file ended up with two
+ * hand-wrapped tests and the rest broken.
+ *
+ * `wrapper` (rather than wrapping the element) is deliberate: RTL re-applies it on `rerender`,
+ * so the toggle tests below keep their provider across the second render too.
+ */
+function render(ui: ReactElement) {
+  // No retries and no network: the flag query has no server here, and every flag defaults to
+  // enabled when absent (see useFeatureFlag), which is the state these tests assume.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
 describe('CheckoutPanel — canCheckout', () => {
   it('the default paid + cash combo is checkout-ready with amount tendered left blank', () => {
     render(<CheckoutPanel {...baseProps} />);
@@ -83,12 +106,7 @@ describe('CheckoutPanel — canCheckout', () => {
   });
 
   it('a partial/credit sale with the Outstanding module on still requires a customer', () => {
-    const queryClient = new QueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <CheckoutPanel {...baseProps} outstandingEnabled paymentType="credit" />
-      </QueryClientProvider>,
-    );
+    render(<CheckoutPanel {...baseProps} outstandingEnabled paymentType="credit" />);
     const button = screen.getByRole('button', { name: /checkout/i });
     expect(button).toBeDisabled();
   });
@@ -146,16 +164,13 @@ describe('CheckoutPanel — each element disappears completely when disabled', (
   });
 
   it('the customer picker still renders for a required credit sale even if the Customer element is off', () => {
-    const queryClient = new QueryClient();
     render(
-      <QueryClientProvider client={queryClient}>
-        <CheckoutPanel
-          {...baseProps}
-          outstandingEnabled
-          paymentType="credit"
-          checkoutConfig={configWith({ customer: false, phone: false })}
-        />
-      </QueryClientProvider>,
+      <CheckoutPanel
+        {...baseProps}
+        outstandingEnabled
+        paymentType="credit"
+        checkoutConfig={configWith({ customer: false, phone: false })}
+      />,
     );
     // The walk-in-only fields are absent, but a customer must still be selectable — hiding a UI
     // element must never break the business requirement that credit sales need a customer.
@@ -250,5 +265,41 @@ describe('CheckoutPanel — Print Order Bill', () => {
   it('Print Order Bill is disabled for an empty cart, same as Checkout', () => {
     render(<CheckoutPanel {...baseProps} lines={[]} totals={{ ...baseProps.totals, subtotal: 0, taxAmount: 0, total: 0 }} />);
     expect(screen.getByRole('button', { name: /print order bill/i })).toBeDisabled();
+  });
+});
+
+describe('CheckoutPanel — payment reference', () => {
+  it('is offered for UPI, where there is a transaction id to record', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="upi" />);
+    expect(screen.getByLabelText(/UPI Txn ID/i)).toBeInTheDocument();
+  });
+
+  it('is offered for card as an approval code', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="card" />);
+    expect(screen.getByLabelText(/Approval Code/i)).toBeInTheDocument();
+  });
+
+  it('is not offered for cash, which has no transaction id', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="cash" />);
+    expect(screen.queryByLabelText(/Txn ID|Approval Code/i)).not.toBeInTheDocument();
+  });
+
+  it('is not offered on a credit sale — nothing has been paid yet to reference', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="upi" paymentType="credit" outstandingEnabled />);
+    expect(screen.queryByLabelText(/Txn ID/i)).not.toBeInTheDocument();
+  });
+
+  it('disappears when the tenant turns the element off', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="upi" checkoutConfig={configWith({ payment_reference: false })} />);
+    expect(screen.queryByLabelText(/Txn ID/i)).not.toBeInTheDocument();
+  });
+
+  it('reports what the cashier typed', async () => {
+    const onPaymentReferenceChange = vi.fn();
+    render(
+      <CheckoutPanel {...baseProps} paymentMethod="upi" onPaymentReferenceChange={onPaymentReferenceChange} />,
+    );
+    await userEvent.type(screen.getByLabelText(/UPI Txn ID/i), '44');
+    expect(onPaymentReferenceChange).toHaveBeenCalled();
   });
 });

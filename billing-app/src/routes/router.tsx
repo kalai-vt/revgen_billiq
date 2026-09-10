@@ -55,6 +55,10 @@ const CustomerImportHistoryPage = lazy(() =>
   import('@/features/customers/pages/ImportHistoryPage').then((m) => ({ default: m.ImportHistoryPage })),
 );
 const POSPage = lazy(() => import('@/features/pos/pages/POSPage').then((m) => ({ default: m.POSPage })));
+const TablesPage = lazy(() => import('@/features/restaurant/pages/TablesPage').then((m) => ({ default: m.TablesPage })));
+const RestaurantOrderPage = lazy(() => import('@/features/restaurant/pages/RestaurantOrderPage').then((m) => ({ default: m.RestaurantOrderPage })));
+const KitchenPage = lazy(() => import('@/features/restaurant/pages/KitchenPage').then((m) => ({ default: m.KitchenPage })));
+const TableSetupPage = lazy(() => import('@/features/restaurant/pages/TableSetupPage').then((m) => ({ default: m.TableSetupPage })));
 const InvoicesListPage = lazy(() => import('@/features/pos/pages/InvoicesListPage').then((m) => ({ default: m.InvoicesListPage })));
 const ReturnHistoryPage = lazy(() => import('@/features/pos/pages/ReturnHistoryPage').then((m) => ({ default: m.ReturnHistoryPage })));
 const OutstandingDashboardPage = lazy(() =>
@@ -185,6 +189,38 @@ export const router = createBrowserRouter([
                     element: (
                       <RequireModule moduleKey="reports_analytics" label="Overview">
                         <DashboardPage />
+                      </RequireModule>
+                    ),
+                  },
+                  {
+                    path: '/restaurant/tables',
+                    element: (
+                      <RequireModule moduleKey="restaurant" label="Restaurant">
+                        <TablesPage />
+                      </RequireModule>
+                    ),
+                  },
+                  {
+                    path: '/restaurant/orders/:id',
+                    element: (
+                      <RequireModule moduleKey="restaurant" label="Restaurant">
+                        <RestaurantOrderPage />
+                      </RequireModule>
+                    ),
+                  },
+                  {
+                    path: '/restaurant/kitchen',
+                    element: (
+                      <RequireModule moduleKey="kot" label="Kitchen">
+                        <KitchenPage />
+                      </RequireModule>
+                    ),
+                  },
+                  {
+                    path: '/restaurant/setup',
+                    element: (
+                      <RequireModule moduleKey="table_management" label="Table Setup">
+                        <TableSetupPage />
                       </RequireModule>
                     ),
                   },

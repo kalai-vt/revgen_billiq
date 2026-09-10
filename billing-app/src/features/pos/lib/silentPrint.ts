@@ -18,6 +18,7 @@ import * as invoiceDesignerApi from '@/features/invoice-designer/api';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
 import type { InvoiceTemplate, PromotionContent } from '@/features/invoice-designer/api';
 import { useAuthStore } from '@/features/auth/store/authStore';
+import { buildPaymentQrEntry } from '@/lib/upi';
 import type { Tenant } from '@/features/auth/api';
 import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
@@ -76,8 +77,18 @@ export function buildInvoiceReceiptPayload(
   if (config?.qr_barcode.invoice_qr) {
     qrCodes.push({ caption: 'Invoice QR', data: `Invoice:${invoice.invoice_number}|Amount:${invoice.total_amount.toFixed(2)}` });
   }
-  if (config?.qr_barcode.payment_qr) {
-    qrCodes.push({ caption: 'Scan to Pay', data: `upi://pay?pn=${companyName}&am=${invoice.total_amount.toFixed(2)}` });
+  if (config) {
+    // An invoice with no outstanding figure is unpaid in full as far as the QR is concerned —
+    // the ordinary "here is your bill, please pay it" case. Same rule as the PDF renderer.
+    const paymentQr = buildPaymentQrEntry({
+      qrBarcodePaymentQr: config.qr_barcode.payment_qr,
+      paymentQr: config.payment_qr,
+      amountDue: invoice.outstanding_amount ?? invoice.total_amount,
+      vpa: settings.upi_vpa,
+      payeeName: settings.upi_merchant_name || companyName,
+      reference: invoice.invoice_number,
+    });
+    if (paymentQr) qrCodes.push(paymentQr);
   }
   if (config?.qr_barcode.business_qr) {
     qrCodes.push({ caption: 'Business Card', data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}` });
@@ -200,8 +211,16 @@ function buildProvisionalReceiptPayload(
   const config = template?.config;
 
   const qrCodes: { caption: string; data: string }[] = [];
-  if (config?.qr_barcode.payment_qr) {
-    qrCodes.push({ caption: 'Scan to Pay', data: `upi://pay?pn=${companyName}&am=${snapshot.total.toFixed(2)}` });
+  if (config) {
+    // A provisional bill has taken no payment yet, so the whole total is what's due.
+    const paymentQr = buildPaymentQrEntry({
+      qrBarcodePaymentQr: config.qr_barcode.payment_qr,
+      paymentQr: config.payment_qr,
+      amountDue: snapshot.total,
+      vpa: settings.upi_vpa,
+      payeeName: settings.upi_merchant_name || companyName,
+    });
+    if (paymentQr) qrCodes.push(paymentQr);
   }
   if (config?.qr_barcode.business_qr) {
     qrCodes.push({ caption: 'Business Card', data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}` });

@@ -14,13 +14,10 @@
 
 import type { PrinterAdapter, PrinterCapabilities, PrinterInfo, PrintDocument } from '../types.js';
 import {
-  buildReceiptCommands,
-  buildTestPrintCommands,
   toBytes,
-  type ReceiptBusinessInfo,
-  type ReceiptData,
   type ThermalPaperSize,
 } from '../renderer/escpos.js';
+import { buildDocumentCommands } from '../renderer/document.js';
 import { logger } from '../log.js';
 
 const RAW_CAPABILITIES: PrinterCapabilities = { cut: true, cashDrawer: true, qrCode: true, barcode: true, logo: true };
@@ -106,15 +103,14 @@ export class UsbEscPosAdapter implements PrinterAdapter {
 
   async print(printerId: string, document: PrintDocument): Promise<void> {
     const config = this.configs.get(printerId);
-    if (document.type === 'test_print') {
-      await this.writeBytes(printerId, toBytes(buildTestPrintCommands(config?.paperWidth ?? '80mm')));
-      return;
+    let commands: string[];
+    try {
+      commands = buildDocumentCommands(document, config?.paperWidth ?? '80mm');
+    } catch (err) {
+      throw new Error(
+        `UsbEscPosAdapter only supports the thermal (ESC/POS) path — printer ${printerId} ${err instanceof Error ? err.message : 'was sent an unrenderable document.'}`,
+      );
     }
-    if (!document.receipt) {
-      throw new Error(`UsbEscPosAdapter only supports the thermal (ESC/POS) path — printer ${printerId} was sent a document with no receipt payload.`);
-    }
-    const { business, data } = document.receipt as { business: ReceiptBusinessInfo; data: ReceiptData };
-    const commands = buildReceiptCommands(business, data, config?.paperWidth ?? '80mm');
     await this.writeBytes(printerId, toBytes(commands));
   }
 

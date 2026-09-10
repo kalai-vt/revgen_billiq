@@ -9,13 +9,10 @@
 import { Socket } from 'node:net';
 import type { PrinterAdapter, PrinterCapabilities, PrinterInfo, PrintDocument } from '../types.js';
 import {
-  buildReceiptCommands,
-  buildTestPrintCommands,
   toBytes,
-  type ReceiptBusinessInfo,
-  type ReceiptData,
   type ThermalPaperSize,
 } from '../renderer/escpos.js';
+import { buildDocumentCommands } from '../renderer/document.js';
 
 export interface NetworkPrinterConfig {
   printerId: string;
@@ -78,15 +75,14 @@ export class NetworkAdapter implements PrinterAdapter {
 
   async print(printerId: string, document: PrintDocument): Promise<void> {
     const config = this.requireConfig(printerId);
-    if (document.type === 'test_print') {
-      await this.writeBytes(config, toBytes(buildTestPrintCommands(config.paperWidth)));
-      return;
+    let commands: string[];
+    try {
+      commands = buildDocumentCommands(document, config.paperWidth);
+    } catch (err) {
+      throw new Error(
+        `NetworkAdapter only supports the thermal (ESC/POS) path — printer ${printerId} ${err instanceof Error ? err.message : 'was sent an unrenderable document.'}`,
+      );
     }
-    if (!document.receipt) {
-      throw new Error(`NetworkAdapter only supports the thermal (ESC/POS) path — printer ${printerId} was sent a document with no receipt payload.`);
-    }
-    const { business, data } = document.receipt as { business: ReceiptBusinessInfo; data: ReceiptData };
-    const commands = buildReceiptCommands(business, data, config.paperWidth);
     await this.writeBytes(config, toBytes(commands));
   }
 

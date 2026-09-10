@@ -208,6 +208,25 @@ export interface QrBarcodeConfig {
   barcode: boolean;
 }
 
+export type PaymentQrPosition = 'header' | 'footer' | 'payment_section';
+export type PaymentQrSize = 'sm' | 'md' | 'lg';
+/** 'unpaid_only' is the default: a scannable QR on a fully-settled bill invites a second payment. */
+export type PaymentQrVisibility = 'always' | 'unpaid_only' | 'never';
+
+/** The Payment QR element — a placeable, configurable element rather than a fixed QR bolted to
+ * the footer. Turning `show_amount` off makes it a static business QR the customer types the
+ * amount into; on, it encodes the exact amount due. */
+export interface PaymentQrConfig {
+  enabled: boolean;
+  label: string;
+  position: PaymentQrPosition;
+  size: PaymentQrSize;
+  show_amount: boolean;
+  show_upi_id: boolean;
+  show_payment_status: boolean;
+  visibility: PaymentQrVisibility;
+}
+
 export interface SignatureConfig {
   show_authorized_signature: boolean;
   show_customer_signature: boolean;
@@ -271,6 +290,7 @@ export interface InvoiceTemplateConfig {
   tax_summary: TaxSummaryConfig;
   footer: FooterConfig;
   qr_barcode: QrBarcodeConfig;
+  payment_qr: PaymentQrConfig;
   signature: SignatureConfig;
   billiq_promotion: BillIQPromotionConfig;
   theme: ThemeConfig;

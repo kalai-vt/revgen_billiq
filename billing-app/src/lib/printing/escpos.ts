@@ -435,3 +435,69 @@ export function buildTestPrintCommands(paperSize: ThermalPaperSize): string[] {
   out.push(feed(3), cut());
   return out;
 }
+
+/** What the kitchen needs to cook one ticket. Deliberately has no prices, totals, tax or
+ * customer contact details on it: a KOT is a work order for the pass, and putting money on it
+ * only invites it being handed to a customer as a bill. */
+export interface KotTicketData {
+  kotNumber: string;
+  orderNumber: string;
+  /** Null for takeaway — printed as TAKEAWAY so the kitchen plates it differently. */
+  tableName?: string | null;
+  orderType: 'dine_in' | 'takeaway';
+  createdAt: string;
+  /** Reprints must be obvious, or the kitchen cooks the same ticket twice. */
+  reprint?: boolean;
+  items: { name: string; quantity: number; notes?: string | null }[];
+  notes?: string | null;
+}
+
+/** Builds the ESC/POS for a kitchen ticket.
+ *
+ * Quantities are printed double-height at the start of the line because this is read at arm's
+ * length across a hot pass, not held in the hand like a receipt — the quantity is the single
+ * most important thing on the ticket and misreading "1" as "7" wastes food.
+ */
+export function buildKotCommands(data: KotTicketData, paperSize: ThermalPaperSize): string[] {
+  const width = CHARS_PER_LINE[paperSize];
+  const out: string[] = [];
+  const createdAt = new Date(data.createdAt);
+
+  out.push(init(), align('center'), bold(true), textSize(2));
+  out.push(`${data.kotNumber}\n`);
+  out.push(textSize(1));
+
+  if (data.reprint) {
+    out.push('*** REPRINT ***\n');
+  }
+  out.push(bold(false));
+
+  const where = data.orderType === 'takeaway' ? 'TAKEAWAY' : `TABLE ${data.tableName ?? '-'}`;
+  out.push(bold(true), textSize(2), `${where}\n`, textSize(1), bold(false));
+
+  out.push(align('left'), divider(width));
+  out.push(twoCol(`Order: ${data.orderNumber}`, createdAt.toLocaleTimeString(), width));
+  out.push(divider(width));
+
+  for (const item of data.items) {
+    // `qty x` leads the line at double width so it reads across the pass; the name wraps under
+    // it rather than being truncated, since a cook needs the whole dish name.
+    out.push(bold(true), textSize(2));
+    out.push(`${item.quantity} x\n`);
+    out.push(textSize(1));
+    for (const wrapped of wrapText(item.name, width)) out.push(`${wrapped}\n`);
+    out.push(bold(false));
+    if (item.notes) {
+      for (const wrapped of wrapText(`  >> ${item.notes}`, width)) out.push(`${wrapped}\n`);
+    }
+  }
+
+  out.push(divider(width));
+  if (data.notes) {
+    for (const wrapped of wrapText(`NOTE: ${data.notes}`, width)) out.push(`${wrapped}\n`);
+    out.push(divider(width));
+  }
+
+  out.push(feed(3), cut());
+  return out;
+}

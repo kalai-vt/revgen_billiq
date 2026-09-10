@@ -12,22 +12,58 @@ RevGen BillIQ is a cloud-native, multi-tenant SaaS billing and POS platform desi
 - backend/ - FastAPI services, SQLAlchemy models, and Alembic migrations
 - billing-app/ - customer-facing React app covering dashboards, POS, and billing workflows
 
-## Quick start
-### Backend
+## Local development
+
+### One-time setup
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+copy .env.example .env           # macOS/Linux: cp .env.example .env
+
+cd ../billing-app  && npm install
+cd ../admin-portal && npm install
+```
+The `.env` defaults are SQLite files and the `console` email provider, so nothing external is
+needed to run locally.
+
+### Running it
+One command, which does the setup above if it hasn't been done and then starts all three:
+
+```bash
+./dev.sh                                            # macOS/Linux
+powershell -ExecutionPolicy Bypass -File .\dev.ps1   # Windows
 ```
 
-### Billing app
+It waits for the API before seeding (migrations run on the backend's own startup) and prints the
+login when everything is up. To run the pieces by hand instead — three processes, each in its own
+terminal. **The backend port is not optional** — both frontends
+proxy `/api` to `127.0.0.1:8010` (hardcoded in their `vite.config.ts`), so a backend started on
+any other port leaves every request in the app failing with nothing listening on the other end.
+
+| | Port | Start |
+|---|---|---|
+| Backend API | 8010 | `cd backend && uvicorn app.main:app --reload --port 8010` |
+| Billing app | 5173 | `cd billing-app && npm run dev` |
+| Admin Portal | 5174 | `cd admin-portal && npm run dev` |
+
+### Getting a login
+
+Registering through the UI leaves the owner in `pending_verification` with the verification link
+buried in the backend log, and restaurant/table/KOT are deliberately not in any plan's defaults,
+so a freshly registered tenant cannot exercise them at all. The seed script solves both:
+
 ```bash
-cd billing-app
-npm install
-npm run dev
+cd backend
+python -m scripts.seed_dev      # http://localhost:5173 — owner@ogcafe.test / DevPassword@123
+python -m scripts.bootstrap_admin   # http://localhost:5174 — prompts for the admin credentials
 ```
+
+`seed_dev` creates a pre-verified owner, switches the restaurant modules and QR payments on for
+that tenant the way the Admin Portal would, and seeds a menu, a floor and six tables. It is
+idempotent (re-run it to repair flags someone toggled off) and refuses to run when
+`REVGENIQ_ENVIRONMENT` is production, since its password is well-known on purpose.
 
 ## Deploying
 This is a single Vercel project (`rev-gen-ai/revgen-billiq`) hosting three services, all defined

@@ -12,7 +12,7 @@
  * degrading. */
 
 import { request } from '@/lib/api-client';
-import type { ReceiptBusinessInfo, ReceiptData, ThermalPaperSize } from '@/lib/printing/escpos';
+import type { KotTicketData, ReceiptBusinessInfo, ReceiptData, ThermalPaperSize } from '@/lib/printing/escpos';
 
 const AGENT_WS_URL = 'ws://127.0.0.1:47811';
 const AGENT_ADMIN_URL = 'http://127.0.0.1:47812';
@@ -288,4 +288,17 @@ export async function testPrint(printerId: string, paperWidth: string): Promise<
   if (!printerId) throw new PrintAgentError('No printer is configured for automatic printing.');
   await ensureConnected();
   await rpc('print', { printJobId: crypto.randomUUID(), printerId, document: { type: 'test_print', paperWidth } });
+}
+
+/** Sends a kitchen ticket. Like `printThermal`, the agent renders it — `print-agent`'s
+ * `renderer/escpos.ts::buildKotCommands` is the same code as this app's, so the ticket is
+ * byte-identical whichever transport a till happens to use. */
+export async function printKot(printerId: string, kot: KotTicketData, paperSize: ThermalPaperSize): Promise<void> {
+  if (!printerId) throw new PrintAgentError('No printer is configured for automatic printing.');
+  await ensureConnected();
+  await rpc('print', {
+    printJobId: crypto.randomUUID(),
+    printerId,
+    document: { type: 'kot', paperWidth: paperSize, kot },
+  });
 }

@@ -1,5 +1,8 @@
 import {
+  ChefHat,
   LayoutDashboard,
+  LayoutGrid,
+  Settings2,
   Package,
   PackagePlus,
   PackageSearch,
@@ -60,6 +63,18 @@ export const NAV_ENTRIES: NavEntry[] = [
       { to: '/invoices', label: 'Invoices', icon: Receipt, roles: ['owner', 'manager', 'staff'], moduleKey: 'pos_billing' },
       { to: '/returns', label: 'Returns & Refunds', icon: Undo2, roles: ['owner', 'manager', 'staff'], moduleKey: 'returns' },
       { to: '/outstanding', label: 'Outstanding', icon: Wallet, roles: ['owner', 'manager'], moduleKey: 'payments_credit' },
+    ],
+  },
+  {
+    // Dine-in table service. A separate section rather than a change to Billing: counter sales
+    // keep working exactly as they do for every other business type, and only tenants with the
+    // Restaurant module enabled ever see this.
+    label: 'Restaurant',
+    icon: UtensilsCrossed,
+    children: [
+      { to: '/restaurant/tables', label: 'Tables', icon: LayoutGrid, roles: ['owner', 'manager', 'staff'], moduleKey: 'restaurant' },
+      { to: '/restaurant/kitchen', label: 'Kitchen', icon: ChefHat, roles: ['owner', 'manager', 'staff'], moduleKey: 'kot' },
+      { to: '/restaurant/setup', label: 'Table Setup', icon: Settings2, roles: ['owner', 'manager'], moduleKey: 'table_management' },
     ],
   },
   {

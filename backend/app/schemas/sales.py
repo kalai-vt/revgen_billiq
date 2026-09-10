@@ -28,6 +28,9 @@ class InvoiceCreate(BaseModel):
     # test_manual_tax.py.
     tax_percentage: float | None = Field(default=None, ge=0, le=100)
     payment_method: Literal["cash", "card", "upi"]
+    # UPI/card transaction id for reconciliation against a bank statement. Never verified against
+    # a provider — see the `payment_verification` feature key for that.
+    payment_reference: str | None = Field(default=None, max_length=80)
     amount_tendered: float | None = Field(default=None, ge=0)
     payment_type: PaymentType = "paid"
     paid_now: float = Field(default=0.0, ge=0)
@@ -78,6 +81,7 @@ class InvoiceOut(BaseModel):
     tax_amount: float
     total_amount: float
     payment_method: str
+    payment_reference: str | None = None
     amount_tendered: float | None = None
     change_due: float | None = None
     payment_status: str = "paid"

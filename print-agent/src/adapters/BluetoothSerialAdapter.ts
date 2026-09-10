@@ -16,7 +16,8 @@
 import { spawn } from 'node:child_process';
 import { platform } from 'node:os';
 import type { PrinterAdapter, PrinterCapabilities, PrinterInfo, PrintDocument } from '../types.js';
-import { buildReceiptCommands, buildTestPrintCommands, toBytes, type ReceiptBusinessInfo, type ReceiptData } from '../renderer/escpos.js';
+import { toBytes } from '../renderer/escpos.js';
+import { buildDocumentCommands } from '../renderer/document.js';
 import { sendRawBytesToComPort } from '../rawSerial.js';
 
 function isThermalPaperWidth(paperWidth: PrintDocument['paperWidth']): paperWidth is '58mm' | '80mm' {
@@ -136,18 +137,11 @@ export class BluetoothSerialAdapter implements PrinterAdapter {
     if (!isThermalPaperWidth(document.paperWidth)) {
       throw new Error(`BluetoothSerialAdapter only supports thermal (58mm/80mm) paper — printer ${printerId} was sent a ${document.paperWidth} document.`);
     }
-    const commands =
-      document.type === 'test_print'
-        ? buildTestPrintCommands(document.paperWidth)
-        : document.receipt
-          ? buildReceiptCommands(
-              (document.receipt as { business: ReceiptBusinessInfo }).business,
-              (document.receipt as { data: ReceiptData }).data,
-              document.paperWidth,
-            )
-          : null;
-    if (!commands) {
-      throw new Error(`Printer ${printerId} was sent a thermal document with no receipt payload.`);
+    let commands: string[];
+    try {
+      commands = buildDocumentCommands(document, document.paperWidth);
+    } catch (err) {
+      throw new Error(`Printer ${printerId} ${err instanceof Error ? err.message : 'was sent an unrenderable document.'}`);
     }
     try {
       await sendRawBytesToComPort(comPort, toBytes(commands));

@@ -15,6 +15,8 @@ AutoPrintPaperSize = Literal["58mm", "80mm", "A5", "A4", "letter", "legal"]
 # "web-usb"/"web-bluetooth" additionally need a per-device pairing gesture, which stays
 # in that device's local storage (see billing-app/src/lib/printing/deviceProfile.ts).
 AutoPrintDeviceMode = Literal["qz", "revgenai-agent", "web-usb", "web-bluetooth", "browser-dialog"]
+# A KOT is always a thermal kitchen ticket — an A4 kitchen ticket is not a thing.
+KotPaperSize = Literal["58mm", "80mm"]
 
 
 class SettingsOut(BaseModel):
@@ -43,6 +45,10 @@ class SettingsOut(BaseModel):
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize
     auto_print_device_mode: AutoPrintDeviceMode | None = None
+    upi_vpa: str | None = None
+    upi_merchant_name: str | None = None
+    kot_printer_name: str | None = None
+    kot_paper_size: KotPaperSize
     enable_barcode: bool
     enable_customer_selection: bool
     allow_negative_stock: bool
@@ -84,6 +90,10 @@ class SettingsUpdate(BaseModel):
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize | None = None
     auto_print_device_mode: AutoPrintDeviceMode | None = None
+    upi_vpa: str | None = Field(default=None, max_length=255)
+    upi_merchant_name: str | None = Field(default=None, max_length=100)
+    kot_printer_name: str | None = Field(default=None, max_length=255)
+    kot_paper_size: KotPaperSize | None = None
     enable_barcode: bool | None = None
     enable_customer_selection: bool | None = None
     allow_negative_stock: bool | None = None
@@ -164,6 +174,10 @@ class BusinessPreferencesOut(BaseModel):
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize
     auto_print_device_mode: AutoPrintDeviceMode | None = None
+    upi_vpa: str | None = None
+    upi_merchant_name: str | None = None
+    kot_printer_name: str | None = None
+    kot_paper_size: KotPaperSize = "80mm"
     enable_barcode: bool
     enable_customer_selection: bool
     default_payment_method: DefaultPaymentMethod

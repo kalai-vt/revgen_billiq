@@ -10,6 +10,8 @@ export type AutoPrintPaperSize = '58mm' | '80mm' | 'A5' | 'A4' | 'letter' | 'leg
 /** Tenant-wide transport used to reach the printer. `null` means never configured — the app
  * reports that rather than guessing one (see lib/printing/deviceProfile.ts). */
 export type AutoPrintDeviceMode = 'qz' | 'revgenai-agent' | 'web-usb' | 'web-bluetooth' | 'browser-dialog';
+/** A KOT is always a thermal kitchen ticket — an A4 kitchen ticket is not a thing. */
+export type KotPaperSize = '58mm' | '80mm';
 
 export interface Settings {
   id: string;
@@ -35,6 +37,12 @@ export interface Settings {
   auto_print_printer_name: string | null;
   auto_print_paper_size: AutoPrintPaperSize;
   auto_print_device_mode: AutoPrintDeviceMode | null;
+  upi_vpa: string | null;
+  upi_merchant_name: string | null;
+  /** Kitchen printer for KOTs. Null falls back to the billing printer, so a single-printer
+   * shop needs no extra setup. */
+  kot_printer_name: string | null;
+  kot_paper_size: KotPaperSize;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   allow_negative_stock: boolean;
@@ -76,6 +84,10 @@ export interface SettingsUpdatePayload {
   auto_print_printer_name?: string | null;
   auto_print_paper_size?: AutoPrintPaperSize;
   auto_print_device_mode?: AutoPrintDeviceMode | null;
+  upi_vpa?: string | null;
+  upi_merchant_name?: string | null;
+  kot_printer_name?: string | null;
+  kot_paper_size?: KotPaperSize;
   enable_barcode?: boolean;
   enable_customer_selection?: boolean;
   allow_negative_stock?: boolean;
@@ -109,6 +121,10 @@ export interface BusinessPreferences {
   auto_print_printer_name: string | null;
   auto_print_paper_size: AutoPrintPaperSize;
   auto_print_device_mode: AutoPrintDeviceMode | null;
+  upi_vpa: string | null;
+  upi_merchant_name: string | null;
+  kot_printer_name: string | null;
+  kot_paper_size: KotPaperSize;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   default_payment_method: DefaultPaymentMethod;

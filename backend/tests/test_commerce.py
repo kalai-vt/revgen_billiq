@@ -128,6 +128,52 @@ def test_invoice_creation_computes_discount_and_tax(client: TestClient) -> None:
     assert invoice["status"] == "paid"
 
 
+def test_invoice_records_a_upi_payment_reference(client: TestClient) -> None:
+    """A UPI/card transaction id has to survive onto the invoice, or a bill settled at the till can
+    never be matched back to the bank statement line that paid it."""
+    owner = _register(client)
+    headers = _headers(owner["access_token"])
+    product = _create_product(client, headers, selling_price=10.0, tax_rate_percent=0.0)
+
+    created = client.post(
+        "/api/invoices",
+        json={
+            "lines": [{"product_id": product["id"], "quantity": 1}],
+            "payment_method": "upi",
+            "payment_reference": "  UPI-4471902233  ",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200, created.text
+    invoice_id = created.json()["data"]["id"]
+
+    # Stripped on the way in — a stray space from a scanner or a paste would fail a
+    # character-for-character match against the statement line.
+    fetched = client.get(f"/api/invoices/{invoice_id}", headers=headers).json()["data"]
+    assert fetched["payment_reference"] == "UPI-4471902233"
+
+
+def test_invoice_without_a_payment_reference_stores_none_not_empty_string(client: TestClient) -> None:
+    """Cash has no reference. Storing "" instead of NULL would make an unreferenced bill look like
+    one whose reference was recorded as blank."""
+    owner = _register(client)
+    headers = _headers(owner["access_token"])
+    product = _create_product(client, headers, selling_price=10.0, tax_rate_percent=0.0)
+
+    for payload_extra in ({}, {"payment_reference": ""}, {"payment_reference": "   "}):
+        created = client.post(
+            "/api/invoices",
+            json={
+                "lines": [{"product_id": product["id"], "quantity": 1}],
+                "payment_method": "cash",
+                **payload_extra,
+            },
+            headers=headers,
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["data"]["payment_reference"] is None
+
+
 def test_invoice_cash_payment_allows_insufficient_or_missing_amount_tendered(client: TestClient) -> None:
     """amount_tendered is an optional change-due convenience for the cashier, never a
     requirement — the till doesn't refuse a cash sale it can't compute exact change for."""

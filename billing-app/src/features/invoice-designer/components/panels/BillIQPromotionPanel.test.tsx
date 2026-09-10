@@ -36,6 +36,10 @@ const baseConfig: InvoiceTemplateConfig = {
   },
   footer: { sections: [] },
   qr_barcode: { invoice_qr: false, payment_qr: false, business_qr: false, website_qr: false, feedback_qr: false, barcode: false },
+  payment_qr: {
+    enabled: false, label: 'Scan to Pay', position: 'footer', size: 'md',
+    show_amount: true, show_upi_id: false, show_payment_status: true, visibility: 'unpaid_only',
+  },
   signature: { show_authorized_signature: false, show_customer_signature: false },
   billiq_promotion: {
     enabled: true, layout: 'standard', alignment: 'center', font_size: 'sm', spacing: 'normal',

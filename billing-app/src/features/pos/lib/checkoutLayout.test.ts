@@ -55,21 +55,12 @@ describe('computeCheckoutGridColumns', () => {
   });
 
   it('narrows Checkout and widens Cart by the same amount as groups are disabled', () => {
-    const allOff = config({
-      customer: false,
-      phone: false,
-      discount: false,
-      tax: false,
-      paid_in_full: false,
-      partially_paid: false,
-      credit: false,
-      cash: false,
-      card: false,
-      upi: false,
-      amount_tendered: false,
-      change_due: false,
-      hold_bill: false,
-    });
+    // Derived from the registry rather than hand-listed: a hand-listed "all off" silently stops
+    // being all-off the moment a new element is added, and the assertion below quietly measures
+    // the wrong layout instead of failing for the right reason.
+    const allOff = Object.fromEntries(
+      (Object.keys(DEFAULT_CHECKOUT_CONFIG) as CheckoutElementKey[]).map((key) => [key, false]),
+    ) as Record<CheckoutElementKey, boolean>;
     const columns = computeCheckoutGridColumns(allOff, true);
     const [products, cart, checkout] = columns.split(' ').map((v) => parseFloat(v));
     expect(products).toBeCloseTo(2.78);

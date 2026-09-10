@@ -11,7 +11,17 @@ export interface ConfigFieldSchema {
   default: unknown;
 }
 
-export type FeatureDomain = 'customers' | 'templates' | 'analytics' | 'general' | 'procurement' | 'commerce';
+/** Must stay in lockstep with the backend's own Domain literal (app/core/feature_catalog.py and
+ * app/schemas/admin_features.py) — a domain the backend can return but this type omits makes the
+ * whole Feature Management response unusable here rather than just hiding one module. */
+export type FeatureDomain =
+  | 'customers'
+  | 'templates'
+  | 'analytics'
+  | 'general'
+  | 'procurement'
+  | 'commerce'
+  | 'restaurant';
 
 export interface TenantFeatureItem {
   module_key: string;

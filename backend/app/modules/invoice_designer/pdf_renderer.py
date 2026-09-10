@@ -12,6 +12,7 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 
 from app.core.formatting import format_amount
 from app.core.pdf_utils import logo_flowable
+from app.core.upi import build_upi_uri, payment_qr_enabled, should_render_payment_qr
 from app.models.promotion import PromotionConfig
 from app.models.settings import Settings
 from app.models.tenant import Tenant
@@ -147,6 +148,58 @@ def _promotion_flowables(
     return flow
 
 
+_PAYMENT_QR_SIZE_MM = {"sm": 16, "md": 22, "lg": 30}
+
+
+def _payment_qr_flowables(config, data, settings, tenant, styles) -> list:
+    """The Payment QR element, or nothing at all.
+
+    Returns an empty list rather than an unpayable QR when the tenant has no merchant VPA, or
+    when the bill has nothing left to pay and the element is set to hide on settled invoices —
+    a scannable QR on a paid bill is an invitation to pay twice.
+    """
+    qr_config = config.payment_qr
+    enabled = payment_qr_enabled(config.qr_barcode.payment_qr, qr_config.enabled)
+    outstanding = data.totals.get("outstanding")
+    grand_total = data.totals.get("grand_total", 0) or 0
+    # An invoice with no explicit outstanding figure is unpaid in full as far as the QR is
+    # concerned — that is the ordinary "here is your bill, please pay it" case.
+    amount_due = outstanding if outstanding is not None else grand_total
+    vpa = settings.upi_vpa if settings else None
+    precision = settings.decimal_precision if settings else 2
+
+    if not should_render_payment_qr(
+        enabled=enabled, visibility=qr_config.visibility, amount_due=amount_due, vpa=vpa
+    ):
+        return []
+
+    amount = amount_due if qr_config.show_amount else None
+    uri = build_upi_uri(
+        vpa=vpa,
+        payee_name=(settings.upi_merchant_name if settings else None) or tenant.company_name,
+        amount=amount,
+        transaction_ref=data.number,
+        transaction_note=f"Invoice {data.number}",
+    )
+    image = _qr_flowable(uri, size=_PAYMENT_QR_SIZE_MM[qr_config.size] * mm)
+    if not image:
+        return []
+
+    flowables = [image]
+    caption_lines = []
+    if qr_config.label:
+        caption_lines.append(xml_escape(qr_config.label))
+    if qr_config.show_amount and amount_due > 0:
+        caption_lines.append(f"Amount: {format_amount(amount_due, precision)}")
+    if qr_config.show_upi_id:
+        caption_lines.append(xml_escape(vpa or ""))
+    if qr_config.show_payment_status:
+        caption_lines.append("Paid" if amount_due <= 0 else f"Outstanding: {format_amount(amount_due, precision)}")
+    if caption_lines:
+        flowables.append(Paragraph("<br/>".join(caption_lines), styles["Center"] if "Center" in styles else styles["Normal"]))
+    return flowables
+
+
 def _pagesize(paper: PaperConfig) -> tuple[float, float]:
     size = paper.size
     if size == "A4":
@@ -187,6 +240,9 @@ def render_document_pdf(
     config: InvoiceTemplateConfig,
     promotion: PromotionConfig | None = None,
     promotion_qr_url: str | None = None,
+    # Per-tenant "QR Payments" module toggle. Defaults to True so any caller that renders a
+    # document outside a tenant request context behaves as it did before the flag existed.
+    qr_payments_enabled: bool = True,
 ) -> bytes:
     decimal_precision = settings.decimal_precision if settings else 2
     date_format = settings.date_format if settings else "DD/MM/YYYY"
@@ -399,10 +455,11 @@ def render_document_pdf(
         flow = _qr_flowable(f"{tenant.company_name}\n{tenant.phone or ''}\n{tenant.email or ''}")
         if flow:
             qr_flowables.append(flow)
-    if qr.payment_qr:
-        flow = _qr_flowable(f"upi://pay?pn={tenant.company_name}&am={data.totals.get('grand_total', 0):.2f}")
-        if flow:
-            qr_flowables.append(flow)
+    payment_qr_flow = (
+        _payment_qr_flowables(config, data, settings, tenant, styles) if qr_payments_enabled else []
+    )
+    if payment_qr_flow and config.payment_qr.position == "payment_section":
+        qr_flowables.extend(payment_qr_flow)
     if qr_flowables:
         story.append(Spacer(1, 6 * mm))
         qr_row = Table([qr_flowables])
@@ -423,6 +480,11 @@ def render_document_pdf(
     elif settings and settings.receipt_footer:
         story.append(Spacer(1, 6 * mm))
         story.append(Paragraph(xml_escape(settings.receipt_footer), styles["Normal"]))
+
+    if payment_qr_flow and config.payment_qr.position == "footer":
+        story.append(Spacer(1, 6 * mm))
+        for flow in payment_qr_flow:
+            story.append(flow)
 
     # --- Signature ---
     sig = config.signature

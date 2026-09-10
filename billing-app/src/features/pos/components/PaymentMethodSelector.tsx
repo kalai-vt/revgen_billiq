@@ -10,6 +10,11 @@ interface PaymentMethodSelectorProps {
   paymentType: PaymentType;
   onPaymentTypeChange: (type: PaymentType) => void;
   visiblePaymentTypes: PaymentType[];
+  /** The UPI/card transaction id, for reconciling this sale against a bank statement later.
+   * Cash has none, so the field only shows for the other methods. */
+  paymentReference: string;
+  onPaymentReferenceChange: (value: string) => void;
+  showPaymentReference: boolean;
   amountTendered: number | null;
   onAmountTenderedChange: (value: number | null) => void;
   showAmountTendered: boolean;
@@ -76,6 +81,9 @@ export function PaymentMethodSelector({
   paymentType,
   onPaymentTypeChange,
   visiblePaymentTypes,
+  paymentReference,
+  onPaymentReferenceChange,
+  showPaymentReference,
   amountTendered,
   onAmountTenderedChange,
   showAmountTendered,
@@ -90,6 +98,9 @@ export function PaymentMethodSelector({
   const change = paymentType === 'paid' && method === 'cash' && amountTendered !== null ? amountTendered - total : null;
   const outstanding = paymentType === 'credit' ? total : Math.max(0, total - (paidNow ?? 0));
   const showCashDetails = paymentType === 'paid' && method === 'cash' && (showAmountTendered || showChangeDue);
+  // Cash has no transaction id to record, and a credit sale has not been paid yet — there is
+  // nothing to reference until the collection is taken, which has its own reference field.
+  const showReference = showPaymentReference && method !== 'cash' && paymentType !== 'credit';
 
   return (
     <div className="space-y-1">
@@ -125,6 +136,24 @@ export function PaymentMethodSelector({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {showReference && (
+        <div className="rounded-lg border bg-muted/20 p-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="payment-reference" className="text-xs text-muted-foreground">
+              {method === 'upi' ? 'UPI Txn ID' : 'Approval Code'}
+            </label>
+            <Input
+              id="payment-reference"
+              value={paymentReference}
+              maxLength={80}
+              onChange={(event) => onPaymentReferenceChange(event.target.value)}
+              placeholder="Optional"
+              className="h-7 w-40 px-2 text-right text-xs font-medium"
+            />
+          </div>
         </div>
       )}
 
