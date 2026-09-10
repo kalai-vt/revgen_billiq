@@ -26,7 +26,8 @@ import { spawn } from 'node:child_process';
 import { platform } from 'node:os';
 import type { PrinterAdapter, PrinterCapabilities, PrinterInfo, PrintDocument } from '../types.js';
 import { buildTestPrintPdfBase64 } from '../renderer/testPdf.js';
-import { buildReceiptCommands, buildTestPrintCommands, toBytes, type ReceiptBusinessInfo, type ReceiptData } from '../renderer/escpos.js';
+import { toBytes } from '../renderer/escpos.js';
+import { buildDocumentCommands } from '../renderer/document.js';
 import { sendRawBytesToPrinter } from '../rawPrinter.js';
 
 function isThermalPaperWidth(paperWidth: PrintDocument['paperWidth']): paperWidth is '58mm' | '80mm' {
@@ -91,18 +92,11 @@ export class OsPrinterAdapter implements PrinterAdapter {
     const name = printerId.startsWith('os:') ? printerId.slice(3) : printerId;
 
     if (isThermalPaperWidth(document.paperWidth)) {
-      const commands =
-        document.type === 'test_print'
-          ? buildTestPrintCommands(document.paperWidth)
-          : document.receipt
-            ? buildReceiptCommands(
-                (document.receipt as { business: ReceiptBusinessInfo }).business,
-                (document.receipt as { data: ReceiptData }).data,
-                document.paperWidth,
-              )
-            : null;
-      if (!commands) {
-        throw new Error(`Printer ${printerId} was sent a thermal document with no receipt payload.`);
+      let commands: string[];
+      try {
+        commands = buildDocumentCommands(document, document.paperWidth);
+      } catch (err) {
+        throw new Error(`Printer ${printerId} ${err instanceof Error ? err.message : 'was sent an unrenderable document.'}`);
       }
       try {
         await sendRawBytesToPrinter(name, toBytes(commands));

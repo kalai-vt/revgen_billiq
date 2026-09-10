@@ -13,7 +13,8 @@ import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel
 import { BillOrderDialog } from '@/features/restaurant/components/BillOrderDialog';
 import { TransferTableDialog } from '@/features/restaurant/components/TransferTableDialog';
 import * as restaurantApi from '@/features/restaurant/api';
-import type { BillOrderPayload, OrderItem, RestaurantOrder } from '@/features/restaurant/api';
+import type { BillOrderPayload, Kot, OrderItem, RestaurantOrder } from '@/features/restaurant/api';
+import { kotPrintFailureMessage, printKot, type KotPrintResult } from '@/features/restaurant/lib/kotPrint';
 import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
@@ -124,19 +125,35 @@ export function RestaurantOrderPage() {
     onError: (err) => fail(err, 'Could not remove that item'),
   });
 
+  /** Printing is deliberately *not* allowed to fail the mutation: the KOT already exists on the
+   * server and shows on the kitchen screen, so a dead printer must not look like "the order was
+   * never sent". It downgrades to a warning telling staff to walk the ticket over instead. */
+  async function printAndRecord(kot: Kot, order: RestaurantOrder, reprint: boolean): Promise<KotPrintResult> {
+    const result = await printKot(kot, order, reprint);
+    // print_count means "times this ticket physically came out of a printer", so only a real
+    // print bumps it — otherwise a failed reprint would read as a successful one.
+    if (result.ok) await restaurantApi.markKotPrinted(kot.id).catch(() => undefined);
+    return result;
+  }
+
   const sendKot = useMutation({
-    mutationFn: () => restaurantApi.createKot(id!, {}),
-    onSuccess: (kot) => {
+    mutationFn: async () => {
+      const kot = await restaurantApi.createKot(id!, {});
+      return { kot, print: await printAndRecord(kot, order!, false) };
+    },
+    onSuccess: ({ kot, print }) => {
       toast.success(`${kot.kot_number} sent to the kitchen`);
+      if (!print.ok) toast.warning(kotPrintFailureMessage(print));
       refresh();
     },
     onError: (err) => fail(err, 'Could not send this order to the kitchen'),
   });
 
   const reprintKot = useMutation({
-    mutationFn: (kotId: string) => restaurantApi.markKotPrinted(kotId),
-    onSuccess: () => {
-      toast.success('KOT reprinted');
+    mutationFn: async (kot: Kot) => printAndRecord(kot, order!, true),
+    onSuccess: (print) => {
+      if (print.ok) toast.success('KOT reprinted');
+      else toast.warning(kotPrintFailureMessage(print));
       refresh();
     },
     onError: (err) => fail(err, 'Could not reprint that KOT'),
@@ -318,7 +335,7 @@ export function RestaurantOrderPage() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs"
-                          onClick={() => reprintKot.mutate(kot.id)}
+                          onClick={() => reprintKot.mutate(kot)}
                         >
                           <Printer className="size-3" />
                           Reprint{kot.print_count > 0 ? ` (${kot.print_count})` : ''}

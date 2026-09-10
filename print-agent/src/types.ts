@@ -21,6 +21,9 @@ export interface PrintDocument {
   paperWidth: PaperWidth;
   /** Present for the thermal (ESC/POS) path — omitted when `pdfBase64` is used instead. */
   receipt?: unknown;
+  /** Present for `type: 'kot'` — a kitchen ticket carries its own shape (no prices, no totals),
+   * see `renderer/escpos.ts`'s `KotTicketData`. */
+  kot?: unknown;
   /** Present for the OS-print (A4/A5/letter, or a thermal printer's own PDF driver) path. */
   pdfBase64?: string;
 }
