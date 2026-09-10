@@ -12,35 +12,32 @@ RevGen BillIQ is a cloud-native, multi-tenant SaaS billing and POS platform desi
 - backend/ - FastAPI services, SQLAlchemy models, and Alembic migrations
 - billing-app/ - customer-facing React app covering dashboards, POS, and billing workflows
 
-## Quick start
-### Backend
+## Local development
+
+### One-time setup
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+copy .env.example .env           # macOS/Linux: cp .env.example .env
+
+cd ../billing-app  && npm install
+cd ../admin-portal && npm install
 ```
+The `.env` defaults are SQLite files and the `console` email provider, so nothing external is
+needed to run locally.
 
-### Billing app
-```bash
-cd billing-app
-npm install
-npm run dev
-```
-
-## Local development
-
-Three processes, all on fixed ports (the frontends proxy `/api` to the backend, so run all three):
+### Running it
+Three processes, each in its own terminal. **The backend port is not optional** — both frontends
+proxy `/api` to `127.0.0.1:8010` (hardcoded in their `vite.config.ts`), so a backend started on
+any other port leaves every request in the app failing with nothing listening on the other end.
 
 | | Port | Start |
 |---|---|---|
 | Backend API | 8010 | `cd backend && uvicorn app.main:app --reload --port 8010` |
 | Billing app | 5173 | `cd billing-app && npm run dev` |
 | Admin Portal | 5174 | `cd admin-portal && npm run dev` |
-
-Copy `backend/.env.example` to `backend/.env` first. The defaults are SQLite files and the
-`console` email provider, so nothing external is needed.
 
 ### Getting a login
 
