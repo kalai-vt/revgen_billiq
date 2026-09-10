@@ -17,6 +17,7 @@ import { TransferTableDialog } from '@/features/restaurant/components/TransferTa
 import * as restaurantApi from '@/features/restaurant/api';
 import type { BillOrderPayload, Kot, OrderItem, RestaurantOrder } from '@/features/restaurant/api';
 import { kotPrintFailureMessage, printKot, type KotPrintResult } from '@/features/restaurant/lib/kotPrint';
+import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
@@ -92,6 +93,14 @@ export function RestaurantOrderPage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
+
+  // Each of these is separately enableable per tenant (see the restaurant keys in the backend
+  // feature catalog), and the endpoints reject a disabled one with a 402 — so hide the button
+  // rather than offering an action that is guaranteed to fail.
+  const kotEnabled = useFeatureFlag('kot');
+  const transferEnabled = useFeatureFlag('table_transfer');
+  const mergeEnabled = useFeatureFlag('table_merge');
+  const splitEnabled = useFeatureFlag('table_split');
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['restaurant', 'order', id],
@@ -313,16 +322,18 @@ export function RestaurantOrderPage() {
 
             {isOpen && (
               <div className="space-y-2">
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  disabled={unsent === 0 || sendKot.isPending}
-                  onClick={() => sendKot.mutate()}
-                  title={unsent === 0 ? 'Everything has already gone to the kitchen' : undefined}
-                >
-                  {sendKot.isPending ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />}
-                  Send to kitchen
-                </Button>
+                {kotEnabled && (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    disabled={unsent === 0 || sendKot.isPending}
+                    onClick={() => sendKot.mutate()}
+                    title={unsent === 0 ? 'Everything has already gone to the kitchen' : undefined}
+                  >
+                    {sendKot.isPending ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />}
+                    Send to kitchen
+                  </Button>
+                )}
                 <Button
                   className="w-full"
                   disabled={order.items.length === 0 || billOrder.isPending}
@@ -331,93 +342,104 @@ export function RestaurantOrderPage() {
                   {billOrder.isPending ? <Loader2 className="size-4 animate-spin" /> : <Receipt className="size-4" />}
                   Bill & close table
                 </Button>
-                <Button className="w-full" variant="ghost" onClick={() => setTransferOpen(true)}>
-                  <ArrowLeftRight className="size-4" />
-                  Move to another table
-                </Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="ghost" onClick={() => setMergeOpen(true)}>
-                    <Merge className="size-4" />
-                    Merge
+                {transferEnabled && (
+                  <Button className="w-full" variant="ghost" onClick={() => setTransferOpen(true)}>
+                    <ArrowLeftRight className="size-4" />
+                    Move to another table
                   </Button>
-                  <Button variant="ghost" disabled={order.items.length === 0} onClick={() => setSplitOpen(true)}>
-                    <Split className="size-4" />
-                    Split
-                  </Button>
-                </div>
+                )}
+                {(mergeEnabled || splitEnabled) && (
+                  <div className={cn('grid gap-2', mergeEnabled && splitEnabled ? 'grid-cols-2' : 'grid-cols-1')}>
+                    {mergeEnabled && (
+                      <Button variant="ghost" onClick={() => setMergeOpen(true)}>
+                        <Merge className="size-4" />
+                        Merge
+                      </Button>
+                    )}
+                    {splitEnabled && (
+                      <Button variant="ghost" disabled={order.items.length === 0} onClick={() => setSplitOpen(true)}>
+                        <Split className="size-4" />
+                        Split
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </Card>
 
-          <Card className="p-4">
-            <p className="mb-2 text-sm font-medium">Kitchen tickets</p>
-            {activeKots.length === 0 && order.kots.length === 0 ? (
-              <p className="py-3 text-center text-xs text-muted-foreground">Nothing sent to the kitchen yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {order.kots.map((kot) => (
-                  <div key={kot.id} className="rounded-md border p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{kot.kot_number}</span>
-                      <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', KOT_STATUS_STYLES[kot.status])}>
-                        {restaurantApi.KOT_STATUS_LABELS[kot.status]}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {kot.items.map((i) => `${i.quantity} × ${i.product_name}`).join(', ')}
-                    </p>
-                    {kot.cancel_reason && (
-                      <p className="mt-0.5 text-[11px] italic text-destructive">Cancelled: {kot.cancel_reason}</p>
-                    )}
-                    {kot.status !== 'cancelled' && (
-                      <div className="mt-1.5 flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => reprintKot.mutate(kot)}
-                        >
-                          <Printer className="size-3" />
-                          Reprint{kot.print_count > 0 ? ` (${kot.print_count})` : ''}
-                        </Button>
-                        {kot.status !== 'served' && (
+          {/* The whole kitchen-ticket panel is meaningless without the KOT module. */}
+          {kotEnabled && (
+            <Card className="p-4">
+              <p className="mb-2 text-sm font-medium">Kitchen tickets</p>
+              {activeKots.length === 0 && order.kots.length === 0 ? (
+                <p className="py-3 text-center text-xs text-muted-foreground">Nothing sent to the kitchen yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {order.kots.map((kot) => (
+                    <div key={kot.id} className="rounded-md border p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium">{kot.kot_number}</span>
+                        <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', KOT_STATUS_STYLES[kot.status])}>
+                          {restaurantApi.KOT_STATUS_LABELS[kot.status]}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {kot.items.map((i) => `${i.quantity} × ${i.product_name}`).join(', ')}
+                      </p>
+                      {kot.cancel_reason && (
+                        <p className="mt-0.5 text-[11px] italic text-destructive">Cancelled: {kot.cancel_reason}</p>
+                      )}
+                      {kot.status !== 'cancelled' && (
+                        <div className="mt-1.5 flex gap-1.5">
                           <Button
                             size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs text-destructive"
-                            onClick={() => setCancellingKotId(cancellingKotId === kot.id ? null : kot.id)}
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => reprintKot.mutate(kot)}
                           >
-                            Cancel
+                            <Printer className="size-3" />
+                            Reprint{kot.print_count > 0 ? ` (${kot.print_count})` : ''}
                           </Button>
-                        )}
-                      </div>
-                    )}
-                    {cancellingKotId === kot.id && (
-                      <div className="mt-2 space-y-1.5">
-                        {/* A reason is required: cancelling means food may already be cooking, so
-                            the trail for why it was pulled matters. */}
-                        <Input
-                          placeholder="Reason for cancelling…"
-                          value={cancelReason}
-                          onChange={(e) => setCancelReason(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 w-full text-xs"
-                          disabled={!cancelReason.trim() || cancelKot.isPending}
-                          onClick={() => cancelKot.mutate({ kotId: kot.id, reason: cancelReason.trim() })}
-                        >
-                          Confirm cancellation
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                          {kot.status !== 'served' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-destructive"
+                              onClick={() => setCancellingKotId(cancellingKotId === kot.id ? null : kot.id)}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      {cancellingKotId === kot.id && (
+                        <div className="mt-2 space-y-1.5">
+                          {/* A reason is required: cancelling means food may already be cooking, so
+                              the trail for why it was pulled matters. */}
+                          <Input
+                            placeholder="Reason for cancelling…"
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 w-full text-xs"
+                            disabled={!cancelReason.trim() || cancelKot.isPending}
+                            onClick={() => cancelKot.mutate({ kotId: kot.id, reason: cancelReason.trim() })}
+                          >
+                            Confirm cancellation
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
         </div>
       </div>
 
