@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import type { Invoice } from '@/features/pos/api';
 import { InvoiceReceiptSummary } from '@/features/pos/components/InvoiceReceiptSummary';
 import { WhatsAppShareButton } from '@/features/pos/components/WhatsAppShareButton';
 import * as settingsApi from '@/features/settings/api';
-import type { AutoPrintPaperSize } from '@/features/settings/api';
+import type { AutoPrintDeviceMode, AutoPrintPaperSize } from '@/features/settings/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
@@ -17,7 +17,7 @@ import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
-import { loadDeviceMode } from '@/lib/printing/deviceProfile';
+import { resolveDeviceMode } from '@/lib/printing/deviceProfile';
 import { buildReceiptCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { buildLogoCommand } from '@/lib/printing/escposLogo';
 import { buildInvoiceReceiptPayload } from '@/features/pos/lib/silentPrint';
@@ -40,6 +40,9 @@ interface InvoiceSuccessDialogProps {
    * the print tab on failure or when no printer is configured. */
   autoPrintPrinterName?: string | null;
   autoPrintPaperSize?: AutoPrintPaperSize;
+  /** Tenant-wide transport from Settings > Automatic Printing (null = never configured). Merged
+   * with this device's own Web USB/Bluetooth pairing override, if any — see deviceProfile.ts. */
+  autoPrintDeviceMode?: AutoPrintDeviceMode | null;
 }
 
 export function InvoiceSuccessDialog({
@@ -48,6 +51,7 @@ export function InvoiceSuccessDialog({
   autoPrint = false,
   autoPrintPrinterName = null,
   autoPrintPaperSize = '80mm',
+  autoPrintDeviceMode = null,
 }: InvoiceSuccessDialogProps) {
   const autoPrintedFor = useRef<string | null>(null);
   const { tenant } = useAuth();
@@ -55,7 +59,7 @@ export function InvoiceSuccessDialog({
   // tenant-wide printer name from Settings; the Web USB/Bluetooth transports pair per-device and
   // always print thermal ESC/POS, since neither can render the Invoice Designer PDF the way QZ's
   // printPdf can for non-thermal paper sizes.
-  const [deviceMode] = useState(() => loadDeviceMode());
+  const deviceMode = resolveDeviceMode(autoPrintDeviceMode);
   const usesQzThermal = deviceMode === 'qz' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
   const usesAgentThermal =
     deviceMode === 'revgenai-agent' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);

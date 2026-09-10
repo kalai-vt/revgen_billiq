@@ -3,6 +3,7 @@ import * as authApi from '@/features/auth/api';
 import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from '@/lib/api-client';
 import { clearSidebarExpansionState } from '@/components/layout/sidebar/sidebarStorage';
 import { useSubscriptionGateStore } from '@/lib/subscriptionGateStore';
+import { clearDeviceMode } from '@/lib/printing/deviceProfile';
 import type { AuthResult, PlanId, Tenant, User } from '@/features/auth/api';
 
 interface AuthState {
@@ -74,6 +75,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     clearTokens();
     clearSidebarExpansionState();
+    clearDeviceMode();
     useSubscriptionGateStore.getState().clear();
     set({ user: null, tenant: null, plan: null, canOverridePrice: false, isAuthenticated: false });
   },

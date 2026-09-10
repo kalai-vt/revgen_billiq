@@ -142,11 +142,12 @@ export function InvoicesListPage() {
   // fresh checkout's auto-print — only opens the print-preview tab as a fallback when nothing's
   // configured or printing fails, instead of unconditionally opening a new tab every time.
   async function handlePrintInvoice(id: string) {
-    const printedSilently = await printInvoiceSilently(id).catch(() => false);
-    if (printedSilently) {
+    const reason = await printInvoiceSilently(id).catch(() => 'Something went wrong printing this receipt.');
+    if (!reason) {
       toast.success('Receipt sent to printer');
       return;
     }
+    toast.error(reason);
     window.open(appPath(`/invoices/${id}/print`), '_blank', 'noopener,noreferrer');
   }
 

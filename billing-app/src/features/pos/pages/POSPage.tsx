@@ -195,11 +195,12 @@ export function POSPage() {
       paymentType,
       paymentMethod,
     });
-    const printedSilently = await printProvisionalBillSilently(snapshot).catch(() => false);
-    if (printedSilently) {
+    const reason = await printProvisionalBillSilently(snapshot).catch(() => 'Something went wrong printing this receipt.');
+    if (!reason) {
       toast.success('Order bill sent to printer');
       return;
     }
+    toast.error(reason);
     storeProvisionalBillSnapshot(snapshot);
     window.open(appPath('/pos/provisional-bill/print'), '_blank', 'noopener,noreferrer');
   }
@@ -349,6 +350,7 @@ export function POSPage() {
         autoPrint={preferences?.auto_print_after_checkout ?? false}
         autoPrintPrinterName={preferences?.auto_print_printer_name ?? null}
         autoPrintPaperSize={preferences?.auto_print_paper_size ?? '80mm'}
+        autoPrintDeviceMode={preferences?.auto_print_device_mode ?? null}
       />
       <HeldBillsDialog open={heldBillsOpen} onClose={() => setHeldBillsOpen(false)} onResume={resumeHeldBill} />
     </div>

@@ -10,6 +10,7 @@ PrimarySearchField = Literal["name", "identifier_value", "barcode", "category"]
 DateFormat = Literal["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]
 DefaultPaymentMethod = Literal["cash", "card", "upi"]
 AutoPrintPaperSize = Literal["58mm", "80mm", "A5", "A4", "letter", "legal"]
+AutoPrintDeviceMode = Literal["qz", "revgenai-agent", "web-usb", "web-bluetooth", "browser-dialog"]
 
 
 class SettingsOut(BaseModel):
@@ -37,6 +38,7 @@ class SettingsOut(BaseModel):
     auto_print_after_checkout: bool
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize
+    auto_print_device_mode: AutoPrintDeviceMode | None = None
     enable_barcode: bool
     enable_customer_selection: bool
     allow_negative_stock: bool
@@ -77,6 +79,7 @@ class SettingsUpdate(BaseModel):
     auto_print_after_checkout: bool | None = None
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize | None = None
+    auto_print_device_mode: AutoPrintDeviceMode | None = None
     enable_barcode: bool | None = None
     enable_customer_selection: bool | None = None
     allow_negative_stock: bool | None = None
@@ -156,6 +159,7 @@ class BusinessPreferencesOut(BaseModel):
     auto_print_after_checkout: bool
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize
+    auto_print_device_mode: AutoPrintDeviceMode | None = None
     enable_barcode: bool
     enable_customer_selection: bool
     default_payment_method: DefaultPaymentMethod

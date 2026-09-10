@@ -9,6 +9,7 @@ import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { invoiceToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
+import { PrintPage } from '@/lib/printing/printPage';
 import { apiErrorMessage } from '@/lib/query-error';
 
 export function InvoicePrintPage() {
@@ -66,17 +67,19 @@ export function InvoicePrintPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl p-8">
-      <div className="mb-4 flex justify-end print:hidden">
+    <div>
+      <div className="mb-4 flex justify-end p-4 print:hidden">
         <Button onClick={() => window.print()}>Print</Button>
       </div>
-      <TemplatePreview
-        config={template.config}
-        branding={branding}
-        mode={paperSizeToPreviewMode(template.config.paper.size)}
-        data={invoiceToPreviewData(invoice, settings.date_format, settings.decimal_precision)}
-        promotionContent={promotionContent ?? null}
-      />
+      <PrintPage paperSize={settings.auto_print_paper_size}>
+        <TemplatePreview
+          config={template.config}
+          branding={branding}
+          mode={paperSizeToPreviewMode(settings.auto_print_paper_size)}
+          data={invoiceToPreviewData(invoice, settings.date_format, settings.decimal_precision)}
+          promotionContent={promotionContent ?? null}
+        />
+      </PrintPage>
     </div>
   );
 }

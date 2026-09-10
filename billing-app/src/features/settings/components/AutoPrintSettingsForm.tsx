@@ -8,13 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as settingsApi from '@/features/settings/api';
-import type { AutoPrintPaperSize } from '@/features/settings/api';
+import type { AutoPrintDeviceMode, AutoPrintPaperSize } from '@/features/settings/api';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
-import { loadDeviceMode, saveDeviceMode, type PrintDeviceMode } from '@/lib/printing/deviceProfile';
+import { resolveDeviceMode, saveDeviceModeOverride, type PrintDeviceMode } from '@/lib/printing/deviceProfile';
 import { buildTestPrintCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { ApiError } from '@/lib/api-client';
 
@@ -58,12 +58,16 @@ export function AutoPrintSettingsForm() {
     auto_print_after_checkout: false,
     auto_print_printer_name: null as string | null,
     auto_print_paper_size: '80mm' as AutoPrintPaperSize,
+    auto_print_device_mode: null as AutoPrintDeviceMode | null,
   });
   const [error, setError] = useState<string | null>(null);
   const [qzStatus, setQzStatus] = useState<QzStatus>('idle');
   const [lnaStatus, setLnaStatus] = useState<LnaStatus>('idle');
   const [printers, setPrinters] = useState<string[]>([]);
-  const [deviceMode, setDeviceMode] = useState<PrintDeviceMode>(() => loadDeviceMode());
+  // Tenant-wide value merged with this device's own Web USB/Bluetooth pairing override, if any —
+  // see deviceProfile.ts. Not local state: it's fully derived from `form` + localStorage, so a
+  // change here can never drift out of sync with what "Save changes" will actually persist.
+  const deviceMode: PrintDeviceMode = resolveDeviceMode(form.auto_print_device_mode);
   const [pairStatus, setPairStatus] = useState<PairStatus>('idle');
   const [testPrintStatus, setTestPrintStatus] = useState<TestPrintStatus>('idle');
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
@@ -137,8 +141,11 @@ export function AutoPrintSettingsForm() {
 
   function handleDeviceModeChange(mode: PrintDeviceMode) {
     setPairStatus('idle');
-    setDeviceMode(mode);
-    saveDeviceMode(mode);
+    // QZ Tray/Print Agent/browser-dialog are tenant-wide (persisted below via "Save changes");
+    // Web USB/Bluetooth are per-device and take effect immediately as a local override — see
+    // deviceProfile.ts.
+    saveDeviceModeOverride(mode);
+    setForm((prev) => ({ ...prev, auto_print_device_mode: mode }));
   }
 
   async function pairUsbPrinter() {
@@ -171,6 +178,7 @@ export function AutoPrintSettingsForm() {
         auto_print_after_checkout: settings.auto_print_after_checkout,
         auto_print_printer_name: settings.auto_print_printer_name,
         auto_print_paper_size: settings.auto_print_paper_size,
+        auto_print_device_mode: settings.auto_print_device_mode,
       });
     }
   }, [settings]);

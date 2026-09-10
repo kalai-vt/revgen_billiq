@@ -7,6 +7,7 @@ export type PrimarySearchField = 'name' | 'identifier_value' | 'barcode' | 'cate
 export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type DefaultPaymentMethod = 'cash' | 'card' | 'upi';
 export type AutoPrintPaperSize = '58mm' | '80mm' | 'A5' | 'A4' | 'letter' | 'legal';
+export type AutoPrintDeviceMode = 'qz' | 'revgenai-agent' | 'web-usb' | 'web-bluetooth' | 'browser-dialog';
 
 export interface Settings {
   id: string;
@@ -31,6 +32,7 @@ export interface Settings {
   auto_print_after_checkout: boolean;
   auto_print_printer_name: string | null;
   auto_print_paper_size: AutoPrintPaperSize;
+  auto_print_device_mode: AutoPrintDeviceMode | null;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   allow_negative_stock: boolean;
@@ -71,6 +73,7 @@ export interface SettingsUpdatePayload {
   auto_print_after_checkout?: boolean;
   auto_print_printer_name?: string | null;
   auto_print_paper_size?: AutoPrintPaperSize;
+  auto_print_device_mode?: AutoPrintDeviceMode | null;
   enable_barcode?: boolean;
   enable_customer_selection?: boolean;
   allow_negative_stock?: boolean;
@@ -103,6 +106,7 @@ export interface BusinessPreferences {
   auto_print_after_checkout: boolean;
   auto_print_printer_name: string | null;
   auto_print_paper_size: AutoPrintPaperSize;
+  auto_print_device_mode: AutoPrintDeviceMode | null;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   default_payment_method: DefaultPaymentMethod;
