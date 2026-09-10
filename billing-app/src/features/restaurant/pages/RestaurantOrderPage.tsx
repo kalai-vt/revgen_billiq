@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ChefHat, Loader2, Printer, Receipt, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, ChefHat, Loader2, Printer, Receipt, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,8 +10,10 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
+import { BillOrderDialog } from '@/features/restaurant/components/BillOrderDialog';
+import { TransferTableDialog } from '@/features/restaurant/components/TransferTableDialog';
 import * as restaurantApi from '@/features/restaurant/api';
-import type { OrderItem, RestaurantOrder } from '@/features/restaurant/api';
+import type { BillOrderPayload, OrderItem, RestaurantOrder } from '@/features/restaurant/api';
 import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
@@ -83,6 +85,8 @@ export function RestaurantOrderPage() {
   const queryClient = useQueryClient();
   const [cancelReason, setCancelReason] = useState('');
   const [cancellingKotId, setCancellingKotId] = useState<string | null>(null);
+  const [billOpen, setBillOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['restaurant', 'order', id],
@@ -150,13 +154,24 @@ export function RestaurantOrderPage() {
   });
 
   const billOrder = useMutation({
-    mutationFn: () => restaurantApi.billOrder(id!, { payment_method: 'cash' }),
+    mutationFn: (payload: BillOrderPayload) => restaurantApi.billOrder(id!, payload),
     onSuccess: (result) => {
       toast.success(`Billed as ${result.invoice_number}`);
+      setBillOpen(false);
       refresh();
       navigate(appPath('/restaurant/tables'));
     },
     onError: (err) => fail(err, 'Could not bill this order'),
+  });
+
+  const transferOrder = useMutation({
+    mutationFn: (toTableId: string) => restaurantApi.transferOrder(id!, toTableId),
+    onSuccess: (updated) => {
+      toast.success(`Moved to Table ${updated.table_name}`);
+      setTransferOpen(false);
+      refresh(updated);
+    },
+    onError: (err) => fail(err, 'Could not move this order'),
   });
 
   if (isLoading) {
@@ -264,10 +279,14 @@ export function RestaurantOrderPage() {
                 <Button
                   className="w-full"
                   disabled={order.items.length === 0 || billOrder.isPending}
-                  onClick={() => billOrder.mutate()}
+                  onClick={() => setBillOpen(true)}
                 >
                   {billOrder.isPending ? <Loader2 className="size-4 animate-spin" /> : <Receipt className="size-4" />}
                   Bill & close table
+                </Button>
+                <Button className="w-full" variant="ghost" onClick={() => setTransferOpen(true)}>
+                  <ArrowLeftRight className="size-4" />
+                  Move to another table
                 </Button>
               </div>
             )}
@@ -344,6 +363,21 @@ export function RestaurantOrderPage() {
           </Card>
         </div>
       </div>
+
+      <BillOrderDialog
+        order={order}
+        open={billOpen}
+        onOpenChange={setBillOpen}
+        isPending={billOrder.isPending}
+        onConfirm={(payload) => billOrder.mutate(payload)}
+      />
+      <TransferTableDialog
+        currentTableId={order.table_id}
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+        isPending={transferOrder.isPending}
+        onConfirm={(tableId) => transferOrder.mutate(tableId)}
+      />
     </div>
   );
 }
