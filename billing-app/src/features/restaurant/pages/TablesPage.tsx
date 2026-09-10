@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import * as restaurantApi from '@/features/restaurant/api';
 import type { TableWithOrder } from '@/features/restaurant/api';
 import { ApiError } from '@/lib/api-client';
-import { appPath } from '@/lib/app-path';
 import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 
@@ -84,7 +83,7 @@ export function TablesPage() {
       restaurantApi.createOrder({ order_type: 'dine_in', table_id: table.id }),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['restaurant', 'layout'] });
-      navigate(appPath(`/restaurant/orders/${order.id}`));
+      navigate(`/restaurant/orders/${order.id}`);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not open an order for this table'),
     onSettled: () => setPendingTableId(null),
@@ -94,7 +93,7 @@ export function TablesPage() {
    * order. Two live orders on one table is the thing this must never do. */
   function handleSelect(table: TableWithOrder) {
     if (table.active_order_id) {
-      navigate(appPath(`/restaurant/orders/${table.active_order_id}`));
+      navigate(`/restaurant/orders/${table.active_order_id}`);
       return;
     }
     setPendingTableId(table.id);
@@ -117,7 +116,7 @@ export function TablesPage() {
             <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate(appPath('/restaurant/setup'))}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/restaurant/setup')}>
             Manage tables
           </Button>
         </div>
@@ -140,7 +139,7 @@ export function TablesPage() {
           icon={LayoutGrid}
           title="No tables yet"
           description="Add your floors and tables to start taking dine-in orders."
-          action={<Button onClick={() => navigate(appPath('/restaurant/setup'))}>Manage tables</Button>}
+          action={<Button onClick={() => navigate('/restaurant/setup')}>Manage tables</Button>}
         />
       ) : (
         <div className="space-y-5">
