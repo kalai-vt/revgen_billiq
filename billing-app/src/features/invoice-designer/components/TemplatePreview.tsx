@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { InvoiceTemplateConfig, PreviewData, PromotionContent } from '@/features/invoice-designer/api';
 import { cn } from '@/lib/utils';
+import { paymentQrEnabled, paymentQrVisibleForAmount } from '@/lib/upi';
 
 const BILLIQ_BRAND_COLOR = '#6C47FF';
 const PROMOTION_FONT_SIZE_PX: Record<InvoiceTemplateConfig['billiq_promotion']['font_size'], number> = {
@@ -446,14 +447,12 @@ const PAYMENT_QR_PREVIEW_PX: Record<InvoiceTemplateConfig['payment_qr']['size'],
  * invites a second payment. */
 function PaymentQrBlock({ config, data }: { config: InvoiceTemplateConfig; data: PreviewData }) {
   const qr = config.payment_qr;
-  // The legacy qr_barcode.payment_qr switch still turns the element on, so a template saved
-  // before this element existed keeps its QR.
-  const enabled = qr.enabled || config.qr_barcode.payment_qr;
   const outstanding = data.totals.outstanding;
   const amountDue = outstanding ?? data.totals.grand_total ?? 0;
 
-  if (!enabled || qr.visibility === 'never') return null;
-  if (qr.visibility === 'unpaid_only' && amountDue <= 0) return null;
+  // Shared with the receipt and PDF paths so the preview cannot drift from what actually prints.
+  if (!paymentQrEnabled(config.qr_barcode.payment_qr, qr.enabled)) return null;
+  if (!paymentQrVisibleForAmount(qr.visibility, amountDue)) return null;
 
   const size = PAYMENT_QR_PREVIEW_PX[qr.size];
   return (
