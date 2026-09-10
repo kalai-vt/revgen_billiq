@@ -7,6 +7,8 @@ export type PrimarySearchField = 'name' | 'identifier_value' | 'barcode' | 'cate
 export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type DefaultPaymentMethod = 'cash' | 'card' | 'upi';
 export type AutoPrintPaperSize = '58mm' | '80mm' | 'A5' | 'A4' | 'letter' | 'legal';
+/** Tenant-wide transport used to reach the printer. `null` means never configured — the app
+ * reports that rather than guessing one (see lib/printing/deviceProfile.ts). */
 export type AutoPrintDeviceMode = 'qz' | 'revgenai-agent' | 'web-usb' | 'web-bluetooth' | 'browser-dialog';
 
 export interface Settings {

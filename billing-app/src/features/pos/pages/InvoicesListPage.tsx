@@ -17,7 +17,7 @@ import { TablePagination } from '@/components/shared/TablePagination';
 import { ExportDropdown, type ExportFormat } from '@/components/shared/ExportDropdown';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import * as posApi from '@/features/pos/api';
-import { printInvoiceSilently } from '@/features/pos/lib/silentPrint';
+import { printInvoiceSilently, silentPrintFailureMessage, type SilentPrintResult } from '@/features/pos/lib/silentPrint';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ReturnDialog } from '@/features/pos/components/ReturnDialog';
 import { ViewInvoiceDialog } from '@/features/pos/components/ViewInvoiceDialog';
@@ -142,12 +142,19 @@ export function InvoicesListPage() {
   // fresh checkout's auto-print — only opens the print-preview tab as a fallback when nothing's
   // configured or printing fails, instead of unconditionally opening a new tab every time.
   async function handlePrintInvoice(id: string) {
-    const reason = await printInvoiceSilently(id).catch(() => 'Something went wrong printing this receipt.');
-    if (!reason) {
+    const printed = await printInvoiceSilently(id).catch(
+      (err): SilentPrintResult => ({
+        ok: false,
+        reason: 'transport-failed',
+        detail: err instanceof Error ? err.message : undefined,
+      }),
+    );
+    if (printed.ok) {
       toast.success('Receipt sent to printer');
       return;
     }
-    toast.error(reason);
+    const reason = silentPrintFailureMessage(printed);
+    if (reason) toast.warning(reason);
     window.open(appPath(`/invoices/${id}/print`), '_blank', 'noopener,noreferrer');
   }
 

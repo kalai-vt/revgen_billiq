@@ -19,7 +19,7 @@ import { computeTotals } from '@/features/pos/lib/calc';
 import { useCheckoutConfig } from '@/features/pos/lib/checkoutElements';
 import { computeCheckoutGridColumns, getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
 import { buildProvisionalBillSnapshot, storeProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
-import { printProvisionalBillSilently } from '@/features/pos/lib/silentPrint';
+import { printProvisionalBillSilently, silentPrintFailureMessage, type SilentPrintResult } from '@/features/pos/lib/silentPrint';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
@@ -195,12 +195,21 @@ export function POSPage() {
       paymentType,
       paymentMethod,
     });
-    const reason = await printProvisionalBillSilently(snapshot).catch(() => 'Something went wrong printing this receipt.');
-    if (!reason) {
+    const printed = await printProvisionalBillSilently(snapshot).catch(
+      (err): SilentPrintResult => ({
+        ok: false,
+        reason: 'transport-failed',
+        detail: err instanceof Error ? err.message : undefined,
+      }),
+    );
+    if (printed.ok) {
       toast.success('Order bill sent to printer');
       return;
     }
-    toast.error(reason);
+    // Say why before the print-preview tab opens — an unexplained system print dialog is how a
+    // misconfigured till looks identical to a working one.
+    const reason = silentPrintFailureMessage(printed);
+    if (reason) toast.warning(reason);
     storeProvisionalBillSnapshot(snapshot);
     window.open(appPath('/pos/provisional-bill/print'), '_blank', 'noopener,noreferrer');
   }

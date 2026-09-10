@@ -1,64 +1,76 @@
-/** Which silent-printing transport *this browser on this physical device* uses.
+/** Which silent-printing transport reaches this tenant's printer.
  *
- * `auto_print_printer_name`/`auto_print_paper_size`/`auto_print_after_checkout` are tenant-wide
- * Settings, shared across every till — and so, now, is the transport itself
- * (`settings.auto_print_device_mode`, NULL meaning never configured). The one exception is Web
- * USB/Web Bluetooth: browser pairing permissions are granted per-origin on one specific device
- * via a user gesture, so a phone's Bluetooth pairing can't be pushed from a dashboard. That choice
- * stays local, as an override kept here in localStorage (following the same convention as
- * `components/layout/sidebar/sidebarStorage.ts`) that takes precedence over the tenant-wide
- * server value on this one device only. */
+ * This used to be *purely* local to one browser, which turned out to be the reason printing
+ * silently fell back to the system print dialog: `auto_print_printer_name` and
+ * `auto_print_paper_size` are tenant-wide server settings, so Settings looked fully configured
+ * on every till, while the transport — the part that says *how* to reach that printer — only
+ * existed in the one browser where it was first picked. A second till, a different browser
+ * profile, a reinstall or cleared site data therefore had a printer name, a paper size, and no
+ * way to print.
+ *
+ * So the transport is now stored tenant-wide too (`settings.auto_print_device_mode`), with this
+ * module keeping a per-device *override* on top. The override still matters: Web USB and Web
+ * Bluetooth pairings are granted per-origin on one physical device via a user gesture, so a
+ * phone's Bluetooth pairing genuinely cannot be pushed from a dashboard. QZ Tray and the
+ * RevGenAI Print Agent are localhost services with no such constraint, which is exactly why
+ * they belong on the server.
+ */
 
 export type PrintDeviceMode = 'qz' | 'revgenai-agent' | 'web-usb' | 'web-bluetooth' | 'browser-dialog';
 
-const DEVICE_MODE_OVERRIDE_KEY = 'revgeniq_print_device_mode';
+const DEVICE_MODE_KEY = 'revgeniq_print_device_mode';
 
-// Only these two modes are ever legitimately per-device — see the file header. A stale/tampered
-// localStorage value naming any other mode is ignored rather than trusted.
-const OVERRIDABLE_MODES: PrintDeviceMode[] = ['web-usb', 'web-bluetooth'];
+const VALID_MODES: PrintDeviceMode[] = ['qz', 'revgenai-agent', 'web-usb', 'web-bluetooth', 'browser-dialog'];
 
-function loadOverride(): PrintDeviceMode | null {
+/** Transports whose pairing is granted per-origin on one physical device and so can never be
+ * carried by a tenant-wide setting — the reason this module still keeps a local override. */
+export const DEVICE_BOUND_MODES: readonly PrintDeviceMode[] = ['web-usb', 'web-bluetooth'];
+
+export function isDeviceBoundMode(mode: PrintDeviceMode): boolean {
+  return DEVICE_BOUND_MODES.includes(mode);
+}
+
+/** Initial selection for the Settings picker on a till that has never chosen one — a hint for a
+ * form, never an answer for the print path. `dispatchSilentPrint` must see `null` for "not
+ * configured": when this guess was used at print time, an unconfigured desktop till claimed QZ
+ * Tray it did not have, failed, and dropped to the browser dialog with nothing explaining why. */
+export function suggestDefaultMode(): PrintDeviceMode {
+  if (typeof navigator === 'undefined') return 'browser-dialog';
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  return isAndroid ? 'browser-dialog' : 'qz';
+}
+
+/** This device's override, or `null` when it has never picked one. */
+export function loadLocalDeviceMode(): PrintDeviceMode | null {
   try {
-    const raw = localStorage.getItem(DEVICE_MODE_OVERRIDE_KEY);
-    if (raw && OVERRIDABLE_MODES.includes(raw as PrintDeviceMode)) return raw as PrintDeviceMode;
+    const raw = localStorage.getItem(DEVICE_MODE_KEY);
+    if (raw && VALID_MODES.includes(raw as PrintDeviceMode)) return raw as PrintDeviceMode;
   } catch {
-    // localStorage unavailable (private browsing, etc.) — fall through to the server value.
+    // localStorage unavailable (private browsing, etc.) — fall through to "no local override".
   }
   return null;
 }
 
-/** Resolves the transport this device should actually use: a per-device Web USB/Bluetooth
- * override (if this till paired one), otherwise whichever transport Settings > Automatic
- * Printing has configured tenant-wide. Falls back to 'browser-dialog' — never a guessed
- * transport like 'qz' — when nothing is configured anywhere, since claiming a transport that was
- * never actually set up makes a till try (and fail) the wrong printer instead of cleanly falling
- * back to the print dialog. */
-export function resolveDeviceMode(serverDeviceMode: PrintDeviceMode | null | undefined): PrintDeviceMode {
-  return loadOverride() ?? serverDeviceMode ?? 'browser-dialog';
+/** The transport to actually print with: this device's override first (a Bluetooth/USB pairing
+ * only it has), then the tenant-wide setting, then `null` for genuinely unconfigured. */
+export function resolveDeviceMode(serverMode: PrintDeviceMode | null | undefined): PrintDeviceMode | null {
+  return loadLocalDeviceMode() ?? serverMode ?? null;
 }
 
-/** Persists this device's transport choice. QZ Tray / RevGenAI Print Agent / the browser dialog
- * are tenant-wide choices (saved to the server elsewhere, via settingsApi.updateSettings) — for
- * those, any leftover Web USB/Bluetooth override on this device is cleared, so a later transport
- * change made in Settings actually reaches this till instead of being silently shadowed by
- * whatever it paired first. */
-export function saveDeviceModeOverride(mode: PrintDeviceMode): void {
+export function saveDeviceMode(mode: PrintDeviceMode): void {
   try {
-    if (OVERRIDABLE_MODES.includes(mode)) {
-      localStorage.setItem(DEVICE_MODE_OVERRIDE_KEY, mode);
-    } else {
-      localStorage.removeItem(DEVICE_MODE_OVERRIDE_KEY);
-    }
+    localStorage.setItem(DEVICE_MODE_KEY, mode);
   } catch {
-    // Best-effort persistence — a failed write just means the picker resets next visit.
+    // Best-effort persistence — the tenant-wide setting is the durable copy, so a failed write
+    // here only costs this device its override, not its ability to print.
   }
 }
 
 /** Called on logout so one account's device/printer choice never leaks into another's session on
- * a shared till. */
+ * a shared till — the next account's own tenant-wide mode takes over instead. */
 export function clearDeviceMode(): void {
   try {
-    localStorage.removeItem(DEVICE_MODE_OVERRIDE_KEY);
+    localStorage.removeItem(DEVICE_MODE_KEY);
   } catch {
     // Nothing to clean up if storage was already unavailable.
   }

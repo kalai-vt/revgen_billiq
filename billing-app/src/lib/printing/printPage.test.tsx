@@ -1,67 +1,66 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { PrintPage } from '@/lib/printing/printPage';
 
-describe('PrintPage', () => {
-  it('sizes the @page rule to the full physical roll width for 80mm thermal paper', () => {
-    const { container } = render(
-      <PrintPage paperSize="80mm">
-        <p>receipt</p>
-      </PrintPage>,
-    );
-    expect(container.querySelector('style')!.textContent).toContain('@page { size: 80mm auto; margin: 0; }');
+import { PRINT_GEOMETRY, PrintPaperStyle } from '@/lib/printing/printPage';
+import type { AutoPrintPaperSize } from '@/features/settings/api';
+
+/** mm -> CSS px at the 96dpi the browser lays print pages out with. */
+const mm = (value: number) => (value * 96) / 25.4;
+
+function styleTextFor(paperSize: AutoPrintPaperSize): string {
+  const { container } = render(<PrintPaperStyle paperSize={paperSize} />);
+  const style = container.querySelector('style');
+  expect(style).not.toBeNull();
+  return style!.textContent ?? '';
+}
+
+describe('printPage geometry — the browser-print fallback', () => {
+  it('renders thermal receipts at the printable width, not the paper width', () => {
+    // escpos.ts prints 48 columns on 80mm and 32 on 58mm — i.e. 72mm and 48mm of actual print
+    // area. TemplatePreview's MODE_WIDTH_PX uses the *paper* width (302px/219px), which is right
+    // for showing a sheet on screen and wrong on paper: it pushes content under the printer's own
+    // dead margin. Within a pixel of rounding, these must be the printable widths.
+    expect(PRINT_GEOMETRY['80mm'].contentWidthPx).toBeCloseTo(mm(72), 0);
+    expect(PRINT_GEOMETRY['58mm'].contentWidthPx).toBeCloseTo(mm(48), 0);
   });
 
-  it('sizes the @page rule to the full physical roll width for 58mm thermal paper', () => {
-    const { container } = render(
-      <PrintPage paperSize="58mm">
-        <p>receipt</p>
-      </PrintPage>,
-    );
-    expect(container.querySelector('style')!.textContent).toContain('@page { size: 58mm auto; margin: 0; }');
+  it('declares a page size for every paper size, with no page margin', () => {
+    // No @page rule existed anywhere in the app before this, so the fallback tab printed at the
+    // browser's default page size and ~0.4in default margins. Margins stay at 0 here because
+    // TemplatePreview already pads itself from the template's paper.margin_mm — a page margin on
+    // top of that would double it.
+    for (const paperSize of Object.keys(PRINT_GEOMETRY) as AutoPrintPaperSize[]) {
+      const css = styleTextFor(paperSize);
+      expect(css).toContain(`@page { size: ${PRINT_GEOMETRY[paperSize].pageCss}; margin: 0; }`);
+    }
   });
 
-  it('renders thermal content at the printable width, not the full roll width — 72mm for an 80mm roll', () => {
-    const { container } = render(
-      <PrintPage paperSize="80mm">
-        <p>receipt</p>
-      </PrintPage>,
-    );
-    const contentDiv = container.querySelector('div')!;
-    expect(contentDiv.style.width).toBe('72mm');
-    expect(contentDiv.style.maxWidth).toBe('72mm');
+  it('stops max-width from silently shrinking the receipt', () => {
+    // The original bug: `width: 302px; max-width: 100%` meant a narrow print page shrank the
+    // receipt instead of overflowing, so an 80mm bill rendered at ~131px — a ~110px text column,
+    // which is what wrapped "NOT A FINAL INVOICE" onto four lines.
+    const css = styleTextFor('80mm');
+    expect(css).toContain('max-width: none !important');
+    expect(css).toContain(`width: ${PRINT_GEOMETRY['80mm'].contentWidthPx}px !important`);
   });
 
-  it('renders thermal content at the printable width, not the full roll width — 48mm for a 58mm roll', () => {
-    const { container } = render(
-      <PrintPage paperSize="58mm">
-        <p>receipt</p>
-      </PrintPage>,
-    );
-    const contentDiv = container.querySelector('div')!;
-    expect(contentDiv.style.width).toBe('48mm');
-    expect(contentDiv.style.maxWidth).toBe('48mm');
+  it('neutralises the print wrapper padding that ate into the page', () => {
+    const css = styleTextFor('80mm');
+    expect(css).toMatch(/\[data-slot="print-sheet"\][^}]*padding: 0 !important/s);
+    expect(css).toMatch(/\[data-slot="print-sheet"\][^}]*max-width: none !important/s);
   });
 
-  it('uses a named page size and a real margin (not a crushed width) for non-thermal paper', () => {
-    const { container } = render(
-      <PrintPage paperSize="A4">
-        <p>invoice</p>
-      </PrintPage>,
-    );
-    expect(container.querySelector('style')!.textContent).toContain('@page { size: A4; margin: 15mm; }');
-    const contentDiv = container.querySelector('div')!;
-    expect(contentDiv.style.width).toBe('');
-    expect(contentDiv.style.maxWidth).toBe('');
+  it('keeps colour fills, so the table header and Grand Total bands are not printed blank', () => {
+    const css = styleTextFor('80mm');
+    expect(css).toContain('print-color-adjust: exact !important');
   });
 
-  it('sets print-color-adjust so filled backgrounds (table header, Grand Total band) do not print blank', () => {
-    const { container } = render(
-      <PrintPage paperSize="80mm">
-        <p>receipt</p>
-      </PrintPage>,
-    );
-    const contentDiv = container.querySelector('div')!;
-    expect(contentDiv.style.printColorAdjust).toBe('exact');
+  it('covers every paper size Settings can be set to', () => {
+    // A missing key would be `undefined` at render time and take the whole print page down.
+    const configurable: AutoPrintPaperSize[] = ['58mm', '80mm', 'A5', 'A4', 'letter', 'legal'];
+    for (const size of configurable) {
+      expect(PRINT_GEOMETRY[size]).toBeDefined();
+      expect(PRINT_GEOMETRY[size].contentWidthPx).toBeGreaterThan(0);
+    }
   });
 });

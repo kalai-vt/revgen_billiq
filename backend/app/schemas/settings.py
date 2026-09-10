@@ -10,6 +10,10 @@ PrimarySearchField = Literal["name", "identifier_value", "barcode", "category"]
 DateFormat = Literal["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]
 DefaultPaymentMethod = Literal["cash", "card", "upi"]
 AutoPrintPaperSize = Literal["58mm", "80mm", "A5", "A4", "letter", "legal"]
+# How this tenant's tills reach the printer. Stored tenant-wide so a newly set-up till
+# inherits the transport instead of silently falling back to the browser print dialog;
+# "web-usb"/"web-bluetooth" additionally need a per-device pairing gesture, which stays
+# in that device's local storage (see billing-app/src/lib/printing/deviceProfile.ts).
 AutoPrintDeviceMode = Literal["qz", "revgenai-agent", "web-usb", "web-bluetooth", "browser-dialog"]
 
 

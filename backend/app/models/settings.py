@@ -53,12 +53,9 @@ class Settings(Base):
     auto_print_after_checkout: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_print_printer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     auto_print_paper_size: Mapped[str] = mapped_column(String(10), default="80mm")
-    # Which silent-print transport this tenant's tills use (qz / revgenai-agent / web-usb /
-    # web-bluetooth / browser-dialog). NULL means never configured — reported honestly to the
-    # frontend rather than guessed, since a wrong guess (e.g. assuming QZ Tray) can make a till
-    # silently attempt the wrong transport instead of falling back cleanly. Web USB/Bluetooth
-    # pairing is inherently per-device and is never actually driven by this tenant-wide value —
-    # see billing-app's deviceProfile.ts for the local-override behavior.
+    # NULL = never configured. Deliberately nullable rather than defaulted to a transport:
+    # guessing one ("qz" on desktop) made an unconfigured till claim a transport it did not
+    # have, so printing fell through to the browser dialog with no explanation.
     auto_print_device_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     enable_barcode: Mapped[bool] = mapped_column(Boolean, default=True)
     enable_customer_selection: Mapped[bool] = mapped_column(Boolean, default=False)

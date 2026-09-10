@@ -6,10 +6,10 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
+import { PrintPaperStyle } from '@/lib/printing/printPage';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { returnToPreviewData } from '@/features/invoice-designer/lib/mapInvoiceToPreviewData';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
-import { PrintPage } from '@/lib/printing/printPage';
 import { apiErrorMessage } from '@/lib/query-error';
 
 export function ReturnPrintPage() {
@@ -65,19 +65,18 @@ export function ReturnPrintPage() {
   };
 
   return (
-    <div>
-      <div className="mb-4 flex justify-end p-4 print:hidden">
+    <div data-slot="print-sheet" className="mx-auto max-w-2xl p-8">
+      <PrintPaperStyle paperSize={settings.auto_print_paper_size} />
+      <div className="mb-4 flex justify-end print:hidden">
         <Button onClick={() => window.print()}>Print</Button>
       </div>
-      <PrintPage paperSize={settings.auto_print_paper_size}>
-        <TemplatePreview
-          config={template.config}
-          branding={branding}
-          mode={paperSizeToPreviewMode(settings.auto_print_paper_size)}
-          data={returnToPreviewData(ret, settings.date_format, settings.decimal_precision)}
-          promotionContent={promotionContent ?? null}
-        />
-      </PrintPage>
+      <TemplatePreview
+        config={template.config}
+        branding={branding}
+        mode={paperSizeToPreviewMode(settings.auto_print_paper_size)}
+        data={returnToPreviewData(ret, settings.date_format, settings.decimal_precision)}
+        promotionContent={promotionContent ?? null}
+      />
     </div>
   );
 }

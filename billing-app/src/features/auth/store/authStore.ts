@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import * as authApi from '@/features/auth/api';
 import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from '@/lib/api-client';
 import { clearSidebarExpansionState } from '@/components/layout/sidebar/sidebarStorage';
-import { useSubscriptionGateStore } from '@/lib/subscriptionGateStore';
 import { clearDeviceMode } from '@/lib/printing/deviceProfile';
+import { useSubscriptionGateStore } from '@/lib/subscriptionGateStore';
 import type { AuthResult, PlanId, Tenant, User } from '@/features/auth/api';
 
 interface AuthState {
@@ -75,6 +75,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     clearTokens();
     clearSidebarExpansionState();
+    // A shared till must not carry one account's printer pairing into the next account's
+    // session — the incoming tenant's own transport comes from its server settings instead.
     clearDeviceMode();
     useSubscriptionGateStore.getState().clear();
     set({ user: null, tenant: null, plan: null, canOverridePrice: false, isAuthenticated: false });

@@ -1,65 +1,63 @@
-import type { ReactNode } from 'react';
 import type { AutoPrintPaperSize } from '@/features/settings/api';
 
-/** Wraps a standalone print-preview page's content with the CSS `@page` rule the browser needs
- * to size the printed output correctly. Nothing in this app declared one before — every print
- * silently fell back to the browser's own default page (roughly Letter/A4 with ~0.4in margins on
- * each side). That's harmless for A4/Letter output, but it silently crushes a thermal receipt:
- * ~19mm of a ~72mm printable width was gone before a single pixel of receipt content was even
- * considered, and the print page's own wrapper padding ate further into what was left.
+/** Page geometry for the browser-print fallback (the tab opened when no silent transport is
+ * configured or one failed).
  *
- * For thermal sizes, content is sized to the printer's actual PRINTABLE width (72mm for an 80mm
- * roll, 48mm for a 58mm roll) rather than the roll's nominal full width — matching the 48/32
- * character-column assumptions `lib/printing/escpos.ts` already uses, since thermal print heads
- * reserve a small, fixed dead margin on both edges of the roll that the "80mm"/"58mm" nominal
- * width doesn't actually print into. */
-
-const THERMAL_ROLL_WIDTH_MM: Record<'58mm' | '80mm', number> = { '58mm': 58, '80mm': 80 };
-const THERMAL_PRINTABLE_WIDTH_MM: Record<'58mm' | '80mm', number> = { '58mm': 48, '80mm': 72 };
-const PAGE_SIZE_KEYWORD: Record<'A4' | 'A5' | 'letter' | 'legal', string> = {
-  A4: 'A4',
-  A5: 'A5',
-  letter: 'letter',
-  legal: 'legal',
+ * The app previously declared no `@page` rule at all, so this tab printed at the browser's
+ * default page size and default ~0.4in margins. Combined with the print wrapper's `p-8` and the
+ * preview root's `max-width: 100%`, an 80mm receipt silently rendered at ~131px instead of its
+ * intended width — roughly a 110px text column, which is where "NOT / A / FINAL / INVOICE" and
+ * three-line item names came from. `max-width` made it shrink rather than overflow, so nothing
+ * looked broken until it reached paper.
+ *
+ * `contentWidthPx` is the *printable* width, not the paper width: an 80mm roll prints 72mm
+ * (576 dots at 203dpi = the 48 columns escpos.ts already assumes) and a 58mm roll prints 48mm
+ * (384 dots = 32 columns). Rendering at the full paper width is what pushes content under the
+ * printer's own dead margin and clips the edges off. Margins are zero here on purpose — the
+ * preview supplies its own padding from the template's `paper.margin_mm`, so a page margin on
+ * top of that would double it.
+ */
+export const PRINT_GEOMETRY: Record<AutoPrintPaperSize, { pageCss: string; contentWidthPx: number }> = {
+  '58mm': { pageCss: '48mm auto', contentWidthPx: 181 },
+  '80mm': { pageCss: '72mm auto', contentWidthPx: 272 },
+  A5: { pageCss: 'A5', contentWidthPx: 559 },
+  A4: { pageCss: 'A4', contentWidthPx: 794 },
+  letter: { pageCss: 'letter', contentWidthPx: 816 },
+  legal: { pageCss: 'legal', contentWidthPx: 816 },
 };
 
-function isThermal(size: AutoPrintPaperSize): size is '58mm' | '80mm' {
-  return size === '58mm' || size === '80mm';
+/** Emits the `@page` size and the print-only overrides for one print page. Rendered by each of
+ * the three print routes, driven by the same `auto_print_paper_size` the silent ESC/POS path
+ * uses — so the fallback prints the same document on the same paper rather than whatever the
+ * Invoice Designer template happened to be set to. */
+export function PrintPaperStyle({ paperSize }: { paperSize: AutoPrintPaperSize }) {
+  const { pageCss, contentWidthPx } = PRINT_GEOMETRY[paperSize];
+  const css = `
+@page { size: ${pageCss}; margin: 0; }
+@media print {
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+  [data-slot="print-sheet"] {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  [data-slot="template-preview"] {
+    width: ${contentWidthPx}px !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    /* The item-table header and Grand Total blocks are filled colour. Browsers drop background
+       fills when printing unless asked not to, which would print those bands white-on-white. */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }
-
-interface PrintPageProps {
-  paperSize: AutoPrintPaperSize;
-  children: ReactNode;
-}
-
-export function PrintPage({ paperSize, children }: PrintPageProps) {
-  const thermal = isThermal(paperSize);
-  const pageSize = thermal ? `${THERMAL_ROLL_WIDTH_MM[paperSize]}mm auto` : PAGE_SIZE_KEYWORD[paperSize];
-  // Non-thermal pages keep a real page margin (handled by @page, which repeats it on every
-  // physical page if content overflows one sheet) instead of a one-off wrapper div padding.
-  const pageMargin = thermal ? '0' : '15mm';
-
-  return (
-    <>
-      <style>{`
-        @page { size: ${pageSize}; margin: ${pageMargin}; }
-        @media print {
-          html, body { margin: 0 !important; padding: 0 !important; }
-        }
-      `}</style>
-      <div
-        style={{
-          width: thermal ? `${THERMAL_PRINTABLE_WIDTH_MM[paperSize]}mm` : undefined,
-          maxWidth: thermal ? `${THERMAL_PRINTABLE_WIDTH_MM[paperSize]}mm` : undefined,
-          margin: thermal ? '0 auto' : undefined,
-          // Browsers drop background colors/fills by default when printing — this keeps the
-          // filled table header and Grand Total band from printing blank.
-          WebkitPrintColorAdjust: 'exact',
-          printColorAdjust: 'exact',
-        }}
-      >
-        {children}
-      </div>
-    </>
-  );
+`;
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }

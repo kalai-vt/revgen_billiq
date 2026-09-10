@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -40,8 +40,7 @@ interface InvoiceSuccessDialogProps {
    * the print tab on failure or when no printer is configured. */
   autoPrintPrinterName?: string | null;
   autoPrintPaperSize?: AutoPrintPaperSize;
-  /** Tenant-wide transport from Settings > Automatic Printing (null = never configured). Merged
-   * with this device's own Web USB/Bluetooth pairing override, if any — see deviceProfile.ts. */
+  /** Tenant-wide transport from Settings; this device's own override still wins over it. */
   autoPrintDeviceMode?: AutoPrintDeviceMode | null;
 }
 
@@ -55,11 +54,12 @@ export function InvoiceSuccessDialog({
 }: InvoiceSuccessDialogProps) {
   const autoPrintedFor = useRef<string | null>(null);
   const { tenant } = useAuth();
-  // Which transport *this device* prints through — see deviceProfile.ts. QZ Tray keeps using the
-  // tenant-wide printer name from Settings; the Web USB/Bluetooth transports pair per-device and
-  // always print thermal ESC/POS, since neither can render the Invoice Designer PDF the way QZ's
-  // printPdf can for non-thermal paper sizes.
-  const deviceMode = resolveDeviceMode(autoPrintDeviceMode);
+  // Which transport this till prints through — the tenant-wide setting, with this device's own
+  // override on top for Web USB/Bluetooth pairings that can only exist here (deviceProfile.ts).
+  // QZ Tray keeps using the tenant-wide printer name from Settings; the Web USB/Bluetooth
+  // transports always print thermal ESC/POS, since neither can render the Invoice Designer PDF
+  // the way QZ's printPdf can for non-thermal paper sizes.
+  const [deviceMode] = useState(() => resolveDeviceMode(autoPrintDeviceMode));
   const usesQzThermal = deviceMode === 'qz' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
   const usesAgentThermal =
     deviceMode === 'revgenai-agent' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
