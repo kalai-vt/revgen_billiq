@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import * as settingsApi from '@/features/settings/api';
 import { TemplatePreview, paperSizeToPreviewMode, type BrandingValues } from '@/features/invoice-designer/components/TemplatePreview';
+import { PrintPaperStyle } from '@/lib/printing/printPage';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { consumeProvisionalBillSnapshot, provisionalBillToPreviewData, type ProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
@@ -69,14 +70,15 @@ export function ProvisionalBillPrintPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl p-8">
+    <div data-slot="print-sheet" className="mx-auto max-w-2xl p-8">
+      <PrintPaperStyle paperSize={settings.auto_print_paper_size} />
       <div className="mb-4 flex justify-end print:hidden">
         <Button onClick={() => window.print()}>Print</Button>
       </div>
       <TemplatePreview
         config={template.config}
         branding={branding}
-        mode={paperSizeToPreviewMode(template.config.paper.size)}
+        mode={paperSizeToPreviewMode(settings.auto_print_paper_size)}
         data={provisionalBillToPreviewData(snapshot, settings.date_format, settings.decimal_precision)}
         promotionContent={promotionContent ?? null}
       />

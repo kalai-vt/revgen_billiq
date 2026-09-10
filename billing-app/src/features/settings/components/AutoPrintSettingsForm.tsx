@@ -14,7 +14,14 @@ import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
-import { loadDeviceMode, saveDeviceMode, type PrintDeviceMode } from '@/lib/printing/deviceProfile';
+import {
+  clearDeviceMode,
+  isDeviceBoundMode,
+  loadLocalDeviceMode,
+  saveDeviceMode,
+  suggestDefaultMode,
+  type PrintDeviceMode,
+} from '@/lib/printing/deviceProfile';
 import { buildTestPrintCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { ApiError } from '@/lib/api-client';
 
@@ -63,7 +70,7 @@ export function AutoPrintSettingsForm() {
   const [qzStatus, setQzStatus] = useState<QzStatus>('idle');
   const [lnaStatus, setLnaStatus] = useState<LnaStatus>('idle');
   const [printers, setPrinters] = useState<string[]>([]);
-  const [deviceMode, setDeviceMode] = useState<PrintDeviceMode>(() => loadDeviceMode());
+  const [deviceMode, setDeviceMode] = useState<PrintDeviceMode>(() => loadLocalDeviceMode() ?? suggestDefaultMode());
   const [pairStatus, setPairStatus] = useState<PairStatus>('idle');
   const [testPrintStatus, setTestPrintStatus] = useState<TestPrintStatus>('idle');
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
@@ -138,7 +145,12 @@ export function AutoPrintSettingsForm() {
   function handleDeviceModeChange(mode: PrintDeviceMode) {
     setPairStatus('idle');
     setDeviceMode(mode);
-    saveDeviceMode(mode);
+    // Only Web USB/Bluetooth need a per-device override (their pairing can't leave this device).
+    // The rest are tenant-wide, so dropping the override is what lets a later change in Settings
+    // actually reach this till instead of it being pinned to whatever it picked first.
+    if (isDeviceBoundMode(mode)) saveDeviceMode(mode);
+    else clearDeviceMode();
+    // Persisted tenant-wide on Save — the picker alone doesn't commit it.
   }
 
   async function pairUsbPrinter() {
@@ -172,11 +184,17 @@ export function AutoPrintSettingsForm() {
         auto_print_printer_name: settings.auto_print_printer_name,
         auto_print_paper_size: settings.auto_print_paper_size,
       });
+      // A till with no pairing-bound override of its own follows the tenant-wide transport, so
+      // setting a printer up once reaches every other till instead of only the browser it was
+      // configured in.
+      if (!loadLocalDeviceMode() && settings.auto_print_device_mode) {
+        setDeviceMode(settings.auto_print_device_mode);
+      }
     }
   }, [settings]);
 
   const mutation = useMutation({
-    mutationFn: () => settingsApi.updateSettings(form),
+    mutationFn: () => settingsApi.updateSettings({ ...form, auto_print_device_mode: deviceMode }),
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
       toast.success('Automatic printing settings updated');

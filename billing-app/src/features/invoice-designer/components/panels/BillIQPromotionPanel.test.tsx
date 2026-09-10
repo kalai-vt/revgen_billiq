@@ -15,7 +15,7 @@ const baseConfig: InvoiceTemplateConfig = {
   branding: {
     show_logo: true, show_business_name: true, show_tagline: false, show_address: true, show_phone: true,
     show_email: false, show_website: false, show_gstin: true, show_pan: false, show_fssai: false,
-    show_drug_license: false, show_msme_udyam: false, show_social_links: false, social_links_to_show: [],
+    show_drug_license: false, show_msme_udyam: false, show_social_links: false, social_links_to_show: [], business_name_size: 'md',
   },
   header: { layout: 'logo-left', background_color: null, show_border: true, show_divider: true, border_radius: 0, height_preset: 'normal' },
   invoice_info: {

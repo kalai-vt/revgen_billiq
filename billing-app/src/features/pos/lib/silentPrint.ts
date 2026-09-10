@@ -23,7 +23,7 @@ import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
-import { loadDeviceMode } from '@/lib/printing/deviceProfile';
+import { resolveDeviceMode } from '@/lib/printing/deviceProfile';
 import {
   buildReceiptCommands,
   numberToWordsInr,
@@ -261,61 +261,101 @@ function buildProvisionalReceiptPayload(
   return { business, data };
 }
 
+/** Why a silent print didn't happen, so the caller can say so instead of dumping the cashier
+ * into a system print dialog with no explanation. Every one of these used to be a bare `false`:
+ * "no printer configured", "QZ Tray isn't running" and "printed fine" were indistinguishable,
+ * and the fallback tab looked identical in all three cases. */
+export type SilentPrintFailure =
+  | 'not-configured'
+  | 'browser-dialog'
+  | 'no-printer'
+  | 'non-thermal-preview'
+  | 'transport-failed';
+
+export type SilentPrintResult = { ok: true } | { ok: false; reason: SilentPrintFailure; detail?: string };
+
+/** Human-readable explanation for a fallback, shown to the cashier before the print tab opens. */
+export function silentPrintFailureMessage(result: Extract<SilentPrintResult, { ok: false }>): string | null {
+  switch (result.reason) {
+    case 'not-configured':
+      return 'No printer is set up for automatic printing yet — opening the print preview. Set one up in Settings › Automatic Printing.';
+    case 'no-printer':
+      return 'Automatic printing has no printer selected — opening the print preview. Pick one in Settings › Automatic Printing.';
+    case 'transport-failed':
+      return `Couldn't reach the configured printer${result.detail ? ` (${result.detail})` : ''} — opening the print preview instead.`;
+    // Deliberately silent: 'browser-dialog' is the tenant *choosing* the print dialog, and
+    // 'non-thermal-preview' is an order bill on A4/Letter, which has no silent path by design.
+    case 'browser-dialog':
+    case 'non-thermal-preview':
+      return null;
+  }
+}
+
 /** The actual dispatch: tries whichever transport Settings > Automatic Printing has configured
- * for this device, returns whether it succeeded. Callers fall back to opening the print-preview
- * tab themselves when this returns false — this function never does that itself, since "no
- * printer configured" and "print failed" both just mean "the caller should fall back", and the
- * caller is what knows which URL to open. */
+ * for this tenant (with this device's own override on top, for Web USB/Bluetooth pairings that
+ * can only live on one device), and reports why if it couldn't. Callers fall back to opening the
+ * print-preview tab themselves — this function never does that itself, since the caller is what
+ * knows which URL to open. */
 async function dispatchSilentPrint(
   thermal: boolean,
   buildReceipt: () => { business: ReceiptBusinessInfo; data: ReceiptData } | null,
   paperSize: AutoPrintPaperSize,
   getPdf: () => Promise<Blob>,
-): Promise<boolean> {
-  const deviceMode = loadDeviceMode();
+): Promise<SilentPrintResult> {
   const preferences = await settingsApi.getBusinessPreferences();
+  const deviceMode = resolveDeviceMode(preferences.auto_print_device_mode);
   const printerName = preferences.auto_print_printer_name;
+
+  if (!deviceMode) return { ok: false, reason: 'not-configured' };
+  if (deviceMode === 'browser-dialog') return { ok: false, reason: 'browser-dialog' };
+  if ((deviceMode === 'qz' || deviceMode === 'revgenai-agent') && !printerName) {
+    return { ok: false, reason: 'no-printer' };
+  }
 
   try {
     if ((deviceMode === 'web-usb' || deviceMode === 'web-bluetooth') && thermal) {
       const receipt = buildReceipt();
-      if (!receipt) return false;
+      if (!receipt) return { ok: false, reason: 'transport-failed', detail: 'nothing to print' };
       const commands = buildReceiptCommands(receipt.business, receipt.data, paperSize as ThermalPaperSize);
       if (deviceMode === 'web-usb') await webUsbPrinter.printRaw(commands);
       else await webBluetoothPrinter.printRaw(commands);
-      return true;
+      return { ok: true };
     }
     if (deviceMode === 'qz' && printerName) {
       if (thermal) {
         const receipt = buildReceipt();
-        if (!receipt) return false;
+        if (!receipt) return { ok: false, reason: 'transport-failed', detail: 'nothing to print' };
         await qzTray.printRaw(printerName, buildReceiptCommands(receipt.business, receipt.data, paperSize as ThermalPaperSize));
       } else {
         await qzTray.printPdf(printerName, await getPdf());
       }
-      return true;
+      return { ok: true };
     }
     if (deviceMode === 'revgenai-agent' && printerName) {
       if (thermal) {
         const receipt = buildReceipt();
-        if (!receipt) return false;
+        if (!receipt) return { ok: false, reason: 'transport-failed', detail: 'nothing to print' };
         await printAgentClient.printThermal(printerName, receipt.business, receipt.data, paperSize as ThermalPaperSize);
       } else {
         await printAgentClient.printPdf(printerName, await getPdf());
       }
-      return true;
+      return { ok: true };
     }
   } catch (err) {
     console.warn(`Silent print via ${deviceMode} failed, falling back to the print preview:`, err);
-    return false;
+    return { ok: false, reason: 'transport-failed', detail: err instanceof Error ? err.message : undefined };
   }
-  return false;
+
+  // A device-bound transport (Web USB/Bluetooth) paired for receipts, asked to print a
+  // non-thermal document it has no raw path for.
+  return { ok: false, reason: 'non-thermal-preview' };
 }
 
 /** Prints an existing, saved invoice via whichever transport is configured — the Invoices list's
- * row "Print" action, or any other manual reprint of a real invoice. Resolves `true` if it printed
- * silently (caller should NOT open a tab); `false` means fall back to the print-preview tab. */
-export async function printInvoiceSilently(invoiceId: string): Promise<boolean> {
+ * row "Print" action, or any other manual reprint of a real invoice. Resolves `{ok: true}` if it
+ * printed silently (caller should NOT open a tab); otherwise the reason to report before the
+ * caller falls back to the print-preview tab. */
+export async function printInvoiceSilently(invoiceId: string): Promise<SilentPrintResult> {
   const [invoice, ctx] = await Promise.all([posApi.getInvoice(invoiceId), loadPrintContext()]);
   const paperSize = ctx.settings.auto_print_paper_size;
   const thermal = isThermalPaperSize(paperSize);
@@ -333,13 +373,13 @@ export async function printInvoiceSilently(invoiceId: string): Promise<boolean> 
 
 /** Prints the current cart's Provisional/Order Bill preview — POS's "Print Order Bill" button.
  * There is no saved invoice to fetch a PDF for, so a non-thermal (A4/A5/Letter/Legal) default
- * paper size simply can't be silently printed here — this correctly returns `false` in that case,
- * same as "print failed", so the caller falls back to the existing print-preview tab. */
-export async function printProvisionalBillSilently(snapshot: ProvisionalBillSnapshot): Promise<boolean> {
+ * paper size simply can't be silently printed here — that reports 'non-thermal-preview', so the
+ * caller falls back to the print-preview tab without claiming anything went wrong. */
+export async function printProvisionalBillSilently(snapshot: ProvisionalBillSnapshot): Promise<SilentPrintResult> {
   const ctx = await loadPrintContext();
   const paperSize = ctx.settings.auto_print_paper_size;
   const thermal = isThermalPaperSize(paperSize);
-  if (!thermal) return false;
+  if (!thermal) return { ok: false, reason: 'non-thermal-preview' };
   const logoCommand =
     ctx.template?.config.branding.show_logo && ctx.settings.logo_url ? await buildLogoCommand(ctx.settings.logo_url, paperSize) : null;
   return dispatchSilentPrint(
