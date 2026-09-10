@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeftRight, ChefHat, Loader2, Printer, Receipt, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, ChefHat, Loader2, Merge, Printer, Receipt, Split, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
 import { BillOrderDialog } from '@/features/restaurant/components/BillOrderDialog';
+import { MergeOrdersDialog } from '@/features/restaurant/components/MergeOrdersDialog';
+import { SplitOrderDialog, type SplitSelection } from '@/features/restaurant/components/SplitOrderDialog';
 import { TransferTableDialog } from '@/features/restaurant/components/TransferTableDialog';
 import * as restaurantApi from '@/features/restaurant/api';
 import type { BillOrderPayload, Kot, OrderItem, RestaurantOrder } from '@/features/restaurant/api';
@@ -88,6 +90,8 @@ export function RestaurantOrderPage() {
   const [cancellingKotId, setCancellingKotId] = useState<string | null>(null);
   const [billOpen, setBillOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['restaurant', 'order', id],
@@ -189,6 +193,32 @@ export function RestaurantOrderPage() {
       refresh(updated);
     },
     onError: (err) => fail(err, 'Could not move this order'),
+  });
+
+  const mergeOrders = useMutation({
+    mutationFn: (sourceOrderIds: string[]) => restaurantApi.mergeOrders(id!, sourceOrderIds),
+    onSuccess: (updated, sourceOrderIds) => {
+      toast.success(`Merged ${sourceOrderIds.length} order${sourceOrderIds.length === 1 ? '' : 's'} into ${updated.order_number}`);
+      setMergeOpen(false);
+      // The merged-away orders and their tables are gone now, so the board and the open-order
+      // list this dialog reads are both stale.
+      queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+      refresh(updated);
+    },
+    onError: (err) => fail(err, 'Could not merge those orders'),
+  });
+
+  const splitOrder = useMutation({
+    mutationFn: (selection: SplitSelection) => restaurantApi.splitOrder(id!, selection.items, selection.toTableId),
+    onSuccess: (newOrder) => {
+      toast.success(`Split into ${newOrder.order_number}`);
+      setSplitOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+      // Land on the new bill: the reason to split is to take payment for it, and that happens on
+      // the new order, not this one.
+      navigate(appPath(`/restaurant/orders/${newOrder.id}`));
+    },
+    onError: (err) => fail(err, 'Could not split this order'),
   });
 
   if (isLoading) {
@@ -305,6 +335,16 @@ export function RestaurantOrderPage() {
                   <ArrowLeftRight className="size-4" />
                   Move to another table
                 </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="ghost" onClick={() => setMergeOpen(true)}>
+                    <Merge className="size-4" />
+                    Merge
+                  </Button>
+                  <Button variant="ghost" disabled={order.items.length === 0} onClick={() => setSplitOpen(true)}>
+                    <Split className="size-4" />
+                    Split
+                  </Button>
+                </div>
               </div>
             )}
           </Card>
@@ -381,20 +421,45 @@ export function RestaurantOrderPage() {
         </div>
       </div>
 
-      <BillOrderDialog
-        order={order}
-        open={billOpen}
-        onOpenChange={setBillOpen}
-        isPending={billOrder.isPending}
-        onConfirm={(payload) => billOrder.mutate(payload)}
-      />
-      <TransferTableDialog
-        currentTableId={order.table_id}
-        open={transferOpen}
-        onOpenChange={setTransferOpen}
-        isPending={transferOrder.isPending}
-        onConfirm={(tableId) => transferOrder.mutate(tableId)}
-      />
+      {/* Mounted only while open so each dialog starts empty every time. A dialog kept mounted
+          keeps whatever was picked last time, which after a move or a merge means offering a
+          table or an order that is no longer free. */}
+      {billOpen && (
+        <BillOrderDialog
+          order={order}
+          open
+          onOpenChange={setBillOpen}
+          isPending={billOrder.isPending}
+          onConfirm={(payload) => billOrder.mutate(payload)}
+        />
+      )}
+      {transferOpen && (
+        <TransferTableDialog
+          currentTableId={order.table_id}
+          open
+          onOpenChange={setTransferOpen}
+          isPending={transferOrder.isPending}
+          onConfirm={(tableId) => transferOrder.mutate(tableId)}
+        />
+      )}
+      {mergeOpen && (
+        <MergeOrdersDialog
+          order={order}
+          open
+          onOpenChange={setMergeOpen}
+          isPending={mergeOrders.isPending}
+          onConfirm={(sourceOrderIds) => mergeOrders.mutate(sourceOrderIds)}
+        />
+      )}
+      {splitOpen && (
+        <SplitOrderDialog
+          order={order}
+          open
+          onOpenChange={setSplitOpen}
+          isPending={splitOrder.isPending}
+          onConfirm={(selection) => splitOrder.mutate(selection)}
+        />
+      )}
     </div>
   );
 }
