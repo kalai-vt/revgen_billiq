@@ -29,7 +29,16 @@ The `.env` defaults are SQLite files and the `console` email provider, so nothin
 needed to run locally.
 
 ### Running it
-Three processes, each in its own terminal. **The backend port is not optional** — both frontends
+One command, which does the setup above if it hasn't been done and then starts all three:
+
+```bash
+./dev.sh                                            # macOS/Linux
+powershell -ExecutionPolicy Bypass -File .\dev.ps1   # Windows
+```
+
+It waits for the API before seeding (migrations run on the backend's own startup) and prints the
+login when everything is up. To run the pieces by hand instead — three processes, each in its own
+terminal. **The backend port is not optional** — both frontends
 proxy `/api` to `127.0.0.1:8010` (hardcoded in their `vite.config.ts`), so a backend started on
 any other port leaves every request in the app failing with nothing listening on the other end.
 
