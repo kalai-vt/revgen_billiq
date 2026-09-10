@@ -102,6 +102,7 @@ export const FOOTER_SECTION_LABELS: Record<FooterKey, string> = {
 export interface BrandingConfig {
   show_logo: boolean;
   show_business_name: boolean;
+  business_name_size: FontSizeChoice;
   show_tagline: boolean;
   show_address: boolean;
   show_phone: boolean;

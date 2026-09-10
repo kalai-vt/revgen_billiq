@@ -86,6 +86,12 @@ const LOGO_SIZE_PX: Record<InvoiceTemplateConfig['paper']['logo_size_preset'], {
   lg: { width: 112, height: 72 },
 };
 
+// 'md' matches Tailwind's text-xl (1.25rem = 20px) — this replaces what used to be a fixed
+// text-xl class on the business-name header, so the default appearance is unchanged.
+const BUSINESS_NAME_FONT_SIZE_PX: Record<InvoiceTemplateConfig['branding']['business_name_size'], number> = {
+  sm: 16, md: 20, lg: 26,
+};
+
 function addressLine(branding: BrandingValues): string | null {
   const parts = [branding.address_line1, branding.address_line2, [branding.city, branding.state].filter(Boolean).join(', '), branding.pincode]
     .filter((part) => part && part.trim().length > 0);
@@ -474,7 +480,10 @@ function HeaderBlock({
   const identity = (
     <div className={cn('min-w-0', header.layout === 'logo-center' ? 'text-center' : header.layout === 'logo-right' ? 'text-right' : 'text-left')}>
       {b.show_business_name && (
-        <p className="text-xl leading-tight font-extrabold tracking-tight" style={{ color: theme.primary_color }}>
+        <p
+          className="leading-tight font-extrabold tracking-tight"
+          style={{ color: theme.primary_color, fontSize: BUSINESS_NAME_FONT_SIZE_PX[b.business_name_size] }}
+        >
           {branding.company_name || 'Your Business Name'}
         </p>
       )}

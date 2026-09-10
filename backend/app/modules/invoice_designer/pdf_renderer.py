@@ -214,7 +214,15 @@ def render_document_pdf(
             story.append(Spacer(1, 2 * mm))
 
     if b.show_business_name:
-        story.append(Paragraph(xml_escape(tenant.company_name), ParagraphStyle("Business", parent=styles["Title"], textColor=primary)))
+        name_scale = {"sm": 0.8, "md": 1.0, "lg": 1.3}.get(b.business_name_size, 1.0)
+        business_style = ParagraphStyle(
+            "Business",
+            parent=styles["Title"],
+            textColor=primary,
+            fontSize=styles["Title"].fontSize * name_scale,
+            leading=styles["Title"].leading * name_scale,
+        )
+        story.append(Paragraph(xml_escape(tenant.company_name), business_style))
     if b.show_tagline and settings and settings.tagline:
         story.append(Paragraph(xml_escape(settings.tagline), styles["Normal"]))
     if b.show_address and settings:

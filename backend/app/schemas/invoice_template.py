@@ -35,6 +35,7 @@ PromotionSpacing = Literal["compact", "normal", "relaxed"]
 class BrandingConfig(BaseModel):
     show_logo: bool = True
     show_business_name: bool = True
+    business_name_size: FontSize = "md"
     show_tagline: bool = False
     show_address: bool = True
     show_phone: bool = True

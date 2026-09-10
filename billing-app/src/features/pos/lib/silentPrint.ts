@@ -119,6 +119,7 @@ export function buildInvoiceReceiptPayload(
     gstNumber: settings.gst_number,
     phone: config?.branding.show_phone ? tenant?.phone : null,
     logoCommand,
+    companyNameSize: config?.branding.business_name_size,
   };
   const data: ReceiptData = {
     invoiceNumber: invoice.invoice_number,
@@ -235,6 +236,7 @@ function buildProvisionalReceiptPayload(
     gstNumber: settings.gst_number,
     phone: config?.branding.show_phone ? tenant?.phone : null,
     logoCommand,
+    companyNameSize: config?.branding.business_name_size,
   };
   const data: ReceiptData = {
     invoiceNumber: snapshot.reference,

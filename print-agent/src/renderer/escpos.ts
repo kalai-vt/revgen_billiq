@@ -10,6 +10,10 @@ const ESC = '\x1B';
 const GS = '\x1D';
 
 export type ThermalPaperSize = '58mm' | '80mm';
+// Decoupled from billing-app's invoice-designer FontSizeChoice type (this renderer has no
+// business-feature imports) but uses the same 'sm'|'md'|'lg' vocabulary by convention — kept in
+// sync with billing-app/src/lib/printing/escpos.ts's own copy of this type.
+export type TextSizeChoice = 'sm' | 'md' | 'lg';
 
 // Standard Font-A character width for commodity thermal printers at each paper size — same table
 // as billing-app's escpos.ts; keep these two in sync if either changes.
@@ -27,9 +31,15 @@ function align(pos: 'left' | 'center' | 'right'): string {
 function bold(on: boolean): string {
   return `${ESC}E${on ? '\x01' : '\x00'}`;
 }
-function doubleSize(on: boolean): string {
-  return `${GS}!${on ? '\x11' : '\x00'}`;
+// GS ! n — n's low nibble is the height multiplier minus 1, high nibble is the width multiplier
+// minus 1 (both 0-7, i.e. 1x-8x). `mult` scales both axes equally. 2 (0x11) is what this file
+// always sent for the business-name header before per-template sizing existed — kept as the "md"
+// default so existing templates print unchanged. Kept in sync with billing-app's own copy.
+function textSize(mult: 1 | 2 | 3): string {
+  const nibble = mult - 1;
+  return `${GS}!${String.fromCharCode((nibble << 4) | nibble)}`;
 }
+const BUSINESS_NAME_SIZE_MULT: Record<TextSizeChoice, 1 | 2 | 3> = { sm: 1, md: 2, lg: 3 };
 // Literal newline characters, not the `ESC d n` control sequence — confirmed on real hardware
 // (a generic/clone 58mm printer, TECH CLA58 chipset) that `ESC d` is not reliably honored: raising
 // its line count 3→5→8 kept under-feeding, while switching to plain `\n` characters (which every
@@ -116,6 +126,9 @@ function twoCol(left: string, right: string, width: number): string {
 
 export interface ReceiptBusinessInfo {
   companyName: string;
+  /** From Invoice Designer's branding.business_name_size — defaults to 'md' (the size this file
+   * always printed the header at before per-template sizing existed) when unset. */
+  companyNameSize?: TextSizeChoice | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
   city?: string | null;
@@ -259,9 +272,9 @@ export function buildReceiptCommands(business: ReceiptBusinessInfo, data: Receip
   if (business.logoCommand) {
     out.push(align('center'), business.logoCommand, feed(1));
   }
-  out.push(align('center'), bold(true), doubleSize(true));
+  out.push(align('center'), bold(true), textSize(BUSINESS_NAME_SIZE_MULT[business.companyNameSize ?? 'md']));
   out.push(`${business.companyName}\n`);
-  out.push(doubleSize(false), bold(false));
+  out.push(textSize(1), bold(false));
 
   const addressLines = [
     business.addressLine1,
@@ -379,9 +392,9 @@ export function buildTestPrintCommands(paperSize: ThermalPaperSize): string[] {
   const width = CHARS_PER_LINE[paperSize];
   const now = new Date();
   const out: string[] = [];
-  out.push(init(), align('center'), bold(true), doubleSize(true));
+  out.push(init(), align('center'), bold(true), textSize(2));
   out.push('RevGenAI Print Agent\n');
-  out.push(doubleSize(false));
+  out.push(textSize(1));
   out.push('Printer Test\n');
   out.push(bold(false));
   out.push(`${paperSize}\n`);

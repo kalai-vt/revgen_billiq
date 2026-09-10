@@ -4,13 +4,17 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import * as settingsApi from '@/features/settings/api';
 import { FieldToggle } from '@/features/invoice-designer/components/FieldToggle';
+import type { FontSizeChoice } from '@/features/invoice-designer/api';
 import type { PanelProps } from '@/features/invoice-designer/components/panels/types';
 import { ApiError } from '@/lib/api-client';
 
 const SOCIAL_PLATFORMS = ['instagram', 'facebook', 'twitter', 'youtube'] as const;
+
+const BUSINESS_NAME_SIZE_LABELS: Record<FontSizeChoice, string> = { sm: 'Small', md: 'Medium', lg: 'Large' };
 
 export function BrandingPanel({ config, onChange }: PanelProps) {
   const branding = config.branding;
@@ -71,6 +75,10 @@ export function BrandingPanel({ config, onChange }: PanelProps) {
   }
 
   function toggle<K extends keyof typeof branding>(key: K, value: boolean) {
+    onChange((cfg) => ({ ...cfg, branding: { ...cfg.branding, [key]: value } }));
+  }
+
+  function set<K extends keyof typeof branding>(key: K, value: (typeof branding)[K]) {
     onChange((cfg) => ({ ...cfg, branding: { ...cfg.branding, [key]: value } }));
   }
 
@@ -175,6 +183,20 @@ export function BrandingPanel({ config, onChange }: PanelProps) {
           <FieldToggle id="b-drug" label="Drug License" checked={branding.show_drug_license} onChange={(v) => toggle('show_drug_license', v)} />
           <FieldToggle id="b-msme" label="MSME/Udyam Number" checked={branding.show_msme_udyam} onChange={(v) => toggle('show_msme_udyam', v)} />
         </div>
+
+        {branding.show_business_name && (
+          <div className="ml-6 max-w-48 space-y-1.5">
+            <Label htmlFor="b-name-size">Business name size</Label>
+            <Select value={branding.business_name_size} onValueChange={(v) => set('business_name_size', v as FontSizeChoice)}>
+              <SelectTrigger id="b-name-size" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(BUSINESS_NAME_SIZE_LABELS) as FontSizeChoice[]).map((size) => (
+                  <SelectItem key={size} value={size}>{BUSINESS_NAME_SIZE_LABELS[size]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <FieldToggle
           id="b-social"
