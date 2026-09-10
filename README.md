@@ -29,6 +29,36 @@ npm install
 npm run dev
 ```
 
+## Local development
+
+Three processes, all on fixed ports (the frontends proxy `/api` to the backend, so run all three):
+
+| | Port | Start |
+|---|---|---|
+| Backend API | 8010 | `cd backend && uvicorn app.main:app --reload --port 8010` |
+| Billing app | 5173 | `cd billing-app && npm run dev` |
+| Admin Portal | 5174 | `cd admin-portal && npm run dev` |
+
+Copy `backend/.env.example` to `backend/.env` first. The defaults are SQLite files and the
+`console` email provider, so nothing external is needed.
+
+### Getting a login
+
+Registering through the UI leaves the owner in `pending_verification` with the verification link
+buried in the backend log, and restaurant/table/KOT are deliberately not in any plan's defaults,
+so a freshly registered tenant cannot exercise them at all. The seed script solves both:
+
+```bash
+cd backend
+python -m scripts.seed_dev      # http://localhost:5173 — owner@ogcafe.test / DevPassword@123
+python -m scripts.bootstrap_admin   # http://localhost:5174 — prompts for the admin credentials
+```
+
+`seed_dev` creates a pre-verified owner, switches the restaurant modules and QR payments on for
+that tenant the way the Admin Portal would, and seeds a menu, a floor and six tables. It is
+idempotent (re-run it to repair flags someone toggled off) and refuses to run when
+`REVGENIQ_ENVIRONMENT` is production, since its password is well-known on purpose.
+
 ## Deploying
 This is a single Vercel project (`rev-gen-ai/revgen-billiq`) hosting three services, all defined
 in the root `vercel.json`: `billing-app` (served under `/billiq`), `admin-portal` (served under

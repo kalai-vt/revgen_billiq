@@ -23,6 +23,16 @@ function renderDialog() {
 }
 
 describe('BillOrderDialog', () => {
+  // Same base-ui trap as SplitOrderDialog: without a mapper the trigger shows the raw value,
+  // so the cashier sees "cash" and "none" instead of the labels next to them in the list.
+  it('shows payment method and discount as labels, not raw values', () => {
+    renderDialog();
+    expect(screen.getAllByText('Cash').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('No discount').length).toBeGreaterThan(0);
+    expect(screen.queryByText('cash')).not.toBeInTheDocument();
+    expect(screen.queryByText('none')).not.toBeInTheDocument();
+  });
+
   it('shows the order total as payable when no discount is applied', () => {
     renderDialog();
     expect(screen.getByText('Payable')).toBeInTheDocument();

@@ -51,6 +51,14 @@ describe('SplitOrderDialog', () => {
     expect(screen.queryByText('Cancelled Idli')).not.toBeInTheDocument();
   });
 
+  // base-ui renders a Select's raw value unless given a mapper, so the takeaway sentinel leaked
+  // to the screen verbatim until this was caught in the browser.
+  it('names the destination in words rather than showing the takeaway sentinel', () => {
+    renderDialog();
+    expect(screen.getByText('No table (takeaway)')).toBeInTheDocument();
+    expect(screen.queryByText('__takeaway__')).not.toBeInTheDocument();
+  });
+
   it('cannot split until something is actually picked', () => {
     renderDialog();
     expect(screen.getByRole('button', { name: /split off/i })).toBeDisabled();

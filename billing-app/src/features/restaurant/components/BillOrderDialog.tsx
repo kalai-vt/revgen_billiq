@@ -16,6 +16,12 @@ const PAYMENT_METHODS = [
 type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
 type DiscountType = 'none' | 'flat' | 'percent';
 
+const DISCOUNT_LABELS: Record<DiscountType, string> = {
+  none: 'No discount',
+  flat: 'Flat amount',
+  percent: 'Percent',
+};
+
 interface BillOrderDialogProps {
   order: RestaurantOrder;
   open: boolean;
@@ -66,7 +72,14 @@ export function BillOrderDialog({ order, open, onOpenChange, onConfirm, isPendin
           <div className="space-y-1.5">
             <Label>Payment method</Label>
             <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod((v as PaymentMethod) ?? 'cash')}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full">
+                {/* Without a mapper base-ui shows the raw value — "upi" rather than "UPI". */}
+                <SelectValue>
+                  {(value: string | null) =>
+                    PAYMENT_METHODS.find((m) => m.value === value)?.label ?? 'Cash'
+                  }
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {PAYMENT_METHODS.map((method) => (
                   <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>
@@ -103,7 +116,11 @@ export function BillOrderDialog({ order, open, onOpenChange, onConfirm, isPendin
             <div className="space-y-1.5">
               <Label>Discount</Label>
               <Select value={discountType} onValueChange={(v) => setDiscountType((v as DiscountType) ?? 'none')}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(value: string | null) => DISCOUNT_LABELS[(value as DiscountType) ?? 'none']}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No discount</SelectItem>
                   <SelectItem value="flat">Flat amount</SelectItem>

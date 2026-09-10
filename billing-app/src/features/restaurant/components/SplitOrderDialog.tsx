@@ -46,6 +46,12 @@ export function SplitOrderDialog({ order, open, onOpenChange, onConfirm, isPendi
     .flatMap((group) => group.tables.map((table) => ({ table, floor: group.floor?.name })))
     .filter(({ table }) => table.id !== order.table_id && !table.active_order_id);
 
+  function destinationLabel(value: string | null): string {
+    if (!value || value === TAKEAWAY) return 'No table (takeaway)';
+    const match = freeTables.find(({ table }) => table.id === value);
+    return match ? `${match.table.name}${match.floor ? ` · ${match.floor}` : ''}` : 'No table (takeaway)';
+  }
+
   const selections = useMemo(
     () =>
       Object.entries(quantities)
@@ -120,7 +126,11 @@ export function SplitOrderDialog({ order, open, onOpenChange, onConfirm, isPendi
           <div className="space-y-1.5">
             <Label>New bill sits on</Label>
             <Select value={destination} onValueChange={(value) => setDestination(value ?? TAKEAWAY)}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full">
+                {/* base-ui renders the raw value unless given a mapper, which would show the
+                    TAKEAWAY sentinel to the user verbatim. */}
+                <SelectValue>{(value: string | null) => destinationLabel(value)}</SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value={TAKEAWAY}>No table (takeaway)</SelectItem>
                 {freeTables.map(({ table, floor }) => (
