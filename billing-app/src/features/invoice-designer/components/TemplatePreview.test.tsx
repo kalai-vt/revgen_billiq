@@ -14,9 +14,9 @@ const branding: BrandingValues = {
 const baseConfig: InvoiceTemplateConfig = {
   version: 1,
   branding: {
-    show_logo: false, show_business_name: true, show_tagline: false, show_address: false, show_phone: true,
+    show_logo: false, show_business_name: true, business_name_size: 'md', show_tagline: false, show_address: false, show_phone: true,
     show_email: false, show_website: false, show_gstin: false, show_pan: false, show_fssai: false,
-    show_drug_license: false, show_msme_udyam: false, show_social_links: false, social_links_to_show: [], business_name_size: 'md',
+    show_drug_license: false, show_msme_udyam: false, show_social_links: false, social_links_to_show: [],
   },
   header: { layout: 'logo-left', background_color: null, show_border: false, show_divider: false, border_radius: 0, height_preset: 'normal' },
   invoice_info: {

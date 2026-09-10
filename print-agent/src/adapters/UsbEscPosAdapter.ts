@@ -21,6 +21,7 @@ import {
   type ReceiptData,
   type ThermalPaperSize,
 } from '../renderer/escpos.js';
+import { logger } from '../log.js';
 
 const RAW_CAPABILITIES: PrinterCapabilities = { cut: true, cashDrawer: true, qrCode: true, barcode: true, logo: true };
 
@@ -49,22 +50,33 @@ export class UsbEscPosAdapter implements PrinterAdapter {
     let usb: typeof import('usb');
     try {
       usb = await import('usb');
-    } catch {
-      // `usb` isn't installed/didn't compile on this machine — report no USB printers rather than
-      // crashing the whole discovery call (network/OS adapters should still work).
+    } catch (err) {
+      // `usb` isn't installed/didn't compile on this machine (it's an optionalDependency — see
+      // package.json) — report no USB printers rather than crashing the whole discovery call
+      // (network/OS adapters should still work), but log it: silently returning [] here is
+      // indistinguishable from "no USB printer is plugged in" without this, which makes a real
+      // packaging failure on a customer's machine impossible to diagnose from agent.log.
+      logger.warn('[print-agent] USB adapter unavailable — the `usb` native module did not load:', err);
       return [];
     }
     const devices = usb.getDeviceList();
     const found: PrinterInfo[] = [];
     for (const device of devices) {
       const descriptor = device.deviceDescriptor;
-      const isPrinterClass =
-        descriptor.bDeviceClass === PRINTER_CLASS ||
-        device.configDescriptor?.interfaces.some((iface) => iface.some((alt) => alt.bInterfaceClass === PRINTER_CLASS));
-      if (!isPrinterClass) continue;
       const known = [...this.configs.values()].find(
         (c) => c.vendorId === descriptor.idVendor && c.productId === descriptor.idProduct,
       );
+      const isPrinterClass =
+        descriptor.bDeviceClass === PRINTER_CLASS ||
+        device.configDescriptor?.interfaces.some((iface) => iface.some((alt) => alt.bInterfaceClass === PRINTER_CLASS));
+      // A manually configured vendor/product ID is trusted outright, regardless of the device's
+      // declared USB class. Many real-world cheap thermal printers (exactly the "not all printer
+      // types work" complaint this is fixing) never declare the standard USB Printer class at all
+      // — they enumerate as a vendor-specific or CDC-ACM serial-bridge chip instead — so gating on
+      // isPrinterClass unconditionally silently dropped precisely the printers this configure()
+      // mechanism exists to handle. Unconfigured devices still need the class check, or every
+      // random USB peripheral (mice, storage, webcams) would show up as a "printer".
+      if (!known && !isPrinterClass) continue;
       found.push({
         printerId: known?.printerId ?? `usb:${descriptor.idVendor.toString(16)}:${descriptor.idProduct.toString(16)}`,
         name: known?.name ?? `USB Printer ${descriptor.idVendor.toString(16)}:${descriptor.idProduct.toString(16)}`,
@@ -145,7 +157,15 @@ export class UsbEscPosAdapter implements PrinterAdapter {
           (err) => (err ? reject(err) : resolve()),
         );
       });
-      iface.release(() => {});
+      // release() is callback-based — the `usb` package's own documented pattern is
+      // `iface.release(cb => device.close())`, not release-then-close unawaited, since closing the
+      // device before the interface has actually finished releasing can throw or silently fail on
+      // some platforms/drivers, and any release() error was previously swallowed by the empty
+      // callback. Left unfixed, this could leave the device unable to be claimed by the *next*
+      // print job to the same USB printer.
+      await new Promise<void>((resolve, reject) => {
+        iface.release((err?: Error) => (err ? reject(err) : resolve()));
+      });
     } finally {
       device.close();
     }
