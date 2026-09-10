@@ -217,6 +217,10 @@ export function TemplatePreview({ config, branding, mode, data, promotionContent
 
   return (
     <div
+      // Print routes target this slot to restore the receipt's real width: `maxWidth: '100%'`
+      // below is right on screen (the designer panel is narrower than an A4 sheet) but on paper
+      // it silently shrank the receipt to whatever the page had left. See lib/printing/printPage.
+      data-slot="template-preview"
       className={cn('rounded-md border shadow-sm', mode === 'pdf' && 'ring-1 ring-foreground/10')}
       style={rootStyle}
     >

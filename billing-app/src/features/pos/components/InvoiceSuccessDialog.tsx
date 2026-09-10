@@ -9,7 +9,7 @@ import type { Invoice } from '@/features/pos/api';
 import { InvoiceReceiptSummary } from '@/features/pos/components/InvoiceReceiptSummary';
 import { WhatsAppShareButton } from '@/features/pos/components/WhatsAppShareButton';
 import * as settingsApi from '@/features/settings/api';
-import type { AutoPrintPaperSize } from '@/features/settings/api';
+import type { AutoPrintDeviceMode, AutoPrintPaperSize } from '@/features/settings/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
@@ -17,7 +17,7 @@ import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
 import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
 import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
-import { loadDeviceMode } from '@/lib/printing/deviceProfile';
+import { resolveDeviceMode } from '@/lib/printing/deviceProfile';
 import { buildReceiptCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { buildLogoCommand } from '@/lib/printing/escposLogo';
 import { buildInvoiceReceiptPayload } from '@/features/pos/lib/silentPrint';
@@ -40,6 +40,8 @@ interface InvoiceSuccessDialogProps {
    * the print tab on failure or when no printer is configured. */
   autoPrintPrinterName?: string | null;
   autoPrintPaperSize?: AutoPrintPaperSize;
+  /** Tenant-wide transport from Settings; this device's own override still wins over it. */
+  autoPrintDeviceMode?: AutoPrintDeviceMode | null;
 }
 
 export function InvoiceSuccessDialog({
@@ -48,14 +50,16 @@ export function InvoiceSuccessDialog({
   autoPrint = false,
   autoPrintPrinterName = null,
   autoPrintPaperSize = '80mm',
+  autoPrintDeviceMode = null,
 }: InvoiceSuccessDialogProps) {
   const autoPrintedFor = useRef<string | null>(null);
   const { tenant } = useAuth();
-  // Which transport *this device* prints through — see deviceProfile.ts. QZ Tray keeps using the
-  // tenant-wide printer name from Settings; the Web USB/Bluetooth transports pair per-device and
-  // always print thermal ESC/POS, since neither can render the Invoice Designer PDF the way QZ's
-  // printPdf can for non-thermal paper sizes.
-  const [deviceMode] = useState(() => loadDeviceMode());
+  // Which transport this till prints through — the tenant-wide setting, with this device's own
+  // override on top for Web USB/Bluetooth pairings that can only exist here (deviceProfile.ts).
+  // QZ Tray keeps using the tenant-wide printer name from Settings; the Web USB/Bluetooth
+  // transports always print thermal ESC/POS, since neither can render the Invoice Designer PDF
+  // the way QZ's printPdf can for non-thermal paper sizes.
+  const [deviceMode] = useState(() => resolveDeviceMode(autoPrintDeviceMode));
   const usesQzThermal = deviceMode === 'qz' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);
   const usesAgentThermal =
     deviceMode === 'revgenai-agent' && !!autoPrintPrinterName && isThermalPaperSize(autoPrintPaperSize);

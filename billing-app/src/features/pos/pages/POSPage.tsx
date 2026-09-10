@@ -19,7 +19,7 @@ import { computeTotals } from '@/features/pos/lib/calc';
 import { useCheckoutConfig } from '@/features/pos/lib/checkoutElements';
 import { computeCheckoutGridColumns, getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
 import { buildProvisionalBillSnapshot, storeProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
-import { printProvisionalBillSilently } from '@/features/pos/lib/silentPrint';
+import { printProvisionalBillSilently, silentPrintFailureMessage, type SilentPrintResult } from '@/features/pos/lib/silentPrint';
 import * as posApi from '@/features/pos/api';
 import * as settingsApi from '@/features/settings/api';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
@@ -195,11 +195,21 @@ export function POSPage() {
       paymentType,
       paymentMethod,
     });
-    const printedSilently = await printProvisionalBillSilently(snapshot).catch(() => false);
-    if (printedSilently) {
+    const printed = await printProvisionalBillSilently(snapshot).catch(
+      (err): SilentPrintResult => ({
+        ok: false,
+        reason: 'transport-failed',
+        detail: err instanceof Error ? err.message : undefined,
+      }),
+    );
+    if (printed.ok) {
       toast.success('Order bill sent to printer');
       return;
     }
+    // Say why before the print-preview tab opens — an unexplained system print dialog is how a
+    // misconfigured till looks identical to a working one.
+    const reason = silentPrintFailureMessage(printed);
+    if (reason) toast.warning(reason);
     storeProvisionalBillSnapshot(snapshot);
     window.open(appPath('/pos/provisional-bill/print'), '_blank', 'noopener,noreferrer');
   }
@@ -349,6 +359,7 @@ export function POSPage() {
         autoPrint={preferences?.auto_print_after_checkout ?? false}
         autoPrintPrinterName={preferences?.auto_print_printer_name ?? null}
         autoPrintPaperSize={preferences?.auto_print_paper_size ?? '80mm'}
+        autoPrintDeviceMode={preferences?.auto_print_device_mode ?? null}
       />
       <HeldBillsDialog open={heldBillsOpen} onClose={() => setHeldBillsOpen(false)} onResume={resumeHeldBill} />
     </div>
