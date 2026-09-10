@@ -39,6 +39,14 @@ export function InvoiceReceiptSummary({ invoice }: InvoiceReceiptSummaryProps) {
           <span>Payment method</span>
           <span className="uppercase">{invoice.payment_method}</span>
         </div>
+        {invoice.payment_reference && (
+          <div className="flex justify-between gap-4 text-muted-foreground">
+            <span>Reference</span>
+            {/* Breaks rather than overflows: a UPI transaction id is long, and it is only useful
+                if the whole thing is readable when matching it to a statement. */}
+            <span className="break-all text-right font-medium">{invoice.payment_reference}</span>
+          </div>
+        )}
         {invoice.amount_tendered !== null && (
           <div className="flex justify-between text-muted-foreground">
             <span>Amount tendered</span>
