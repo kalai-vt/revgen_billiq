@@ -408,3 +408,93 @@ def test_reserved_and_cleaning_are_staff_choices_that_survive(client: TestClient
     assert client.put(
         f"/api/restaurant/tables/{table['id']}/status", json={"status": "occupied"}, headers=headers
     ).status_code == 422
+
+
+def test_quick_bill_attributes_a_counter_sale_to_its_table(client: TestClient, db_session: Session):
+    """Billing a cart straight to a table from the POS screen has to leave the same trail as the
+    table-board flow, or table-wise reporting silently misses every sale rung up at the counter."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table Q")
+    item = _product(client, headers, "Dosa", 100.0)
+
+    billed = client.post(
+        "/api/restaurant/tables/quick-bill",
+        json={
+            "table_id": table["id"],
+            "items": [{"product_id": item["id"], "quantity": 2}],
+            "payment_method": "upi",
+            "payment_reference": "UPI-QB-1",
+        },
+        headers=headers,
+    )
+    assert billed.status_code == 200, billed.text
+    invoice_id = billed.json()["data"]["invoice_id"]
+
+    # A real order exists behind it, closed and pointing at the invoice.
+    orders = client.get("/api/restaurant/orders?status=billed", headers=headers).json()["data"]
+    assert any(o["table_id"] == table["id"] and o["invoice_id"] == invoice_id for o in orders)
+
+    # And the table is free again, not stranded as occupied.
+    layout = client.get("/api/restaurant/layout", headers=headers).json()["data"]
+    billed_table = [t for group in layout for t in group["tables"] if t["id"] == table["id"]][0]
+    assert billed_table["active_order_id"] is None
+
+    invoice = client.get(f"/api/invoices/{invoice_id}", headers=headers).json()["data"]
+    assert invoice["payment_reference"] == "UPI-QB-1"
+
+
+def test_quick_bill_adds_to_a_running_tab_instead_of_opening_a_second_order(
+    client: TestClient, db_session: Session
+):
+    """Two live orders on one table is the bug the table board already prevents; ringing extra
+    items up at the counter must not sneak around it."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table T")
+    item = _product(client, headers, "Coffee", 50.0)
+
+    opened = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 1}],
+        headers=headers,
+    )
+    assert opened.status_code == 200, opened.text
+    order_id = opened.json()["data"]["id"]
+
+    billed = client.post(
+        "/api/restaurant/tables/quick-bill",
+        json={
+            "table_id": table["id"],
+            "items": [{"product_id": item["id"], "quantity": 2}],
+            "payment_method": "cash",
+        },
+        headers=headers,
+    )
+    assert billed.status_code == 200, billed.text
+
+    # Same order, billed once, carrying all three units — not a second order.
+    orders = client.get("/api/restaurant/orders", headers=headers).json()["data"]
+    for_table = [o for o in orders if o["table_id"] == table["id"]]
+    assert len(for_table) == 1
+    assert for_table[0]["id"] == order_id
+    assert sum(i["quantity"] for i in for_table[0]["items"]) == 3
+
+
+def test_opening_a_table_order_twice_reuses_the_same_tab(client: TestClient, db_session: Session):
+    """A table sends several rounds to the kitchen across one sitting; they all belong on one bill."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table R2")
+    item = _product(client, headers, "Naan", 40.0)
+
+    first = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 1}],
+        headers=headers,
+    ).json()["data"]
+    second = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 2}],
+        headers=headers,
+    ).json()["data"]
+
+    assert second["id"] == first["id"]
+    assert sum(i["quantity"] for i in second["items"]) == 3

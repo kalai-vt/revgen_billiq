@@ -20,7 +20,10 @@ export type CheckoutElementKey =
   | 'payment_reference'
   | 'amount_tendered'
   | 'change_due'
-  | 'hold_bill';
+  | 'hold_bill'
+  | 'table'
+  | 'print_order_bill'
+  | 'print_kot';
 
 /** Same safe-default philosophy as the backend (app/core/checkout_elements.py
  * DEFAULT_CHECKOUT_CONFIG) and useFeatureFlag: absent/still-loading reads as enabled, so a tenant
@@ -41,6 +44,9 @@ export const DEFAULT_CHECKOUT_CONFIG: Record<CheckoutElementKey, boolean> = {
   amount_tendered: true,
   change_due: true,
   hold_bill: true,
+  table: true,
+  print_order_bill: true,
+  print_kot: true,
 };
 
 /** Mirrors app/core/checkout_elements.py's group assignment — used to compute the layout reflow
@@ -60,6 +66,9 @@ export const ELEMENT_GROUPS: Record<CheckoutElementKey, string> = {
   amount_tendered: 'cashier_tools',
   change_due: 'cashier_tools',
   hold_bill: 'cashier_tools',
+  table: 'cashier_tools',
+  print_order_bill: 'cashier_tools',
+  print_kot: 'cashier_tools',
 };
 
 export function useCheckoutConfigQuery() {

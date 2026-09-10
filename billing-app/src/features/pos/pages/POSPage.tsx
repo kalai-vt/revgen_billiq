@@ -25,6 +25,9 @@ import * as settingsApi from '@/features/settings/api';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import type { Customer } from '@/features/customers/api';
 import type { DiscountType, HeldBill, Invoice, PaymentMethod, PaymentType } from '@/features/pos/api';
+import * as restaurantApi from '@/features/restaurant/api';
+import { kotPrintFailureMessage, printKot as printKotTicket } from '@/features/restaurant/lib/kotPrint';
+import { NO_TABLE } from '@/features/pos/components/TableSelector';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
 
@@ -52,6 +55,7 @@ export function POSPage() {
   const [paymentType, setPaymentType] = useState<PaymentType>('paid');
   const [amountTendered, setAmountTendered] = useState<number | null>(null);
   const [paymentReference, setPaymentReference] = useState('');
+  const [tableId, setTableId] = useState<string>(NO_TABLE);
   const [paidNow, setPaidNow] = useState<number | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -72,6 +76,30 @@ export function POSPage() {
   const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const createInvoice = useCreateInvoice();
+
+  /** Fires the cart at the kitchen without billing it — the dine-in "order now, pay later" step.
+   * Creates (or appends to) the table's open order and sends a KOT for whatever isn't yet sent,
+   * so the cart on screen and the tab on the table stay one and the same order. */
+  const printKot = useMutation({
+    mutationFn: async () => {
+      const order = await restaurantApi.openTableOrder(
+        tableId,
+        cart.lines.map((line) => ({
+          product_id: line.product.id,
+          quantity: line.quantity,
+          unit_price: line.overridePrice ?? undefined,
+        })),
+      );
+      const kot = await restaurantApi.createKot(order.id, {});
+      return { order, kot, print: await printKotTicket(kot, order, false) };
+    },
+    onSuccess: ({ kot, print }) => {
+      toast.success(`${kot.kot_number} sent to the kitchen`);
+      if (!print.ok) toast.warning(kotPrintFailureMessage(print));
+      queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not send this to the kitchen'),
+  });
   const queryClient = useQueryClient();
   const totals = computeTotals(cart.lines, discountType, discountValue, taxOverride);
 
@@ -224,6 +252,7 @@ export function POSPage() {
     setPaymentType('paid');
     setAmountTendered(null);
     setPaymentReference('');
+    setTableId(NO_TABLE);
     setPaidNow(null);
     setDueDate('');
     setCustomerId(null);
@@ -239,6 +268,35 @@ export function POSPage() {
   async function handleCheckout() {
     setError(null);
     try {
+      // A table turns this into a dine-in sale: it has to go through the restaurant path so a
+      // real order exists, the table's status is synced, and table-wise reporting sees it. The
+      // resulting Invoice is identical either way — bill_order reuses the same sales service.
+      if (tableId !== NO_TABLE) {
+        const billed = await restaurantApi.quickBillTable({
+          table_id: tableId,
+          items: cart.lines.map((line) => ({
+            product_id: line.product.id,
+            quantity: line.quantity,
+            unit_price: line.overridePrice ?? undefined,
+          })),
+          customer_id: customerId,
+          customer_name: customerName || null,
+          customer_phone: customerPhone || null,
+          payment_method: paymentMethod,
+          payment_reference:
+            paymentMethod !== 'cash' && paymentType !== 'credit' ? paymentReference.trim() || null : null,
+          discount_type: discountType,
+          discount_value: discountValue,
+          tax_percentage: taxOverride,
+          mark_paid: paymentType === 'paid',
+          client_reference_id: idempotencyKeyRef.current,
+        });
+        const full = await posApi.getInvoice(billed.invoice_id);
+        setCompletedInvoice(full);
+        queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+        return;
+      }
+
       const invoice = await createInvoice.mutateAsync({
         customer_id: customerId,
         customer_name: customerName || null,
@@ -334,6 +392,10 @@ export function POSPage() {
             outstandingEnabled={outstandingEnabled}
             paymentReference={paymentReference}
             onPaymentReferenceChange={setPaymentReference}
+            tableId={tableId}
+            onTableIdChange={setTableId}
+            onPrintKot={() => printKot.mutate()}
+            isPrintingKot={printKot.isPending}
             amountTendered={amountTendered}
             onAmountTenderedChange={setAmountTendered}
             paidNow={paidNow}

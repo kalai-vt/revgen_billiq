@@ -73,7 +73,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     icon: UtensilsCrossed,
     children: [
       { to: '/restaurant/tables', label: 'Tables', icon: LayoutGrid, roles: ['owner', 'manager', 'staff'], moduleKey: 'restaurant' },
-      { to: '/restaurant/kitchen', label: 'Kitchen', icon: ChefHat, roles: ['owner', 'manager', 'staff'], moduleKey: 'kot' },
+      { to: '/restaurant/kitchen', label: 'Kitchen KOT', icon: ChefHat, roles: ['owner', 'manager', 'staff'], moduleKey: 'kot' },
       { to: '/restaurant/setup', label: 'Table Setup', icon: Settings2, roles: ['owner', 'manager'], moduleKey: 'table_management' },
     ],
   },

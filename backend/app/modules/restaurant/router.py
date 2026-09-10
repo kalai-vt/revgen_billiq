@@ -14,6 +14,7 @@ from app.models.user import User
 from app.modules.restaurant import service
 from app.modules.restaurant.service import RestaurantError
 from app.schemas.restaurant import (
+    TableQuickBillRequest,
     FloorCreate,
     FloorLayoutOut,
     FloorOut,
@@ -376,6 +377,35 @@ def post_bill(
     except RestaurantError as err:
         raise _handle(err) from err
     return make_response(True, "Order billed", {"invoice_id": invoice.id, "invoice_number": invoice.invoice_number})
+
+
+@router.post("/tables/{table_id}/order", dependencies=[Depends(require_feature("table_management"))])
+def post_open_table_order(
+    table_id: str,
+    items: list[OrderItemCreate],
+    current_user: User = Depends(require_role("owner", "manager", "staff")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Open (or reuse) the table's running order and append these items to it."""
+    try:
+        order = service.open_table_order(db, current_user.tenant_id, current_user, table_id, items)
+    except RestaurantError as err:
+        raise _handle(err) from err
+    return make_response(True, "Order opened", _order_out(db, order))
+
+
+@router.post("/tables/quick-bill", dependencies=[Depends(require_feature("table_management"))])
+def post_table_quick_bill(
+    payload: TableQuickBillRequest,
+    current_user: User = Depends(require_role("owner", "manager", "staff")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Bill a cart directly to a table from the POS screen, without walking the table board."""
+    try:
+        invoice = service.quick_bill_table(db, current_user.tenant_id, current_user, payload)
+    except RestaurantError as err:
+        raise _handle(err) from err
+    return make_response(True, "Table billed", {"invoice_id": invoice.id, "invoice_number": invoice.invoice_number})
 
 
 # ---- KOT ----

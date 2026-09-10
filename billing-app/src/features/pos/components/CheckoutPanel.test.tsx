@@ -44,6 +44,10 @@ const baseProps = {
   outstandingEnabled: false,
   paymentReference: '',
   onPaymentReferenceChange: vi.fn(),
+  tableId: '__no_table__',
+  onTableIdChange: vi.fn(),
+  onPrintKot: vi.fn(),
+  isPrintingKot: false,
   amountTendered: null,
   onAmountTenderedChange: vi.fn(),
   paidNow: null,
@@ -301,5 +305,37 @@ describe('CheckoutPanel — payment reference', () => {
     );
     await userEvent.type(screen.getByLabelText(/UPI Txn ID/i), '44');
     expect(onPaymentReferenceChange).toHaveBeenCalled();
+  });
+});
+
+describe('CheckoutPanel — Print Kitchen KOT', () => {
+  it('is offered next to Print Order Bill', () => {
+    render(<CheckoutPanel {...baseProps} />);
+    expect(screen.getByRole('button', { name: /print kitchen kot/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /print order bill/i })).toBeInTheDocument();
+  });
+
+  it('will not send a ticket with no table — the kitchen could not deliver it', () => {
+    render(<CheckoutPanel {...baseProps} tableId="__no_table__" />);
+    expect(screen.getByRole('button', { name: /print kitchen kot/i })).toBeDisabled();
+  });
+
+  it('sends once a table is picked', async () => {
+    const onPrintKot = vi.fn();
+    render(<CheckoutPanel {...baseProps} tableId="t1" onPrintKot={onPrintKot} />);
+    const button = screen.getByRole('button', { name: /print kitchen kot/i });
+    expect(button).not.toBeDisabled();
+    await userEvent.click(button);
+    expect(onPrintKot).toHaveBeenCalled();
+  });
+
+  it('disappears when the tenant turns the element off', () => {
+    render(<CheckoutPanel {...baseProps} checkoutConfig={configWith({ print_kot: false })} />);
+    expect(screen.queryByRole('button', { name: /print kitchen kot/i })).not.toBeInTheDocument();
+  });
+
+  it('Print Order Bill is now toggleable too', () => {
+    render(<CheckoutPanel {...baseProps} checkoutConfig={configWith({ print_order_bill: false })} />);
+    expect(screen.queryByRole('button', { name: /print order bill/i })).not.toBeInTheDocument();
   });
 });

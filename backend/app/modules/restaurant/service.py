@@ -25,6 +25,7 @@ from app.models.sales import Invoice
 from app.models.user import User
 from app.modules.sales import service as sales_service
 from app.schemas.restaurant import (
+    TableQuickBillRequest,
     KOT_TRANSITIONS,
     FloorCreate,
     FloorUpdate,
@@ -697,6 +698,63 @@ def mark_kot_printed(db: Session, tenant_id: str, kot_id: str) -> Kot:
 
 
 # ---- Billing ---------------------------------------------------------------------------------
+
+def open_table_order(
+    db: Session, tenant_id: str, current_user: User, table_id: str, items: list[OrderItemCreate]
+) -> RestaurantOrder:
+    """Get the table's open order, creating it if there isn't one, and append `items` to it.
+
+    The "fire this to the kitchen now, bill it later" half of counter-side dine-in. Appending to
+    the existing tab rather than opening a second order is the whole point: a table sends several
+    rounds to the kitchen across one sitting, and they all have to land on one bill.
+    """
+    table = get_table(db, tenant_id, table_id)
+    existing = _active_order_for_table(db, tenant_id, table.id)
+    if existing:
+        return add_items(db, tenant_id, existing.id, items) if items else existing
+    return create_order(
+        db,
+        tenant_id,
+        current_user,
+        OrderCreate(order_type="dine_in", table_id=table_id, items=items),
+    )
+
+
+def quick_bill_table(
+    db: Session, tenant_id: str, current_user: User, payload: TableQuickBillRequest
+) -> Invoice:
+    """Create the order for a table and bill it in one step.
+
+    Deliberately built on the ordinary order + bill path rather than a shortcut into the invoice
+    tables: a dine-in sale rung up at the counter has to leave exactly the same trail as one
+    started from the table board — a real RestaurantOrder, the table's status synced, and one
+    Invoice through the normal sales path — or table-wise reporting silently misses every sale
+    taken this way.
+
+    A table that already has an open tab gets the items appended to it and that tab billed, rather
+    than a second order: create_order refuses an occupied table outright (two live orders on one
+    table is the bug it prevents), so the existing one has to be found first.
+    """
+    table = get_table(db, tenant_id, payload.table_id)
+    existing = _active_order_for_table(db, tenant_id, table.id)
+    if existing:
+        order = add_items(db, tenant_id, existing.id, payload.items)
+    else:
+        order = create_order(
+            db,
+            tenant_id,
+            current_user,
+            OrderCreate(
+                order_type="dine_in",
+                table_id=payload.table_id,
+                customer_id=payload.customer_id,
+                customer_name=payload.customer_name,
+                customer_phone=payload.customer_phone,
+                items=payload.items,
+            ),
+        )
+    return bill_order(db, tenant_id, order.id, current_user, payload)
+
 
 def bill_order(db: Session, tenant_id: str, order_id: str, current_user: User, payload: OrderBillRequest) -> Invoice:
     """Turns the order into exactly one Invoice through the normal sales path.

@@ -1,4 +1,4 @@
-import { Printer, User } from 'lucide-react';
+import { ChefHat, Printer, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,6 +6,7 @@ import { CustomerPicker } from '@/features/pos/components/CustomerPicker';
 import { DiscountInput } from '@/features/pos/components/DiscountInput';
 import { TaxInput } from '@/features/pos/components/TaxInput';
 import { PaymentMethodSelector } from '@/features/pos/components/PaymentMethodSelector';
+import { TableSelector, NO_TABLE } from '@/features/pos/components/TableSelector';
 import { getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
 import type { CheckoutElementKey } from '@/features/pos/lib/checkoutElements';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
@@ -28,6 +29,11 @@ interface CheckoutPanelProps {
   outstandingEnabled: boolean;
   paymentReference: string;
   onPaymentReferenceChange: (value: string) => void;
+  /** Dine-in: which table this cart belongs to, or NO_TABLE for an ordinary counter sale. */
+  tableId: string;
+  onTableIdChange: (value: string) => void;
+  onPrintKot: () => void;
+  isPrintingKot: boolean;
   amountTendered: number | null;
   onAmountTenderedChange: (value: number | null) => void;
   paidNow: number | null;
@@ -72,6 +78,10 @@ export function CheckoutPanel({
   outstandingEnabled,
   paymentReference,
   onPaymentReferenceChange,
+  tableId,
+  onTableIdChange,
+  onPrintKot,
+  isPrintingKot,
   amountTendered,
   onAmountTenderedChange,
   paidNow,
@@ -99,6 +109,11 @@ export function CheckoutPanel({
   // Print Order Bill renders through the Invoice Designer template — hide it when that feature
   // isn't available on this tenant's plan rather than opening a tab that's guaranteed to fail.
   const invoiceDesignerEnabled = useFeatureFlag('invoice_designer');
+  const tableManagementEnabled = useFeatureFlag('table_management');
+  const kotEnabled = useFeatureFlag('kot');
+  // Both switches have to agree: the tenant's module has to be on AND the element left enabled.
+  const showPrintOrderBill = invoiceDesignerEnabled && checkoutConfig.print_order_bill;
+  const showPrintKot = kotEnabled && checkoutConfig.print_kot;
   const requiresCustomer = outstandingEnabled && paymentType !== 'paid';
   // Amount tendered is a cashier balance/change aid only — it must never block checkout, even
   // for the paid-in-full + cash default.
@@ -205,6 +220,10 @@ export function CheckoutPanel({
         </div>
       </div>
 
+      {checkoutConfig.table && tableManagementEnabled && (
+        <TableSelector value={tableId} onChange={onTableIdChange} />
+      )}
+
       <PaymentMethodSelector
         method={paymentMethod}
         onMethodChange={onPaymentMethodChange}
@@ -233,17 +252,36 @@ export function CheckoutPanel({
        * Print Order Bill is its own row — a pre-checkout step, distinct from the final actions
        * below it, that never touches the backend (see onPrintOrderBill's own doc comment). */}
       <div className="mt-auto flex flex-col gap-2 border-t pt-3">
-        {invoiceDesignerEnabled && (
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl text-xs"
-            disabled={lines.length === 0}
-            onClick={onPrintOrderBill}
-          >
-            <Printer className="size-4" />
-            Print Order Bill
-          </Button>
+        {(showPrintOrderBill || showPrintKot) && (
+          <div className="flex gap-2">
+            {showPrintOrderBill && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-xl text-xs"
+                disabled={lines.length === 0}
+                onClick={onPrintOrderBill}
+              >
+                <Printer className="size-4" />
+                Print Order Bill
+              </Button>
+            )}
+            {showPrintKot && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-xl text-xs"
+                // A KOT with no table is a ticket the kitchen can't deliver against, so the
+                // table has to be picked first.
+                disabled={lines.length === 0 || tableId === NO_TABLE || isPrintingKot}
+                title={tableId === NO_TABLE ? 'Pick a table first — a kitchen ticket needs one' : undefined}
+                onClick={onPrintKot}
+              >
+                <ChefHat className="size-4" />
+                {isPrintingKot ? 'Sending…' : 'Print Kitchen KOT'}
+              </Button>
+            )}
+          </div>
         )}
         <div className="flex gap-2">
           {checkoutConfig.hold_bill && (
