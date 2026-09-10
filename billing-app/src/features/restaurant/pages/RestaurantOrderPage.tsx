@@ -20,7 +20,6 @@ import { kotPrintFailureMessage, printKot, type KotPrintResult } from '@/feature
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
-import { appPath } from '@/lib/app-path';
 import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 
@@ -189,7 +188,7 @@ export function RestaurantOrderPage() {
       toast.success(`Billed as ${result.invoice_number}`);
       setBillOpen(false);
       refresh();
-      navigate(appPath('/restaurant/tables'));
+      navigate('/restaurant/tables');
     },
     onError: (err) => fail(err, 'Could not bill this order'),
   });
@@ -225,7 +224,7 @@ export function RestaurantOrderPage() {
       queryClient.invalidateQueries({ queryKey: ['restaurant'] });
       // Land on the new bill: the reason to split is to take payment for it, and that happens on
       // the new order, not this one.
-      navigate(appPath(`/restaurant/orders/${newOrder.id}`));
+      navigate(`/restaurant/orders/${newOrder.id}`);
     },
     onError: (err) => fail(err, 'Could not split this order'),
   });
@@ -267,7 +266,7 @@ export function RestaurantOrderPage() {
             {(order.totals?.total ?? 0).toFixed(2)}
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate(appPath('/restaurant/tables'))}>
+        <Button variant="outline" onClick={() => navigate('/restaurant/tables')}>
           Back to tables
         </Button>
       </div>

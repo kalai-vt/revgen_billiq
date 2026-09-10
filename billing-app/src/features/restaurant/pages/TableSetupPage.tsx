@@ -79,6 +79,11 @@ export function TableSetupPage() {
     onError: (err) => fail(err, 'Could not remove that table'),
   });
 
+  function floorLabel(value: string | null): string {
+    if (!value || value === UNASSIGNED) return 'No floor';
+    return (floors ?? []).find((floor) => floor.id === value)?.name ?? 'No floor';
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -148,7 +153,11 @@ export function TableSetupPage() {
             <div className="space-y-1.5 sm:col-span-2">
               <Label>Floor</Label>
               <Select value={tableFloorId} onValueChange={(value) => setTableFloorId(value ?? UNASSIGNED)}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full">
+                  {/* base-ui renders the raw value unless given a mapper, and the raw value here
+                      is a floor UUID — meaningless to whoever is setting up the room. */}
+                  <SelectValue>{(value: string | null) => floorLabel(value)}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>No floor</SelectItem>
                   {(floors ?? []).map((floor) => (

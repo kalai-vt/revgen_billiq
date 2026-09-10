@@ -268,4 +268,19 @@ class OrderBillRequest(BaseModel):
     client_reference_id: str | None = Field(default=None, max_length=64)
 
 
+class TableQuickBillRequest(OrderBillRequest):
+    """Bill a cart straight to a table from the POS screen, without walking the table board first.
+
+    The dine-in flow (board -> order -> bill) still exists and is the right one for a running tab.
+    This is the counter-style case: the cashier already has the cart in front of them and just
+    needs the sale attributed to a table.
+    """
+
+    table_id: str
+    items: list[OrderItemCreate] = Field(min_length=1)
+    customer_id: str | None = None
+    customer_name: str | None = Field(default=None, max_length=150)
+    customer_phone: str | None = Field(default=None, max_length=50)
+
+
 OrderOut.model_rebuild()

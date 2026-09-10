@@ -58,6 +58,12 @@ CHECKOUT_ELEMENT_REGISTRY: list[CheckoutElement] = [
     _e("amount_tendered", "Amount Tendered", "cashier_tools"),
     _e("change_due", "Change Due", "cashier_tools"),
     _e("hold_bill", "Hold Bill", "cashier_tools"),
+    # Dine-in: pick the table this cart belongs to, so the sale is attributed to it and the table
+    # shows occupied on the board. Restaurant-only, hence the module dependency — a pharmacy has
+    # no tables to pick.
+    _e("table", "Table", "cashier_tools", depends_on_module="table_management"),
+    _e("print_order_bill", "Print Order Bill", "cashier_tools", depends_on_module="invoice_designer"),
+    _e("print_kot", "Print Kitchen KOT", "cashier_tools", depends_on_module="kot"),
 ]
 
 CHECKOUT_ELEMENT_BY_KEY: dict[str, CheckoutElement] = {e["key"]: e for e in CHECKOUT_ELEMENT_REGISTRY}

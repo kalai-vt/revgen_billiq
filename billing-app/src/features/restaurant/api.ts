@@ -254,6 +254,28 @@ export function splitOrder(
   });
 }
 
+/** Opens (or reuses) the table's running order and appends these items — the "fire to the kitchen
+ * now, bill later" step from the Billing screen. */
+export function openTableOrder(tableId: string, items: OrderItemInput[]): Promise<RestaurantOrder> {
+  return request(`/api/restaurant/tables/${tableId}/order`, { method: 'POST', body: JSON.stringify(items) });
+}
+
+export interface TableQuickBillPayload extends BillOrderPayload {
+  table_id: string;
+  items: OrderItemInput[];
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+}
+
+/** Bills a cart straight to a table from the Billing screen. The table board flow still exists for
+ * a running tab; this is the counter-style case where the cart is already rung up. */
+export function quickBillTable(
+  payload: TableQuickBillPayload,
+): Promise<{ invoice_id: string; invoice_number: string }> {
+  return request('/api/restaurant/tables/quick-bill', { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export interface BillOrderPayload {
   payment_method?: 'cash' | 'card' | 'upi';
   payment_reference?: string | null;

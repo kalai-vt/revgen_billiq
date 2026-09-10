@@ -211,7 +211,7 @@ export const router = createBrowserRouter([
                   {
                     path: '/restaurant/kitchen',
                     element: (
-                      <RequireModule moduleKey="kot" label="Kitchen">
+                      <RequireModule moduleKey="kot" label="Kitchen KOT">
                         <KitchenPage />
                       </RequireModule>
                     ),
