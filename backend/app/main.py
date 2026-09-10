@@ -57,6 +57,7 @@ from app.modules.promotion.router import router as promotion_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.payments.router import router as payments_router
 from app.modules.pos.router import router as pos_router
+from app.modules.restaurant.router import router as restaurant_router
 from app.modules.procurement.analytics_router import router as procurement_analytics_router
 from app.modules.procurement.dashboard_router import router as procurement_dashboard_router
 from app.modules.procurement.purchases_router import router as procurement_purchases_router
@@ -170,6 +171,7 @@ app.include_router(procurement_vendor_payments_router)
 app.include_router(procurement_dashboard_router)
 app.include_router(procurement_analytics_router)
 app.include_router(pos_router)
+app.include_router(restaurant_router)
 app.include_router(printing_router)
 app.include_router(sales_router)
 app.include_router(invoice_designer_router)

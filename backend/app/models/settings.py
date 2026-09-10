@@ -57,6 +57,14 @@ class Settings(Base):
     # guessing one ("qz" on desktop) made an unconfigured till claim a transport it did not
     # have, so printing fell through to the browser dialog with no explanation.
     auto_print_device_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # UPI payment collection. `upi_vpa` is the merchant's own VPA ("business@upi") and is the one
+    # field a payable QR cannot be built without: a `upi://pay` link with no `pa=` parameter is
+    # not payable by any UPI app, which is exactly why the pre-existing payment QR only looked
+    # like it worked. `upi_merchant_name` is the payee name the customer sees in their bank app,
+    # falling back to the tenant's company name when unset.
+    upi_vpa: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    upi_merchant_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     enable_barcode: Mapped[bool] = mapped_column(Boolean, default=True)
     enable_customer_selection: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_negative_stock: Mapped[bool] = mapped_column(Boolean, default=True)

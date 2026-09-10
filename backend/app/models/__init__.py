@@ -22,6 +22,14 @@ from app.models.support_ticket import SupportTicket, SupportTicketMessage
 from app.models.tenant_limit import TenantLimitOverride
 from app.models.promotion import PromotionConfig, PromotionEvent
 from app.models.print_agent import PairingCode, PrintAgentDevice, PrintJob
+from app.models.restaurant import (
+    Kot,
+    KotItem,
+    RestaurantFloor,
+    RestaurantOrder,
+    RestaurantOrderItem,
+    RestaurantTable,
+)
 
 __all__ = [
     "Tenant",
@@ -68,4 +76,10 @@ __all__ = [
     "PairingCode",
     "PrintAgentDevice",
     "PrintJob",
+    "RestaurantFloor",
+    "RestaurantTable",
+    "RestaurantOrder",
+    "RestaurantOrderItem",
+    "Kot",
+    "KotItem",
 ]

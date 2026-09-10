@@ -6,7 +6,10 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 Category = Literal["core", "business", "ai", "premium"]
-Domain = Literal["customers", "templates", "analytics", "general", "procurement", "commerce"]
+# Must stay in lockstep with app/core/feature_catalog.py's own Domain — this schema validates
+# the catalog's rows, so a domain added there and not here fails the whole Feature Management
+# response rather than just the new module.
+Domain = Literal["customers", "templates", "analytics", "general", "procurement", "commerce", "restaurant"]
 FlagStatus = Literal["enabled", "disabled", "suspended"]
 AccessLevel = Literal["full_access", "read_only"]
 

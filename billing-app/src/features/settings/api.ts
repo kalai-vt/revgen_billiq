@@ -35,6 +35,8 @@ export interface Settings {
   auto_print_printer_name: string | null;
   auto_print_paper_size: AutoPrintPaperSize;
   auto_print_device_mode: AutoPrintDeviceMode | null;
+  upi_vpa: string | null;
+  upi_merchant_name: string | null;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   allow_negative_stock: boolean;
@@ -76,6 +78,8 @@ export interface SettingsUpdatePayload {
   auto_print_printer_name?: string | null;
   auto_print_paper_size?: AutoPrintPaperSize;
   auto_print_device_mode?: AutoPrintDeviceMode | null;
+  upi_vpa?: string | null;
+  upi_merchant_name?: string | null;
   enable_barcode?: boolean;
   enable_customer_selection?: boolean;
   allow_negative_stock?: boolean;
@@ -109,6 +113,8 @@ export interface BusinessPreferences {
   auto_print_printer_name: string | null;
   auto_print_paper_size: AutoPrintPaperSize;
   auto_print_device_mode: AutoPrintDeviceMode | null;
+  upi_vpa: string | null;
+  upi_merchant_name: string | null;
   enable_barcode: boolean;
   enable_customer_selection: boolean;
   default_payment_method: DefaultPaymentMethod;

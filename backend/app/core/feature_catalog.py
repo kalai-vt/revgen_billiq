@@ -10,7 +10,7 @@ from typing import Literal, TypedDict
 
 Category = Literal["core", "business", "ai", "premium"]
 ConfigFieldType = Literal["number", "boolean", "text"]
-Domain = Literal["customers", "templates", "analytics", "general", "procurement", "commerce"]
+Domain = Literal["customers", "templates", "analytics", "general", "procurement", "commerce", "restaurant"]
 
 
 class ConfigField(TypedDict):
@@ -115,6 +115,23 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("commerce_zomato", "Zomato Integration", "Import and auto-bill Zomato orders.", "business", domain="commerce", is_implemented=True, requires=["commerce"]),
     _m("commerce_analytics", "Commerce Analytics", "Online order revenue, channel, and product analytics.", "business", domain="commerce", is_implemented=True, requires=["commerce"]),
 
+    # ---- Restaurant (dine-in table service). The chain the whole module is built around is
+    # Table -> Order -> KOT -> Invoice -> Payment: an order belongs to a table, a KOT is a subset
+    # of that order's items sent to the kitchen, and the invoice is generated from the order (not
+    # a second, independent sale) so table-wise and KOT reporting stay auditable. ----
+    _m("restaurant", "Restaurant", "Dine-in table service, orders, and kitchen tickets.", "business", domain="restaurant", is_implemented=True, requires=["pos_billing"]),
+    _m("floor_management", "Floor Management", "Group tables into floors/sections.", "business", domain="restaurant", is_implemented=True, requires=["restaurant"]),
+    _m("table_management", "Table Management", "Create and manage restaurant tables.", "business", domain="restaurant", is_implemented=True, requires=["restaurant"], config_schema=[
+        {"key": "max_tables", "label": "Maximum tables", "type": "number", "default": 50},
+    ]),
+    _m("kot", "KOT", "Kitchen Order Tickets with kitchen status tracking.", "business", domain="restaurant", is_implemented=True, requires=["restaurant"], config_schema=[
+        {"key": "kot_printing", "label": "KOT printing", "type": "boolean", "default": True},
+    ]),
+    _m("table_transfer", "Table Transfer", "Move an active order to another table.", "business", domain="restaurant", is_implemented=True, requires=["restaurant", "table_management"]),
+    _m("table_merge", "Table Merge", "Combine multiple table orders into one.", "business", domain="restaurant", is_implemented=True, requires=["restaurant", "table_management"]),
+    _m("table_split", "Table Split", "Split a table order into separate bills.", "business", domain="restaurant", is_implemented=True, requires=["restaurant", "table_management"]),
+    _m("restaurant_reports", "Restaurant Reports", "Table-wise sales, KOT, and dine-in reporting.", "business", domain="restaurant", is_implemented=True, requires=["restaurant"]),
+
     # ---- Business Modules (roadmap) ----
     _m("purchase", "Purchase", "Purchase order management.", "business"),
     _m("suppliers", "Suppliers", "Supplier directory and management.", "business"),
@@ -149,7 +166,13 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("email_integration", "Email Integration", "Send invoices and receipts via email.", "premium"),
     _m("payment_gateway", "Payment Gateway", "Online payment collection.", "premium"),
     _m("barcode_printing", "Barcode Printing", "Print physical barcode labels.", "premium", requires=["inventory"]),
-    _m("qr_payments", "QR Payments", "Accept payments via QR code.", "premium", requires=["payment_gateway"]),
+    # Deliberately does NOT require payment_gateway: a UPI QR (static business VPA, or dynamic
+    # with the exact bill amount) is a `upi://pay` deep link the customer's own bank app acts on,
+    # so it needs a merchant VPA and nothing else. Only *automatic* confirmation of those payments
+    # needs a provider, which is what payment_verification below gates — scanning a QR is never by
+    # itself proof the bill was paid.
+    _m("qr_payments", "QR Payments", "Accept payments via UPI QR code.", "premium", is_implemented=True, requires=["pos_billing"]),
+    _m("payment_verification", "Payment Verification", "Automatically confirm UPI payments via a provider webhook.", "premium", requires=["payment_gateway", "qr_payments"]),
     _m("api_access", "API Access", "Programmatic access via API keys.", "premium"),
     _m("custom_branding", "Custom Branding", "Upload a logo and brand the invoices.", "premium", is_implemented=True),
     _m("white_label", "White Label", "Remove RevGen BillIQ branding entirely.", "premium", requires=["custom_branding"]),

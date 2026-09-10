@@ -25,6 +25,8 @@ export function BillingSettingsForm() {
     currency: 'INR',
     theme: 'light',
     allow_manager_price_override: false,
+    upi_vpa: '',
+    upi_merchant_name: '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +38,8 @@ export function BillingSettingsForm() {
         currency: settings.currency,
         theme: settings.theme,
         allow_manager_price_override: settings.allow_manager_price_override,
+        upi_vpa: settings.upi_vpa ?? '',
+        upi_merchant_name: settings.upi_merchant_name ?? '',
       });
       setTheme(settings.theme);
     }
@@ -47,6 +51,8 @@ export function BillingSettingsForm() {
       settingsApi.updateSettings({
         ...form,
         gst_number: form.gst_number || null,
+        upi_vpa: form.upi_vpa || null,
+        upi_merchant_name: form.upi_merchant_name || null,
       }),
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
@@ -104,6 +110,31 @@ export function BillingSettingsForm() {
           value={form.currency ?? ''}
           onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
         />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="upi-vpa">UPI ID</Label>
+        <Input
+          id="upi-vpa"
+          placeholder="business@upi"
+          value={form.upi_vpa ?? ''}
+          onChange={(e) => setForm((prev) => ({ ...prev, upi_vpa: e.target.value.trim() }))}
+        />
+        <p className="text-xs text-muted-foreground">
+          Required for the payment QR code on invoices and receipts — without it there is no payee to pay, so
+          the QR is hidden rather than printed unpayable.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="upi-merchant-name">UPI payee name</Label>
+        <Input
+          id="upi-merchant-name"
+          placeholder={settings?.upi_merchant_name ?? 'Your business name'}
+          value={form.upi_merchant_name ?? ''}
+          onChange={(e) => setForm((prev) => ({ ...prev, upi_merchant_name: e.target.value }))}
+        />
+        <p className="text-xs text-muted-foreground">
+          The name customers see in their UPI app. Defaults to your business name.
+        </p>
       </div>
       <LogoUploadControl logoUrl={settings?.logo_url} />
       <div className="space-y-1.5">

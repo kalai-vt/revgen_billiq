@@ -30,6 +30,10 @@ Orientation = Literal["portrait", "landscape"]
 LogoSizePreset = Literal["sm", "md", "lg"]
 PromotionLayout = Literal["compact", "standard", "banner"]
 PromotionSpacing = Literal["compact", "normal", "relaxed"]
+PaymentQrPosition = Literal["header", "footer", "payment_section"]
+PaymentQrSize = Literal["sm", "md", "lg"]
+# "unpaid_only" is the sensible default: a QR on a fully-settled bill invites a second payment.
+PaymentQrVisibility = Literal["always", "unpaid_only", "never"]
 
 
 class BrandingConfig(BaseModel):
@@ -140,11 +144,35 @@ class FooterConfig(BaseModel):
 
 class QrBarcodeConfig(BaseModel):
     invoice_qr: bool = False
+    # Legacy on/off for the payment QR, kept working for templates saved before the richer
+    # PaymentQrConfig below existed. Renderers treat either switch as "on" — see
+    # `payment_qr_enabled` — so an existing tenant's QR does not silently disappear.
     payment_qr: bool = False
     business_qr: bool = False
     website_qr: bool = False
     feedback_qr: bool = False
     barcode: bool = False
+
+
+class PaymentQrConfig(BaseModel):
+    """The Payment QR element: a real, placeable, configurable element rather than a fixed QR
+    bolted to the footer.
+
+    `visibility` is the conditional behaviour a partly-paid bill needs: "unpaid_only" hides the
+    QR once nothing is outstanding (there is nothing left to pay, and a scannable QR on a settled
+    bill invites a double payment), while "always" keeps it and lets the caption say Paid.
+    """
+
+    enabled: bool = False
+    label: str = Field(default="Scan to Pay", max_length=60)
+    position: PaymentQrPosition = "footer"
+    size: PaymentQrSize = "md"
+    # Encode the exact amount due (dynamic QR). Off means a static business QR the customer types
+    # the amount into — the two levels are the same element, one switch apart.
+    show_amount: bool = True
+    show_upi_id: bool = False
+    show_payment_status: bool = True
+    visibility: PaymentQrVisibility = "unpaid_only"
 
 
 class ThemeConfig(BaseModel):
@@ -210,6 +238,7 @@ class InvoiceTemplateConfig(BaseModel):
     tax_summary: TaxSummaryConfig = Field(default_factory=TaxSummaryConfig)
     footer: FooterConfig = Field(default_factory=FooterConfig)
     qr_barcode: QrBarcodeConfig = Field(default_factory=QrBarcodeConfig)
+    payment_qr: PaymentQrConfig = Field(default_factory=PaymentQrConfig)
     signature: SignatureConfig = Field(default_factory=SignatureConfig)
     billiq_promotion: BillIQPromotionConfig = Field(default_factory=BillIQPromotionConfig)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)

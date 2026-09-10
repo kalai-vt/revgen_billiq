@@ -43,6 +43,8 @@ class SettingsOut(BaseModel):
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize
     auto_print_device_mode: AutoPrintDeviceMode | None = None
+    upi_vpa: str | None = None
+    upi_merchant_name: str | None = None
     enable_barcode: bool
     enable_customer_selection: bool
     allow_negative_stock: bool
@@ -84,6 +86,8 @@ class SettingsUpdate(BaseModel):
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize | None = None
     auto_print_device_mode: AutoPrintDeviceMode | None = None
+    upi_vpa: str | None = Field(default=None, max_length=255)
+    upi_merchant_name: str | None = Field(default=None, max_length=100)
     enable_barcode: bool | None = None
     enable_customer_selection: bool | None = None
     allow_negative_stock: bool | None = None
@@ -164,6 +168,8 @@ class BusinessPreferencesOut(BaseModel):
     auto_print_printer_name: str | None = None
     auto_print_paper_size: AutoPrintPaperSize
     auto_print_device_mode: AutoPrintDeviceMode | None = None
+    upi_vpa: str | None = None
+    upi_merchant_name: str | None = None
     enable_barcode: bool
     enable_customer_selection: bool
     default_payment_method: DefaultPaymentMethod
