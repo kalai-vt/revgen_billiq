@@ -1,0 +1,349 @@
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { AlertTriangle, ChefHat, Loader2, Printer, Receipt, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
+import * as restaurantApi from '@/features/restaurant/api';
+import type { OrderItem, RestaurantOrder } from '@/features/restaurant/api';
+import type { Product } from '@/features/products/api';
+import { ApiError } from '@/lib/api-client';
+import { appPath } from '@/lib/app-path';
+import { apiErrorMessage } from '@/lib/query-error';
+import { cn } from '@/lib/utils';
+
+const KOT_STATUS_STYLES: Record<restaurantApi.KotStatus, string> = {
+  pending: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
+  preparing: 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200',
+  ready: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200',
+  served: 'bg-muted text-muted-foreground',
+  cancelled: 'bg-destructive/10 text-destructive',
+};
+
+function OrderLine({
+  item,
+  onChangeQuantity,
+  onRemove,
+  disabled,
+}: {
+  item: OrderItem;
+  onChangeQuantity: (quantity: number) => void;
+  onRemove: () => void;
+  disabled: boolean;
+}) {
+  // Anything already with the kitchen can't be quietly reduced or removed here — the server
+  // rejects it, so the UI shows why rather than letting the click fail.
+  const sent = item.sent_quantity > 0;
+  return (
+    <div className="flex items-center gap-2 border-b py-2 last:border-b-0">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{item.product_name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {item.unit_price.toFixed(2)} each
+          {sent && ` · ${item.sent_quantity} sent to kitchen`}
+        </p>
+        {item.notes && <p className="text-[11px] italic text-muted-foreground">{item.notes}</p>}
+      </div>
+      <Input
+        type="number"
+        min={item.sent_quantity || 1}
+        step="1"
+        value={item.quantity}
+        disabled={disabled}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (next > 0) onChangeQuantity(next);
+        }}
+        className="h-8 w-16 text-center"
+      />
+      <span className="w-20 text-right text-sm font-medium">{item.line_total.toFixed(2)}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        disabled={disabled || sent}
+        title={sent ? 'Already sent to the kitchen — cancel its KOT instead' : 'Remove'}
+        onClick={onRemove}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
+  );
+}
+
+export function RestaurantOrderPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancellingKotId, setCancellingKotId] = useState<string | null>(null);
+
+  const { data: order, isLoading, error } = useQuery({
+    queryKey: ['restaurant', 'order', id],
+    queryFn: () => restaurantApi.getOrder(id!),
+    enabled: !!id,
+  });
+
+  function refresh(updated?: RestaurantOrder) {
+    if (updated) queryClient.setQueryData(['restaurant', 'order', id], updated);
+    queryClient.invalidateQueries({ queryKey: ['restaurant', 'order', id] });
+    queryClient.invalidateQueries({ queryKey: ['restaurant', 'layout'] });
+  }
+
+  function fail(err: unknown, fallback: string) {
+    toast.error(err instanceof ApiError ? err.message : fallback);
+  }
+
+  const addItem = useMutation({
+    mutationFn: (product: Product) =>
+      restaurantApi.addOrderItems(id!, [{ product_id: product.id, quantity: 1 }]),
+    onSuccess: (updated) => refresh(updated),
+    onError: (err) => fail(err, 'Could not add that item'),
+  });
+
+  const changeQuantity = useMutation({
+    mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
+      restaurantApi.updateOrderItem(id!, itemId, { quantity }),
+    onSuccess: (updated) => refresh(updated),
+    onError: (err) => fail(err, 'Could not update that item'),
+  });
+
+  const removeItem = useMutation({
+    mutationFn: (itemId: string) => restaurantApi.removeOrderItem(id!, itemId),
+    onSuccess: (updated) => refresh(updated),
+    onError: (err) => fail(err, 'Could not remove that item'),
+  });
+
+  const sendKot = useMutation({
+    mutationFn: () => restaurantApi.createKot(id!, {}),
+    onSuccess: (kot) => {
+      toast.success(`${kot.kot_number} sent to the kitchen`);
+      refresh();
+    },
+    onError: (err) => fail(err, 'Could not send this order to the kitchen'),
+  });
+
+  const reprintKot = useMutation({
+    mutationFn: (kotId: string) => restaurantApi.markKotPrinted(kotId),
+    onSuccess: () => {
+      toast.success('KOT reprinted');
+      refresh();
+    },
+    onError: (err) => fail(err, 'Could not reprint that KOT'),
+  });
+
+  const cancelKot = useMutation({
+    mutationFn: ({ kotId, reason }: { kotId: string; reason: string }) => restaurantApi.cancelKot(kotId, reason),
+    onSuccess: () => {
+      toast.success('KOT cancelled');
+      setCancellingKotId(null);
+      setCancelReason('');
+      refresh();
+    },
+    onError: (err) => fail(err, 'Could not cancel that KOT'),
+  });
+
+  const billOrder = useMutation({
+    mutationFn: () => restaurantApi.billOrder(id!, { payment_method: 'cash' }),
+    onSuccess: (result) => {
+      toast.success(`Billed as ${result.invoice_number}`);
+      refresh();
+      navigate(appPath('/restaurant/tables'));
+    },
+    onError: (err) => fail(err, 'Could not bill this order'),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="Couldn't load this order"
+        description={apiErrorMessage(error, 'Something went wrong loading the order.')}
+      />
+    );
+  }
+
+  const isOpen = order.status === 'open';
+  const unsent = order.items.reduce((sum, item) => sum + Math.max(0, item.quantity - item.sent_quantity), 0);
+  const activeKots = order.kots.filter((k) => k.status !== 'cancelled');
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="flex items-center gap-2 text-lg font-semibold">
+            {order.table_name ? `Table ${order.table_name}` : 'Takeaway'}
+            <Badge variant="secondary">{order.order_number}</Badge>
+            {!isOpen && <Badge variant="outline">{order.status}</Badge>}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {order.items.length} item{order.items.length === 1 ? '' : 's'} · Total{' '}
+            {(order.totals?.total ?? 0).toFixed(2)}
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => navigate(appPath('/restaurant/tables'))}>
+          Back to tables
+        </Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          {isOpen && (
+            <Card className="h-[320px] p-3">
+              <ProductSearchPanel onAdd={(product) => addItem.mutate(product)} />
+            </Card>
+          )}
+
+          <Card className="p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium">Order items</p>
+              {unsent > 0 && <Badge variant="outline">{unsent} not yet sent</Badge>}
+            </div>
+            {order.items.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Nothing on this order yet — search for a dish above to add it.
+              </p>
+            ) : (
+              order.items.map((item) => (
+                <OrderLine
+                  key={item.id}
+                  item={item}
+                  disabled={!isOpen}
+                  onChangeQuantity={(quantity) => changeQuantity.mutate({ itemId: item.id, quantity })}
+                  onRemove={() => removeItem.mutate(item.id)}
+                />
+              ))
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card className="space-y-3 p-4">
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{(order.totals?.subtotal ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Tax</span>
+                <span>{(order.totals?.tax_amount ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1 text-base font-semibold">
+                <span>Total</span>
+                <span>{(order.totals?.total ?? 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {isOpen && (
+              <div className="space-y-2">
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  disabled={unsent === 0 || sendKot.isPending}
+                  onClick={() => sendKot.mutate()}
+                  title={unsent === 0 ? 'Everything has already gone to the kitchen' : undefined}
+                >
+                  {sendKot.isPending ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />}
+                  Send to kitchen
+                </Button>
+                <Button
+                  className="w-full"
+                  disabled={order.items.length === 0 || billOrder.isPending}
+                  onClick={() => billOrder.mutate()}
+                >
+                  {billOrder.isPending ? <Loader2 className="size-4 animate-spin" /> : <Receipt className="size-4" />}
+                  Bill & close table
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-4">
+            <p className="mb-2 text-sm font-medium">Kitchen tickets</p>
+            {activeKots.length === 0 && order.kots.length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">Nothing sent to the kitchen yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {order.kots.map((kot) => (
+                  <div key={kot.id} className="rounded-md border p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{kot.kot_number}</span>
+                      <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', KOT_STATUS_STYLES[kot.status])}>
+                        {restaurantApi.KOT_STATUS_LABELS[kot.status]}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {kot.items.map((i) => `${i.quantity} × ${i.product_name}`).join(', ')}
+                    </p>
+                    {kot.cancel_reason && (
+                      <p className="mt-0.5 text-[11px] italic text-destructive">Cancelled: {kot.cancel_reason}</p>
+                    )}
+                    {kot.status !== 'cancelled' && (
+                      <div className="mt-1.5 flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => reprintKot.mutate(kot.id)}
+                        >
+                          <Printer className="size-3" />
+                          Reprint{kot.print_count > 0 ? ` (${kot.print_count})` : ''}
+                        </Button>
+                        {kot.status !== 'served' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-destructive"
+                            onClick={() => setCancellingKotId(cancellingKotId === kot.id ? null : kot.id)}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {cancellingKotId === kot.id && (
+                      <div className="mt-2 space-y-1.5">
+                        {/* A reason is required: cancelling means food may already be cooking, so
+                            the trail for why it was pulled matters. */}
+                        <Input
+                          placeholder="Reason for cancelling…"
+                          value={cancelReason}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 w-full text-xs"
+                          disabled={!cancelReason.trim() || cancelKot.isPending}
+                          onClick={() => cancelKot.mutate({ kotId: kot.id, reason: cancelReason.trim() })}
+                        >
+                          Confirm cancellation
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
