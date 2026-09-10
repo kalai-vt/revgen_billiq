@@ -26,6 +26,8 @@ interface CheckoutPanelProps {
   paymentType: PaymentType;
   onPaymentTypeChange: (type: PaymentType) => void;
   outstandingEnabled: boolean;
+  paymentReference: string;
+  onPaymentReferenceChange: (value: string) => void;
   amountTendered: number | null;
   onAmountTenderedChange: (value: number | null) => void;
   paidNow: number | null;
@@ -68,6 +70,8 @@ export function CheckoutPanel({
   paymentType,
   onPaymentTypeChange,
   outstandingEnabled,
+  paymentReference,
+  onPaymentReferenceChange,
   amountTendered,
   onAmountTenderedChange,
   paidNow,
@@ -209,6 +213,9 @@ export function CheckoutPanel({
         onPaymentTypeChange={onPaymentTypeChange}
         visiblePaymentTypes={visiblePaymentTypes}
         showPaymentType={outstandingEnabled}
+        paymentReference={paymentReference}
+        onPaymentReferenceChange={onPaymentReferenceChange}
+        showPaymentReference={checkoutConfig.payment_reference}
         amountTendered={amountTendered}
         onAmountTenderedChange={onAmountTenderedChange}
         showAmountTendered={checkoutConfig.amount_tendered}

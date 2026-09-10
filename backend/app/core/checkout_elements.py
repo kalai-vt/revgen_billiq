@@ -54,6 +54,7 @@ CHECKOUT_ELEMENT_REGISTRY: list[CheckoutElement] = [
     _e("cash", "Cash", "payment_method"),
     _e("card", "Card", "payment_method"),
     _e("upi", "UPI", "payment_method"),
+    _e("payment_reference", "Payment Reference", "payment_method"),
     _e("amount_tendered", "Amount Tendered", "cashier_tools"),
     _e("change_due", "Change Due", "cashier_tools"),
     _e("hold_bill", "Hold Bill", "cashier_tools"),

@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render as rtlRender, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CheckoutPanel } from '@/features/pos/components/CheckoutPanel';
 import { DEFAULT_CHECKOUT_CONFIG, type CheckoutElementKey } from '@/features/pos/lib/checkoutElements';
@@ -41,6 +42,8 @@ const baseProps = {
   paymentType: 'paid' as const,
   onPaymentTypeChange: vi.fn(),
   outstandingEnabled: false,
+  paymentReference: '',
+  onPaymentReferenceChange: vi.fn(),
   amountTendered: null,
   onAmountTenderedChange: vi.fn(),
   paidNow: null,
@@ -262,5 +265,41 @@ describe('CheckoutPanel — Print Order Bill', () => {
   it('Print Order Bill is disabled for an empty cart, same as Checkout', () => {
     render(<CheckoutPanel {...baseProps} lines={[]} totals={{ ...baseProps.totals, subtotal: 0, taxAmount: 0, total: 0 }} />);
     expect(screen.getByRole('button', { name: /print order bill/i })).toBeDisabled();
+  });
+});
+
+describe('CheckoutPanel — payment reference', () => {
+  it('is offered for UPI, where there is a transaction id to record', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="upi" />);
+    expect(screen.getByLabelText(/UPI Txn ID/i)).toBeInTheDocument();
+  });
+
+  it('is offered for card as an approval code', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="card" />);
+    expect(screen.getByLabelText(/Approval Code/i)).toBeInTheDocument();
+  });
+
+  it('is not offered for cash, which has no transaction id', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="cash" />);
+    expect(screen.queryByLabelText(/Txn ID|Approval Code/i)).not.toBeInTheDocument();
+  });
+
+  it('is not offered on a credit sale — nothing has been paid yet to reference', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="upi" paymentType="credit" outstandingEnabled />);
+    expect(screen.queryByLabelText(/Txn ID/i)).not.toBeInTheDocument();
+  });
+
+  it('disappears when the tenant turns the element off', () => {
+    render(<CheckoutPanel {...baseProps} paymentMethod="upi" checkoutConfig={configWith({ payment_reference: false })} />);
+    expect(screen.queryByLabelText(/Txn ID/i)).not.toBeInTheDocument();
+  });
+
+  it('reports what the cashier typed', async () => {
+    const onPaymentReferenceChange = vi.fn();
+    render(
+      <CheckoutPanel {...baseProps} paymentMethod="upi" onPaymentReferenceChange={onPaymentReferenceChange} />,
+    );
+    await userEvent.type(screen.getByLabelText(/UPI Txn ID/i), '44');
+    expect(onPaymentReferenceChange).toHaveBeenCalled();
   });
 });

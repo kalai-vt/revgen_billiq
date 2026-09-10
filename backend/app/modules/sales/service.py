@@ -392,6 +392,10 @@ def create_invoice(db: Session, tenant_id: str, current_user: User, payload: Inv
         tax_amount=tax_amount,
         total_amount=total_amount,
         payment_method=payload.payment_method,
+        # Stripped, and blank stored as NULL: a reference is matched character-for-character
+        # against a bank statement later, so a stray space from a barcode scanner or a paste is a
+        # failed match, and "" would read as "recorded, but blank".
+        payment_reference=((payload.payment_reference or "").strip() or None),
         amount_tendered=payload.amount_tendered,
         payment_status=payment_status,
         due_date=due_date,

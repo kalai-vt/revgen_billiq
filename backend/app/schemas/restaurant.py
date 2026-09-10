@@ -257,6 +257,7 @@ class OrderBillRequest(BaseModel):
     dine-in bill and a counter sale produce the same kind of invoice."""
 
     payment_method: Literal["cash", "card", "upi"] = "cash"
+    payment_reference: str | None = Field(default=None, max_length=80)
     discount_type: Literal["flat", "percent"] | None = None
     discount_value: float = Field(default=0.0, ge=0)
     tax_percentage: float | None = Field(default=None, ge=0, le=100)

@@ -726,6 +726,7 @@ def bill_order(db: Session, tenant_id: str, order_id: str, current_user: User, p
         discount_value=payload.discount_value,
         tax_percentage=payload.tax_percentage,
         payment_method=payload.payment_method,
+        payment_reference=payload.payment_reference,
         amount_tendered=payload.amount_tendered,
         payment_type="paid" if payload.mark_paid else "credit",
         paid_now=float(totals["total"]) if payload.mark_paid else 0.0,

@@ -41,6 +41,9 @@ export interface Invoice {
   tax_amount: number;
   total_amount: number;
   payment_method: PaymentMethod;
+  /** The UPI/card transaction id recorded at the till, for reconciling against a bank statement.
+   * Never proof of payment — nothing verifies it against a provider. */
+  payment_reference: string | null;
   amount_tendered: number | null;
   change_due: number | null;
   payment_status: InvoicePaymentStatus;
@@ -72,6 +75,7 @@ export interface InvoiceCreatePayload {
    * cart. See backend InvoiceCreate.tax_percentage's own comment for the full contract. */
   tax_percentage?: number | null;
   payment_method: PaymentMethod;
+  payment_reference?: string | null;
   amount_tendered?: number | null;
   payment_type?: PaymentType;
   paid_now?: number;

@@ -29,6 +29,7 @@ export function BillOrderDialog({ order, open, onOpenChange, onConfirm, isPendin
   const [discountType, setDiscountType] = useState<DiscountType>('none');
   const [discountValue, setDiscountValue] = useState('0');
   const [markPaid, setMarkPaid] = useState(true);
+  const [paymentReference, setPaymentReference] = useState('');
 
   const subtotal = order.totals?.total ?? 0;
   const discount =
@@ -44,6 +45,8 @@ export function BillOrderDialog({ order, open, onOpenChange, onConfirm, isPendin
   function handleConfirm() {
     onConfirm({
       payment_method: paymentMethod,
+      // Cash has no reference, so don't carry one over if the cashier switched methods.
+      payment_reference: paymentMethod === 'cash' ? null : paymentReference.trim() || null,
       discount_type: discountType === 'none' ? null : discountType,
       discount_value: discountType === 'none' ? 0 : Number(discountValue) || 0,
       mark_paid: markPaid,
@@ -77,6 +80,24 @@ export function BillOrderDialog({ order, open, onOpenChange, onConfirm, isPendin
               </p>
             )}
           </div>
+
+          {paymentMethod !== 'cash' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="bill-payment-reference">
+                {paymentMethod === 'upi' ? 'UPI transaction ID' : 'Card approval code'} (optional)
+              </Label>
+              <Input
+                id="bill-payment-reference"
+                value={paymentReference}
+                maxLength={80}
+                placeholder={paymentMethod === 'upi' ? 'e.g. 447190223344' : 'e.g. 004512'}
+                onChange={(e) => setPaymentReference(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Recorded on the invoice so this bill can be matched to the bank statement later.
+              </p>
+            </div>
+          )}
 
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1.5">

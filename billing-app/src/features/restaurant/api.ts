@@ -256,6 +256,7 @@ export function splitOrder(
 
 export interface BillOrderPayload {
   payment_method?: 'cash' | 'card' | 'upi';
+  payment_reference?: string | null;
   discount_type?: 'flat' | 'percent' | null;
   discount_value?: number;
   tax_percentage?: number | null;

@@ -51,6 +51,7 @@ export function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentType, setPaymentType] = useState<PaymentType>('paid');
   const [amountTendered, setAmountTendered] = useState<number | null>(null);
+  const [paymentReference, setPaymentReference] = useState('');
   const [paidNow, setPaidNow] = useState<number | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -222,6 +223,7 @@ export function POSPage() {
     setPaymentMethod(preferences?.default_payment_method ?? 'cash');
     setPaymentType('paid');
     setAmountTendered(null);
+    setPaymentReference('');
     setPaidNow(null);
     setDueDate('');
     setCustomerId(null);
@@ -250,6 +252,10 @@ export function POSPage() {
         discount_value: discountValue,
         tax_percentage: taxOverride,
         payment_method: paymentMethod,
+        // Cash has no transaction id, and a credit sale hasn't been paid yet — don't carry over a
+        // reference typed before the cashier switched method or payment type.
+        payment_reference:
+          paymentMethod !== 'cash' && paymentType !== 'credit' ? paymentReference.trim() || null : null,
         amount_tendered: paymentType === 'paid' && paymentMethod === 'cash' ? amountTendered : null,
         payment_type: paymentType,
         paid_now: paymentType === 'partial' ? (paidNow ?? 0) : paymentType === 'credit' ? 0 : undefined,
@@ -326,6 +332,8 @@ export function POSPage() {
             paymentType={paymentType}
             onPaymentTypeChange={setPaymentType}
             outstandingEnabled={outstandingEnabled}
+            paymentReference={paymentReference}
+            onPaymentReferenceChange={setPaymentReference}
             amountTendered={amountTendered}
             onAmountTenderedChange={setAmountTendered}
             paidNow={paidNow}

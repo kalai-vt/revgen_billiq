@@ -150,7 +150,9 @@ def test_full_chain_table_to_order_to_kot_to_invoice(client: TestClient, db_sess
         assert moved.json()["data"]["status"] == status
 
     billed = client.post(
-        f"/api/restaurant/orders/{order_data['id']}/bill", json={"payment_method": "upi"}, headers=headers
+        f"/api/restaurant/orders/{order_data['id']}/bill",
+        json={"payment_method": "upi", "payment_reference": "UPI-4471902233"},
+        headers=headers,
     )
     assert billed.status_code == 200, billed.text
     invoice_id = billed.json()["data"]["invoice_id"]
@@ -163,6 +165,9 @@ def test_full_chain_table_to_order_to_kot_to_invoice(client: TestClient, db_sess
     invoice = client.get(f"/api/invoices/{invoice_id}", headers=headers)
     assert invoice.status_code == 200, invoice.text
     assert invoice.json()["data"]["total_amount"] == 520.0
+    # The UPI transaction id reaches the invoice, which is what makes the bill reconcilable
+    # against a bank statement line later.
+    assert invoice.json()["data"]["payment_reference"] == "UPI-4471902233"
 
     # Billing releases the table back to the floor.
     after = client.get("/api/restaurant/layout", headers=headers).json()["data"]

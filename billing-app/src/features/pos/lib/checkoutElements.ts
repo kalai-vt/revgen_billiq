@@ -17,6 +17,7 @@ export type CheckoutElementKey =
   | 'cash'
   | 'card'
   | 'upi'
+  | 'payment_reference'
   | 'amount_tendered'
   | 'change_due'
   | 'hold_bill';
@@ -36,6 +37,7 @@ export const DEFAULT_CHECKOUT_CONFIG: Record<CheckoutElementKey, boolean> = {
   cash: true,
   card: true,
   upi: true,
+  payment_reference: true,
   amount_tendered: true,
   change_due: true,
   hold_bill: true,
@@ -54,6 +56,7 @@ export const ELEMENT_GROUPS: Record<CheckoutElementKey, string> = {
   cash: 'payment_method',
   card: 'payment_method',
   upi: 'payment_method',
+  payment_reference: 'payment_method',
   amount_tendered: 'cashier_tools',
   change_due: 'cashier_tools',
   hold_bill: 'cashier_tools',

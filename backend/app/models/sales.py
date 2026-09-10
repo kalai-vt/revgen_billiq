@@ -41,6 +41,11 @@ class Invoice(Base):
     tax_amount: Mapped[float] = mapped_column(Float, default=0.0)
     total_amount: Mapped[float] = mapped_column(Float, default=0.0, index=True)
     payment_method: Mapped[str] = mapped_column(String(10), default="cash")
+    # The UPI/card transaction id, as read off the customer's payment app or the card terminal.
+    # This is what lets a bill be matched back to a bank statement line; cash has none, so it is
+    # nullable. Recording it is NOT proof of payment — it is a reconciliation aid, and nothing in
+    # the app verifies it against a provider.
+    payment_reference: Mapped[str | None] = mapped_column(String(80), nullable=True)
     amount_tendered: Mapped[float | None] = mapped_column(Float, nullable=True)
     change_due: Mapped[float | None] = mapped_column(Float, nullable=True)
     payment_status: Mapped[str] = mapped_column(String(20), default="paid", index=True)
