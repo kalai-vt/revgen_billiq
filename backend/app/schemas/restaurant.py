@@ -248,8 +248,15 @@ class KotOut(BaseModel):
     notes: str | None = None
     cancel_reason: str | None = None
     print_count: int
+    # A ticket that failed to print stays visible and retryable rather than disappearing.
+    print_status: Literal["pending", "printed", "failed"] = "pending"
+    last_print_error: str | None = None
     created_at: datetime
     items: list[KotItemOut] = Field(default_factory=list)
+
+
+class KotPrintFailure(BaseModel):
+    error: str | None = Field(default=None, max_length=1000)
 
 
 class OrderBillRequest(BaseModel):

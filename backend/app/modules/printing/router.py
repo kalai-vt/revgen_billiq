@@ -8,13 +8,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_role
 from app.core.rate_limit import limiter
 from app.core.responses import make_response
 from app.models.user import User
 from app.modules.printing import service
 from app.modules.printing.service import PrintAgentError, QzSigningError
 from app.schemas.printing import (
+
     PairingCodeOut,
     PairRequest,
     PrintAgentDeviceOut,
@@ -22,7 +23,29 @@ from app.schemas.printing import (
     SessionTokenRequest,
 )
 
+from typing import Literal
+
+from app.models.printer_config import DEFAULT_TICKET_FIELDS, PrinterConfiguration
+from app.schemas.printer_config import (
+    ConnectionTestResult,
+    PrinterConfigurationOut,
+    PrinterConfigurationUpdate,
+    TicketFields,
+)
+
 router = APIRouter(prefix="/api/printing", tags=["printing"])
+
+PrinterRoleParam = Literal["kot", "bar", "tandoor", "label"]
+
+
+def _config_out(config: PrinterConfiguration) -> dict[str, Any]:
+    out = PrinterConfigurationOut.model_validate(config)
+    # ticket_fields is nullable in the DB (rows created before a default existed); the API always
+    # hands the client a complete object so it never has to guess a missing toggle's value.
+    out.ticket_fields = TicketFields(**(config.ticket_fields or DEFAULT_TICKET_FIELDS))
+    return out.model_dump(mode="json")
+
+
 
 
 @router.get("/qz-certificate")
@@ -144,3 +167,39 @@ def post_agent_device_revoke(
         "Device revoked",
         PrintAgentDeviceOut.model_validate(device).model_dump(mode="json"),
     )
+
+
+# ---- Printer destinations --------------------------------------------------------------------
+
+@router.get("/config/{role}")
+def get_printer_configuration(
+    role: PrinterRoleParam,
+    current_user: User = Depends(require_role("owner", "manager")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = service.get_printer_config(db, current_user.tenant_id, role)
+    return make_response(True, "Printer configuration loaded", _config_out(config))
+
+
+@router.put("/config/{role}")
+def put_printer_configuration(
+    role: PrinterRoleParam,
+    payload: PrinterConfigurationUpdate,
+    current_user: User = Depends(require_role("owner", "manager")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = service.update_printer_config(db, current_user.tenant_id, role, payload)
+    return make_response(True, "Printer configuration saved", _config_out(config))
+
+
+@router.post("/config/{role}/test-result")
+def post_connection_test_result(
+    role: PrinterRoleParam,
+    payload: ConnectionTestResult,
+    current_user: User = Depends(require_role("owner", "manager")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Records a test the *client* performed — the browser owns the USB/Bluetooth connection, so
+    it is the only side that knows whether the printer answered."""
+    config = service.record_connection_test(db, current_user.tenant_id, role, payload.ok, payload.error)
+    return make_response(True, "Test recorded", _config_out(config))

@@ -1,54 +1,51 @@
 /** Printing a Kitchen Order Ticket.
  *
- * Separate from the receipt path in `features/pos/lib/silentPrint.ts` for one reason that matters
- * physically: the KOT prints at the kitchen pass while the bill prints at the till, so it uses the
- * tenant's `kot_printer_name` rather than the billing printer. When that is blank it falls back to
- * the billing printer, which is what keeps a single-printer shop working with no extra setup.
+ * The kitchen printer is a separate configured destination from the billing printer (see
+ * `lib/printing/printerManager.ts`), because the KOT prints at the pass while the bill prints at
+ * the till. Which physical transport that destination uses — USB, Bluetooth, later a network
+ * printer through the Print Agent — is the printer manager's problem, not this file's.
  *
- * A KOT is always a thermal ticket — there is no PDF/A4 path, because an A4 kitchen ticket isn't a
- * thing — so this only ever sends raw ESC/POS.
+ * A KOT is always a thermal ticket: there is no PDF/A4 path, because an A4 kitchen ticket is not
+ * a thing.
  */
 
-import * as settingsApi from '@/features/settings/api';
 import type { Kot, RestaurantOrder } from '@/features/restaurant/api';
-import { resolveDeviceMode } from '@/lib/printing/deviceProfile';
-import * as qzTray from '@/lib/printing/qzTray';
-import * as printAgentClient from '@/lib/printing/printAgentClient';
-import * as webUsbPrinter from '@/lib/printing/webUsbPrinter';
-import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
-import { buildKotCommands, type KotTicketData } from '@/lib/printing/escpos';
+import * as printerApi from '@/features/settings/printerApi';
+import type { PrinterConfiguration, TicketFields } from '@/features/settings/printerApi';
+import {
+  printToConfiguredPrinter,
+  printFailureMessage,
+  type PrintOutcome,
+} from '@/lib/printing/printerManager';
+import { buildKotCommands, type KotTicketData, type ThermalPaperSize } from '@/lib/printing/escpos';
 
-export type KotPrintFailure = 'not-configured' | 'browser-dialog' | 'no-printer' | 'transport-failed';
+export type KotPrintResult = PrintOutcome;
 
-export type KotPrintResult = { ok: true } | { ok: false; reason: KotPrintFailure; detail?: string };
-
-/** What to tell the user when a ticket didn't reach the kitchen.
+/** What to tell staff when a ticket did not reach the kitchen.
  *
- * This never fails silently: a KOT that didn't print means the kitchen does not know about the
- * food, which is materially worse than a receipt that didn't print, so every failure has a
- * message telling the user to hand the ticket over or fix the setup.
+ * Never silent: a KOT that did not print means the kitchen does not know about the food, which is
+ * materially worse than a receipt that did not print. Every failure says to hand the ticket over.
  */
 export function kotPrintFailureMessage(result: Extract<KotPrintResult, { ok: false }>): string {
-  switch (result.reason) {
-    case 'not-configured':
-    case 'browser-dialog':
-      return 'Sent to the kitchen screen, but no kitchen printer is set up — tell the kitchen directly. Configure one in Settings › Automatic Printing.';
-    case 'no-printer':
-      return 'Sent to the kitchen screen, but no printer is selected for tickets — tell the kitchen directly.';
-    case 'transport-failed':
-      return `Sent to the kitchen screen, but the ticket didn't print${result.detail ? ` (${result.detail})` : ''} — tell the kitchen directly.`;
-  }
+  return `${printFailureMessage(result, 'kitchen printer')} Tell the kitchen directly.`;
 }
 
-export function buildKotTicket(kot: Kot, order: RestaurantOrder, reprint = false): KotTicketData {
+export function buildKotTicket(
+  kot: Kot,
+  order: RestaurantOrder,
+  reprint = false,
+  fields?: TicketFields,
+): KotTicketData {
   return {
     kotNumber: kot.kot_number,
     orderNumber: order.order_number,
-    tableName: order.table_name,
+    // A toggle that hides the table number still has to leave the ticket sensible, so the field
+    // is omitted rather than blanked — the renderer already handles a missing table as TAKEAWAY.
+    tableName: fields && !fields.table_number ? null : order.table_name,
     orderType: order.order_type,
     createdAt: kot.created_at,
     reprint,
-    notes: kot.notes,
+    notes: fields && !fields.order_notes ? null : kot.notes,
     items: kot.items.map((item) => ({
       name: item.product_name,
       quantity: item.quantity,
@@ -58,44 +55,53 @@ export function buildKotTicket(kot: Kot, order: RestaurantOrder, reprint = false
 }
 
 export async function printKot(kot: Kot, order: RestaurantOrder, reprint = false): Promise<KotPrintResult> {
-  const preferences = await settingsApi.getBusinessPreferences();
-  const deviceMode = resolveDeviceMode(preferences.auto_print_device_mode);
-  // Blank kitchen printer means "same machine as the bill" — see the model comment on
-  // settings.kot_printer_name.
-  const printerName = preferences.kot_printer_name || preferences.auto_print_printer_name;
+  const config = await printerApi.getPrinterConfig('kot').catch(() => null);
+  return printKotWithConfig(config, kot, order, reprint);
+}
 
-  if (!deviceMode) return { ok: false, reason: 'not-configured' };
-  if (deviceMode === 'browser-dialog') return { ok: false, reason: 'browser-dialog' };
-  if ((deviceMode === 'qz' || deviceMode === 'revgenai-agent') && !printerName) {
-    return { ok: false, reason: 'no-printer' };
-  }
+/** Split out so callers that already hold the configuration — the settings screen's test print,
+ * a retry — do not re-fetch it. */
+export async function printKotWithConfig(
+  config: PrinterConfiguration | null,
+  kot: Kot,
+  order: RestaurantOrder,
+  reprint = false,
+): Promise<KotPrintResult> {
+  const ticket = buildKotTicket(kot, order, reprint, config?.ticket_fields);
+  const paperWidth = (config?.paper_width === '58mm' ? '58mm' : '80mm') as ThermalPaperSize;
+  return printToConfiguredPrinter(config, {
+    commands: buildKotCommands(ticket, paperWidth),
+    agentDocument: { type: 'kot', kot: ticket, paperWidth },
+  });
+}
 
-  const ticket = buildKotTicket(kot, order, reprint);
+/** The sample ticket behind "Test KOT Print".
+ *
+ * Deliberately shaped like a real KOT rather than a generic test page: the point is to prove the
+ * kitchen printer produces something a cook can read at the pass — right paper width, quantities
+ * legible — which a line of test text would not show.
+ */
+export function buildTestKotTicket(): KotTicketData {
+  return {
+    kotNumber: 'TEST-001',
+    orderNumber: 'TEST',
+    tableName: 'TEST',
+    orderType: 'dine_in',
+    createdAt: new Date().toISOString(),
+    items: [
+      { name: 'Chicken Biryani', quantity: 2 },
+      { name: 'Paneer Tikka', quantity: 1 },
+      { name: 'Coke', quantity: 2 },
+    ],
+    notes: 'TEST PRINT',
+  };
+}
 
-  try {
-    if (deviceMode === 'revgenai-agent') {
-      // The agent renders the ticket itself from this structured payload, using the same
-      // buildKotCommands code ported into `print-agent/src/renderer/escpos.ts` — so the app never
-      // constructs printer-specific bytes for the transport that has its own renderer.
-      await printAgentClient.printKot(printerName!, ticket, preferences.kot_paper_size);
-      return { ok: true };
-    }
-
-    // Every other transport is a dumb pipe for bytes, so build them here.
-    const commands = buildKotCommands(ticket, preferences.kot_paper_size);
-    if (deviceMode === 'web-usb') {
-      await webUsbPrinter.printRaw(commands);
-    } else if (deviceMode === 'web-bluetooth') {
-      await webBluetoothPrinter.printRaw(commands);
-    } else {
-      await qzTray.printRaw(printerName!, commands);
-    }
-    return { ok: true };
-  } catch (err) {
-    return {
-      ok: false,
-      reason: 'transport-failed',
-      detail: err instanceof Error ? err.message : undefined,
-    };
-  }
+export async function testKotPrint(config: PrinterConfiguration): Promise<KotPrintResult> {
+  const ticket = buildTestKotTicket();
+  const paperWidth = (config.paper_width === '58mm' ? '58mm' : '80mm') as ThermalPaperSize;
+  return printToConfiguredPrinter(config, {
+    commands: buildKotCommands(ticket, paperWidth),
+    agentDocument: { type: 'kot', kot: ticket, paperWidth },
+  });
 }

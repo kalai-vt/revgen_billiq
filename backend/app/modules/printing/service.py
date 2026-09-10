@@ -14,6 +14,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.timeutils import as_aware_utc
 from app.models.print_agent import PairingCode, PrintAgentDevice
+from datetime import datetime, timezone
+
+from app.models.printer_config import DEFAULT_TICKET_FIELDS, PrinterConfiguration
+from app.schemas.printer_config import PrinterConfigurationUpdate
+
 
 # Must match the frontend's qz.security.setSignatureAlgorithm('SHA512') call in
 # lib/printing/qzTraySigning.ts — QZ Tray verifies the signature using whichever algorithm the
@@ -232,3 +237,86 @@ def sign_session_token(payload: dict) -> tuple[str, str]:
     payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     signature = _get_token_private_key().sign(payload_bytes, padding.PKCS1v15(), _HASH_ALGORITHM)
     return base64.b64encode(payload_bytes).decode(), base64.b64encode(signature).decode()
+
+
+# ---- Printer destinations (kitchen today, bar/tandoor later) ---------------------------------
+
+def get_printer_config(db: Session, tenant_id: str, role: str = "kot") -> PrinterConfiguration:
+    """Returns the tenant's configuration for a role, creating an empty one on first read.
+
+    Created rather than returning None so the settings screen always has a row to edit and the
+    caller never has to distinguish "never configured" from "configured and disabled" — `enabled`
+    already says that, and it defaults to off.
+    """
+    config = (
+        db.query(PrinterConfiguration)
+        .filter(PrinterConfiguration.tenant_id == tenant_id, PrinterConfiguration.role == role)
+        .first()
+    )
+    if config:
+        return config
+
+    config = PrinterConfiguration(tenant_id=tenant_id, role=role, ticket_fields=dict(DEFAULT_TICKET_FIELDS))
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+def update_printer_config(
+    db: Session, tenant_id: str, role: str, payload: PrinterConfigurationUpdate
+) -> PrinterConfiguration:
+    config = get_printer_config(db, tenant_id, role)
+    data = payload.model_dump(exclude_unset=True)
+
+    if "ticket_fields" in data and data["ticket_fields"] is not None:
+        config.ticket_fields = dict(data.pop("ticket_fields"))
+    else:
+        data.pop("ticket_fields", None)
+
+    # Anything that changes *where* or *how* we reach the printer invalidates the last successful
+    # test — claiming "Connected" against a device we have not reached since the address changed
+    # is exactly the lie this feature must not tell.
+    reachability_keys = {"connection_type", "ip_address", "port", "usb_device_id", "bluetooth_device_id", "printer_name"}
+    if any(key in data and data[key] != getattr(config, key) for key in reachability_keys):
+        config.connection_status = "untested"
+        config.last_tested_at = None
+        config.last_test_error = None
+
+    for key, value in data.items():
+        setattr(config, key, value)
+
+    if not _is_addressable(config):
+        config.connection_status = "unconfigured"
+
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+def _is_addressable(config: PrinterConfiguration) -> bool:
+    """Whether there is enough configuration to even attempt a print."""
+    if config.connection_type in ("lan", "wifi"):
+        return bool(config.ip_address and config.port)
+    if config.connection_type == "bluetooth":
+        return bool(config.bluetooth_device_id or config.printer_name)
+    return bool(config.printer_name or config.usb_device_id)
+
+
+def record_connection_test(
+    db: Session, tenant_id: str, role: str, ok: bool, error: str | None
+) -> PrinterConfiguration:
+    """Records the outcome of a test the client actually performed.
+
+    The server never decides this on its own: the browser holds the USB/Bluetooth connection, so
+    only it can know whether the printer answered. Saving a form must never produce "Connected".
+    """
+    config = get_printer_config(db, tenant_id, role)
+    config.connection_status = "connected" if ok else "failed"
+    config.last_tested_at = datetime.now(timezone.utc)
+    config.last_test_error = None if ok else (error or "The printer did not respond.")
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+    return config

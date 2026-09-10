@@ -15,6 +15,7 @@ import { TeamMemberTable } from '@/features/auth/components/TeamMemberTable';
 import { stripCountryCode, withCountryCode } from '@/features/auth/lib/phone';
 import { hasFeature } from '@/features/plans/lib/planConfig';
 import { PlanUsageCard } from '@/features/plans/components/PlanUsageCard';
+import { KotPrinterSettingsForm } from '@/features/settings/components/KotPrinterSettingsForm';
 import { AutoPrintSettingsForm } from '@/features/settings/components/AutoPrintSettingsForm';
 import { AvatarUploadControl } from '@/features/settings/components/AvatarUploadControl';
 import { BillingSettingsForm } from '@/features/settings/components/BillingSettingsForm';
@@ -43,6 +44,8 @@ export function SettingsPage() {
   // Admin Portal can grant/revoke this per-tenant regardless of plan — see AdvancedAnalyticsPage.
   const canManageUsers = featureFlags?.user_management ?? hasFeature(plan, 'user_management');
   const invoiceDesignerEnabled = useFeatureFlag('invoice_designer');
+  // A business without a kitchen has no second printer to configure.
+  const kotEnabled = useFeatureFlag('kot');
 
   const [form, setForm] = useState({
     company_name: tenant?.company_name ?? '',
@@ -314,6 +317,9 @@ export function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <AutoPrintSettingsForm />
+                {/* Added alongside, never replacing: the billing printer above keeps its own
+                    settings and behaviour untouched. */}
+                {kotEnabled && <KotPrinterSettingsForm />}
               </CardContent>
             </Card>
           )}

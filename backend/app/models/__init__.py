@@ -3,6 +3,7 @@ from app.models.user import User
 from app.models.token import RefreshToken
 from app.models.catalog import Category, Product, ProductIdentifier, ProductImportHistory, ProductImportRow
 from app.models.customer import Customer, CustomerImportHistory, CustomerImportRow
+from app.models.printer_config import PrinterConfiguration
 from app.models.settings import Settings
 from app.models.sales import Invoice, InvoiceItem
 from app.models.audit import PriceOverrideAudit
@@ -43,6 +44,7 @@ __all__ = [
     "Customer",
     "CustomerImportHistory",
     "CustomerImportRow",
+    "PrinterConfiguration",
     "Settings",
     "Invoice",
     "InvoiceItem",
