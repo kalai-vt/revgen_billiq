@@ -425,8 +425,57 @@ export function TemplatePreview({ config, branding, mode, data, promotionContent
         </div>
       )}
 
+      <PaymentQrBlock config={config} data={data} />
+
       {config.billiq_promotion.enabled && promotionContent && (
         <PromotionBlock config={config.billiq_promotion} content={promotionContent} isThermal={isThermal} />
+      )}
+    </div>
+  );
+}
+
+const PAYMENT_QR_PREVIEW_PX: Record<InvoiceTemplateConfig['payment_qr']['size'], number> = {
+  sm: 48,
+  md: 64,
+  lg: 88,
+};
+
+/** Preview of the Payment QR element. Mirrors the PDF renderer's own rules (see
+ * backend app/core/upi.py) so the Designer shows what will actually print: the QR disappears once
+ * nothing is outstanding unless it's set to always show, because a scannable QR on a settled bill
+ * invites a second payment. */
+function PaymentQrBlock({ config, data }: { config: InvoiceTemplateConfig; data: PreviewData }) {
+  const qr = config.payment_qr;
+  // The legacy qr_barcode.payment_qr switch still turns the element on, so a template saved
+  // before this element existed keeps its QR.
+  const enabled = qr.enabled || config.qr_barcode.payment_qr;
+  const outstanding = data.totals.outstanding;
+  const amountDue = outstanding ?? data.totals.grand_total ?? 0;
+
+  if (!enabled || qr.visibility === 'never') return null;
+  if (qr.visibility === 'unpaid_only' && amountDue <= 0) return null;
+
+  const size = PAYMENT_QR_PREVIEW_PX[qr.size];
+  return (
+    <div className="mt-4 flex flex-col items-center gap-1 border-t pt-3">
+      <div
+        className="grid grid-cols-4 grid-rows-4 gap-px border p-1"
+        style={{ width: size, height: size, borderColor: 'currentColor' }}
+        aria-hidden
+      >
+        {Array.from({ length: 16 }).map((_, i) => (
+          <div key={i} className={cn((i * 7) % 3 === 0 ? 'bg-current' : 'bg-transparent')} />
+        ))}
+      </div>
+      {qr.label && <span className="text-[11px] font-medium">{qr.label}</span>}
+      {qr.show_amount && amountDue > 0 && (
+        <span className="text-[10px] text-muted-foreground">Amount: {amountDue.toFixed(2)}</span>
+      )}
+      {qr.show_upi_id && <span className="text-[10px] text-muted-foreground">your-upi@bank</span>}
+      {qr.show_payment_status && (
+        <span className="text-[10px] text-muted-foreground">
+          {amountDue <= 0 ? 'Paid' : `Outstanding: ${amountDue.toFixed(2)}`}
+        </span>
       )}
     </div>
   );

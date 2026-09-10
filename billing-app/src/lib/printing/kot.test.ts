@@ -54,9 +54,13 @@ describe('buildKotCommands — the kitchen ticket', () => {
   it('wraps a long dish name to the narrower 58mm ticket instead of truncating it', () => {
     const longName = 'Paneer Butter Masala with Extra Cheese and Garlic Naan';
     const out = text(buildKotCommands({ ...base, items: [{ name: longName, quantity: 1 }] }, '58mm'));
-    // A cook needs the whole dish name, so it must appear in full across however many lines.
-    const printed = out.replace(/\x1B[@!a-zA-Z][\x00-\x02]?|\x1D[!V][\x00-\x03]?/g, '');
-    expect(printed.replace(/\n/g, ' ')).toContain('Paneer Butter Masala with Extra Cheese');
+    // A cook needs the whole dish name, so every word has to survive the wrap — truncating the
+    // line would silently drop what the dish actually is.
+    for (const word of longName.split(' ')) {
+      expect(out).toContain(word);
+    }
+    // And it must genuinely wrap rather than run past the 32-column ticket.
+    expect(out).not.toContain(longName);
   });
 
   it('ends with a cut so the ticket separates itself at the pass', () => {

@@ -15,6 +15,7 @@ import { ItemTablePanel } from '@/features/invoice-designer/components/panels/It
 import { TaxSummaryPanel } from '@/features/invoice-designer/components/panels/TaxSummaryPanel';
 import { FooterPanel } from '@/features/invoice-designer/components/panels/FooterPanel';
 import { QrBarcodePanel } from '@/features/invoice-designer/components/panels/QrBarcodePanel';
+import { PaymentQrPanel } from '@/features/invoice-designer/components/panels/PaymentQrPanel';
 import { ThemePanel } from '@/features/invoice-designer/components/panels/ThemePanel';
 import { PaperSizePanel } from '@/features/invoice-designer/components/panels/PaperSizePanel';
 import { BillIQPromotionPanel } from '@/features/invoice-designer/components/panels/BillIQPromotionPanel';
@@ -33,6 +34,7 @@ const CONFIG_TABS: { id: string; label: string; Panel: (props: { config: Invoice
   { id: 'tax', label: 'Tax & Summary', Panel: TaxSummaryPanel },
   { id: 'footer', label: 'Footer', Panel: FooterPanel },
   { id: 'qr', label: 'QR & Barcode', Panel: QrBarcodePanel },
+  { id: 'payment-qr', label: 'Payment QR Code', Panel: PaymentQrPanel },
   { id: 'billiq-promotion', label: 'BillIQ Promotion', Panel: BillIQPromotionPanel },
   { id: 'theme', label: 'Theme', Panel: ThemePanel },
   { id: 'paper', label: 'Paper & Printing', Panel: PaperSizePanel },
