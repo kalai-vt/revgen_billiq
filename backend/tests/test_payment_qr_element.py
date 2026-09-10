@@ -46,3 +46,28 @@ def test_the_legacy_switch_still_turns_the_element_on():
     assert payment_qr_enabled(True, False) is True
     assert payment_qr_enabled(False, True) is True
     assert payment_qr_enabled(False, False) is False
+
+
+def test_qr_payments_is_granted_on_every_plan_but_still_toggleable():
+    """Payment QR is ordinary billing for any business type, not a premium add-on — so it ships
+    enabled on every plan, while remaining an individually toggleable module like any other."""
+    from app.core.feature_catalog import FEATURE_BY_KEY, get_plan_defaults
+
+    module = FEATURE_BY_KEY["qr_payments"]
+    assert module["is_implemented"] is True
+    # always_on would make it untoggleable, which is not what "enable/disable like other
+    # modules" means.
+    assert module["always_on"] is False
+    for plan in ("basic", "advance"):
+        assert "qr_payments" in get_plan_defaults(plan), f"{plan} should include qr_payments"
+
+
+def test_restaurant_modules_are_never_a_plan_default():
+    """Table management/KOT are vertical-specific: a pharmacy on the same plan must not silently
+    gain them. They are enabled per tenant from the Admin Portal instead."""
+    from app.core.feature_catalog import get_plan_defaults
+
+    for plan in ("basic", "advance", "custom"):
+        defaults = get_plan_defaults(plan)
+        for key in ("restaurant", "table_management", "kot", "floor_management"):
+            assert key not in defaults, f"{key} must not be a {plan} default"

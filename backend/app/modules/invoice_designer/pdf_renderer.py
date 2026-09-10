@@ -240,6 +240,9 @@ def render_document_pdf(
     config: InvoiceTemplateConfig,
     promotion: PromotionConfig | None = None,
     promotion_qr_url: str | None = None,
+    # Per-tenant "QR Payments" module toggle. Defaults to True so any caller that renders a
+    # document outside a tenant request context behaves as it did before the flag existed.
+    qr_payments_enabled: bool = True,
 ) -> bytes:
     decimal_precision = settings.decimal_precision if settings else 2
     date_format = settings.date_format if settings else "DD/MM/YYYY"
@@ -452,7 +455,9 @@ def render_document_pdf(
         flow = _qr_flowable(f"{tenant.company_name}\n{tenant.phone or ''}\n{tenant.email or ''}")
         if flow:
             qr_flowables.append(flow)
-    payment_qr_flow = _payment_qr_flowables(config, data, settings, tenant, styles)
+    payment_qr_flow = (
+        _payment_qr_flowables(config, data, settings, tenant, styles) if qr_payments_enabled else []
+    )
     if payment_qr_flow and config.payment_qr.position == "payment_section":
         qr_flowables.extend(payment_qr_flow)
     if qr_flowables:

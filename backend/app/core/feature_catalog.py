@@ -166,12 +166,16 @@ FEATURE_CATALOG: list[FeatureModule] = [
     _m("email_integration", "Email Integration", "Send invoices and receipts via email.", "premium"),
     _m("payment_gateway", "Payment Gateway", "Online payment collection.", "premium"),
     _m("barcode_printing", "Barcode Printing", "Print physical barcode labels.", "premium", requires=["inventory"]),
+    # "core", not premium, and granted on every plan (see _BASIC_MODULES): accepting a UPI payment
+    # is ordinary billing for any business — a pharmacy, a salon or a restaurant all need it — not
+    # a paid add-on. It stays individually toggleable per tenant like any other module.
+    #
     # Deliberately does NOT require payment_gateway: a UPI QR (static business VPA, or dynamic
     # with the exact bill amount) is a `upi://pay` deep link the customer's own bank app acts on,
     # so it needs a merchant VPA and nothing else. Only *automatic* confirmation of those payments
-    # needs a provider, which is what payment_verification below gates — scanning a QR is never by
+    # needs a provider, which is what payment_verification gates — scanning a QR is never by
     # itself proof the bill was paid.
-    _m("qr_payments", "QR Payments", "Accept payments via UPI QR code.", "premium", is_implemented=True, requires=["pos_billing"]),
+    _m("qr_payments", "QR Payments", "Accept payments via UPI QR code.", "core", is_implemented=True, requires=["pos_billing"]),
     _m("payment_verification", "Payment Verification", "Automatically confirm UPI payments via a provider webhook.", "premium", requires=["payment_gateway", "qr_payments"]),
     _m("api_access", "API Access", "Programmatic access via API keys.", "premium"),
     _m("custom_branding", "Custom Branding", "Upload a logo and brand the invoices.", "premium", is_implemented=True),
@@ -242,6 +246,9 @@ CATEGORY_LABELS: dict[Category, str] = {
 _BASIC_MODULES = [
     "dashboard", "pos_billing", "products", "categories", "customers", "activity_log", "settings",
     "reports_analytics", "payments_credit", "returns",
+    # Accepting a UPI payment is ordinary billing for every business type, so it ships on every
+    # plan rather than being a premium add-on. Still per-tenant toggleable like any other module.
+    "qr_payments",
 ]
 
 # ADVANCED = BASIC + Inventory, Procurement, Analytics, Commerce, AI Assistance — implemented as

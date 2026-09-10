@@ -27,6 +27,20 @@ import { ModuleConfigDialog } from './components/ModuleConfigDialog';
 import { ScheduleDialog } from './components/ScheduleDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 
+/** The one place a module domain is listed for this page — the tab strip and the tab panels are
+ * both rendered from it. They used to be two hand-maintained lists, which is how a new domain
+ * could get a tab with no content behind it (or content with no tab). "all" is not a real domain;
+ * ModuleDomainTab treats it as "show everything". */
+const DOMAIN_TABS = [
+  { value: 'all', label: 'All Modules' },
+  { value: 'customers', label: 'Customers' },
+  { value: 'templates', label: 'Templates' },
+  { value: 'analytics', label: 'Analytics' },
+  { value: 'procurement', label: 'Procurement' },
+  { value: 'commerce', label: 'Commerce' },
+  { value: 'restaurant', label: 'Restaurant' },
+] as const;
+
 function Workspace({ initialTenantId }: { initialTenantId: string | null }) {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(initialTenantId);
   const [configItem, setConfigItem] = useState<TenantFeatureItem | null>(null);
@@ -75,22 +89,21 @@ function Workspace({ initialTenantId }: { initialTenantId: string | null }) {
 
       <Tabs defaultValue="all">
         <TabsList>
-          <TabsTrigger value="all">All Modules</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="procurement">Procurement</TabsTrigger>
-          <TabsTrigger value="commerce">Commerce</TabsTrigger>
+          {DOMAIN_TABS.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {(['all', 'customers', 'templates', 'analytics', 'procurement', 'commerce'] as const).map((tab) => (
-          <TabsContent key={tab} value={tab} className="mt-3">
+        {DOMAIN_TABS.map((tab) => (
+          <TabsContent key={tab.value} value={tab.value} className="mt-3">
             <ModuleDomainTab
               tenantId={selectedTenantId}
               items={items}
               isLoading={itemsLoading}
               error={itemsError}
-              domain={tab === 'all' ? 'general' : tab}
+              domain={tab.value === 'all' ? 'general' : tab.value}
               onOpenConfig={setConfigItem}
               onOpenSchedule={setScheduleItem}
               onOpenHistory={setHistoryItem}
