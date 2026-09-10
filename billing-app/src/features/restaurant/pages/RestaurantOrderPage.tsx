@@ -274,25 +274,25 @@ export function RestaurantOrderPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          {isOpen && (
-            <Card className="h-[320px] p-3">
-              <ProductSearchPanel onAdd={(product) => addItem.mutate(product)} />
-            </Card>
-          )}
+      {/* Same three columns, proportions and components as Billing: this screen is another way
+          into the same order, so it should not look or behave like a different product. */}
+      <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[2.78fr_5fr_2.9fr]">
+        <Card className="min-h-0 p-2">
+          <ProductSearchPanel onAdd={(product) => addItem.mutate(product)} />
+        </Card>
 
-          <Card className="p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium">Order items</p>
-              {unsent > 0 && <Badge variant="outline">{unsent} not yet sent</Badge>}
-            </div>
-            {order.items.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Nothing on this order yet — search for a dish above to add it.
-              </p>
-            ) : (
-              order.items.map((item) => (
+        <Card className="min-h-0 p-2">
+          <div className="mb-1 flex items-center justify-between px-1">
+            <p className="text-sm font-medium">Current Cart ({order.items.length} items)</p>
+            {unsent > 0 && <Badge variant="outline">{unsent} not yet sent</Badge>}
+          </div>
+          {order.items.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nothing on this order yet — search for a dish to add it.
+            </p>
+          ) : (
+            <div className="min-h-0 overflow-y-auto scrollbar-thin">
+              {order.items.map((item) => (
                 <OrderLine
                   key={item.id}
                   item={item}
@@ -300,12 +300,25 @@ export function RestaurantOrderPage() {
                   onChangeQuantity={(quantity) => changeQuantity.mutate({ itemId: item.id, quantity })}
                   onRemove={() => removeItem.mutate(item.id)}
                 />
-              ))
-            )}
-          </Card>
-        </div>
+              ))}
+            </div>
+          )}
+        </Card>
 
-        <div className="space-y-4">
+        <div className="min-h-0 space-y-3 overflow-y-auto scrollbar-thin">
+          <Card className="space-y-2 p-4">
+            <div>
+              <p className="text-sm font-semibold">
+                {order.table_name ? `Table ${order.table_name}` : 'Takeaway'}
+              </p>
+              <p className="text-xs text-muted-foreground">{order.order_number}</p>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Customer</span>
+              <span>{order.customer_name || 'Walk-in Customer'}</span>
+            </div>
+          </Card>
+
           <Card className="space-y-3 p-4">
             <div className="space-y-1 text-sm">
               <div className="flex justify-between text-muted-foreground">

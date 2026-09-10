@@ -498,3 +498,112 @@ def test_opening_a_table_order_twice_reuses_the_same_tab(client: TestClient, db_
 
     assert second["id"] == first["id"]
     assert sum(i["quantity"] for i in second["items"]) == 3
+
+
+def test_opening_a_table_never_creates_a_second_order(client: TestClient, db_session: Session):
+    """The core of Billing/Tables sync: both screens resolve to one order per table. Opening the
+    same table repeatedly must not mint ORD-000013, ORD-000014, ... behind the cashier."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S1")
+    item = _product(client, headers, "Juice", 120.0)
+
+    ids = set()
+    for _ in range(3):
+        opened = client.post(
+            f"/api/restaurant/tables/{table['id']}/order",
+            json=[{"product_id": item["id"], "quantity": 1}],
+            headers=headers,
+        )
+        assert opened.status_code == 200, opened.text
+        ids.add(opened.json()["data"]["id"])
+
+    assert len(ids) == 1
+    active = client.get(f"/api/restaurant/tables/{table['id']}/active-order", headers=headers).json()["data"]
+    assert active["id"] == ids.pop()
+    assert sum(i["quantity"] for i in active["items"]) == 3
+
+
+def test_a_free_table_reports_no_active_order(client: TestClient, db_session: Session):
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S2")
+    # make_response omits `data` entirely when it is None — the app-wide convention.
+    assert client.get(f"/api/restaurant/tables/{table['id']}/active-order", headers=headers).json().get("data") is None
+
+
+def test_releasing_an_empty_table_frees_it_without_deleting_it(client: TestClient, db_session: Session):
+    """Release frees the occupancy, never the table configuration."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S3")
+    client.post(f"/api/restaurant/tables/{table['id']}/order", json=[], headers=headers)
+
+    released = client.post(f"/api/restaurant/tables/{table['id']}/release", json={}, headers=headers)
+    assert released.status_code == 200, released.text
+    assert released.json()["data"]["status"] == "available"
+
+    # The table itself still exists.
+    tables = client.get("/api/restaurant/tables", headers=headers).json()["data"]
+    assert any(t["id"] == table["id"] for t in tables)
+
+
+def test_a_table_with_items_is_not_released_without_confirmation(client: TestClient, db_session: Session):
+    """Never lose a customer's order to a stray click."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S4")
+    item = _product(client, headers, "Biryani", 220.0)
+    client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 2}],
+        headers=headers,
+    )
+
+    refused = client.post(f"/api/restaurant/tables/{table['id']}/release", json={}, headers=headers)
+    assert refused.status_code == 409
+
+    confirmed = client.post(
+        f"/api/restaurant/tables/{table['id']}/release", json={"cancel_order": True}, headers=headers
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["data"]["status"] == "available"
+
+
+def test_a_table_with_kitchen_tickets_cannot_be_released_at_all(client: TestClient, db_session: Session):
+    """The food is already being cooked — releasing the table would strand it, so the KOTs have to
+    be cancelled through their own flow, where a reason is recorded."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S5")
+    item = _product(client, headers, "Dosa", 100.0)
+    order = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 1}],
+        headers=headers,
+    ).json()["data"]
+    client.post(f"/api/restaurant/orders/{order['id']}/kot", json={}, headers=headers)
+
+    refused = client.post(
+        f"/api/restaurant/tables/{table['id']}/release", json={"cancel_order": True}, headers=headers
+    )
+    assert refused.status_code == 409
+    assert "kitchen ticket" in refused.json()["detail"].lower()
+
+
+def test_billing_a_table_order_releases_the_table(client: TestClient, db_session: Session):
+    """Checkout from either screen ends the same way: invoice created, order closed, table free."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S6")
+    item = _product(client, headers, "Coffee", 50.0)
+    order = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 2}],
+        headers=headers,
+    ).json()["data"]
+
+    billed = client.post(
+        f"/api/restaurant/orders/{order['id']}/bill", json={"payment_method": "cash"}, headers=headers
+    )
+    assert billed.status_code == 200, billed.text
+
+    assert client.get(f"/api/restaurant/tables/{table['id']}/active-order", headers=headers).json().get("data") is None
+    # The order is kept as history, not deleted.
+    closed = client.get(f"/api/restaurant/orders/{order['id']}", headers=headers).json()["data"]
+    assert closed["status"] == "billed"
+    assert closed["invoice_id"] == billed.json()["data"]["invoice_id"]

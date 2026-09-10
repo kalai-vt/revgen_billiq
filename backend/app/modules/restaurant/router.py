@@ -15,6 +15,7 @@ from app.modules.restaurant import service
 from app.modules.restaurant.service import RestaurantError
 from app.schemas.restaurant import (
     TableQuickBillRequest,
+    TableReleaseRequest,
     FloorCreate,
     FloorLayoutOut,
     FloorOut,
@@ -378,6 +379,36 @@ def post_bill(
     except RestaurantError as err:
         raise _handle(err) from err
     return make_response(True, "Order billed", {"invoice_id": invoice.id, "invoice_number": invoice.invoice_number})
+
+
+@router.get("/tables/{table_id}/active-order")
+def get_table_active_order(
+    table_id: str,
+    current_user: User = Depends(require_role("owner", "manager", "staff")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """The table's open order, or null. Both the Billing screen and the table board read this to
+    resume an existing tab instead of starting a second one."""
+    try:
+        order = service.active_order_for_table(db, current_user.tenant_id, table_id)
+    except RestaurantError as err:
+        raise _handle(err) from err
+    return make_response(True, "Active order loaded", _order_out(db, order) if order else None)
+
+
+@router.post("/tables/{table_id}/release", dependencies=[Depends(require_feature("table_management"))])
+def post_release_table(
+    table_id: str,
+    payload: TableReleaseRequest,
+    current_user: User = Depends(require_role("owner", "manager")),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Frees an occupied table. Releases the occupancy, never the table configuration."""
+    try:
+        table = service.release_table(db, current_user.tenant_id, table_id, payload.cancel_order)
+    except RestaurantError as err:
+        raise _handle(err) from err
+    return make_response(True, "Table released", TableOut.model_validate(table).model_dump(mode="json"))
 
 
 @router.post("/tables/{table_id}/order", dependencies=[Depends(require_feature("table_management"))])

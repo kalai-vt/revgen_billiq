@@ -716,6 +716,50 @@ def mark_kot_print_failed(db: Session, tenant_id: str, kot_id: str, error: str |
 
 # ---- Billing ---------------------------------------------------------------------------------
 
+def active_order_for_table(db: Session, tenant_id: str, table_id: str) -> RestaurantOrder | None:
+    """The table's one open order, or None. Never creates — this is the read both screens use to
+    decide whether to resume a tab or start a fresh one."""
+    get_table(db, tenant_id, table_id)
+    return _active_order_for_table(db, tenant_id, table_id)
+
+
+def release_table(db: Session, tenant_id: str, table_id: str, cancel_order: bool = False) -> RestaurantTable:
+    """Puts an occupied table back to available.
+
+    Never deletes the table itself — this releases the *occupancy*, which is why the UI calls it
+    Release rather than Delete.
+
+    An order with items is not discarded silently: the caller has to pass cancel_order, which is
+    the API-level counterpart of the confirmation dialog. A tab that already has kitchen tickets
+    is refused outright — the food is being cooked, so releasing the table would strand it, and
+    the KOTs have to be cancelled through their own flow first, where the reason is recorded.
+    """
+    table = get_table(db, tenant_id, table_id)
+    order = _active_order_for_table(db, tenant_id, table.id)
+
+    if order:
+        live_kots = [kot for kot in order.kots if kot.status != "cancelled"]
+        if live_kots:
+            raise RestaurantError(
+                409,
+                f"Table {table.name} has {len(live_kots)} kitchen ticket(s) with the kitchen. "
+                "Cancel those first, then release the table.",
+            )
+        has_items = any(not item.is_cancelled for item in order.items)
+        if has_items and not cancel_order:
+            raise RestaurantError(
+                409, f"Table {table.name} has an order with items. Confirm cancelling it to release the table."
+            )
+        order.status = "cancelled"
+        order.closed_at = _now()
+        db.add(order)
+        db.flush()
+
+    sync_table_status(db, table)
+    db.commit()
+    return get_table(db, tenant_id, table_id)
+
+
 def open_table_order(
     db: Session, tenant_id: str, current_user: User, table_id: str, items: list[OrderItemCreate]
 ) -> RestaurantOrder:

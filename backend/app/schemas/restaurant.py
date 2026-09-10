@@ -255,6 +255,13 @@ class KotOut(BaseModel):
     items: list[KotItemOut] = Field(default_factory=list)
 
 
+class TableReleaseRequest(BaseModel):
+    """`cancel_order` is the API-level counterpart of the confirmation dialog: a tab with items is
+    never discarded just because someone clicked the X."""
+
+    cancel_order: bool = False
+
+
 class KotPrintFailure(BaseModel):
     error: str | None = Field(default=None, max_length=1000)
 

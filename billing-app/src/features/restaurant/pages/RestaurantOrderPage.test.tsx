@@ -48,7 +48,9 @@ async function renderPage(flags: Record<string, boolean>) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await screen.findByText('ORD-000012');
+  // The order number appears in both the header and the checkout column, by design — the third
+  // column carries the table's identity the way the Billing screen's does.
+  await screen.findAllByText('ORD-000012');
 }
 
 beforeEach(() => vi.clearAllMocks());

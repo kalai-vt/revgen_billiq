@@ -262,6 +262,21 @@ export function openTableOrder(tableId: string, items: OrderItemInput[]): Promis
   return request(`/api/restaurant/tables/${tableId}/order`, { method: 'POST', body: JSON.stringify(items) });
 }
 
+/** The table's open order, or null when it's free. Both Billing and the table board read this so
+ * they resume one tab instead of each starting their own. */
+export function getTableActiveOrder(tableId: string): Promise<RestaurantOrder | null> {
+  return request(`/api/restaurant/tables/${tableId}/active-order`);
+}
+
+/** Frees an occupied table. Releases the occupancy, never the table configuration —
+ * `cancelOrder` is required before a tab with items is discarded. */
+export function releaseTable(tableId: string, cancelOrder = false): Promise<RestaurantTable> {
+  return request(`/api/restaurant/tables/${tableId}/release`, {
+    method: 'POST',
+    body: JSON.stringify({ cancel_order: cancelOrder }),
+  });
+}
+
 export interface TableQuickBillPayload extends BillOrderPayload {
   table_id: string;
   items: OrderItemInput[];
