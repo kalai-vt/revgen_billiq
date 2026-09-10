@@ -4,11 +4,13 @@ import { toast } from 'sonner';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as settingsApi from '@/features/settings/api';
-import type { AutoPrintDeviceMode, AutoPrintPaperSize } from '@/features/settings/api';
+import type { AutoPrintDeviceMode, AutoPrintPaperSize, KotPaperSize } from '@/features/settings/api';
+import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
 import { useTemplateForDocument } from '@/features/invoice-designer/hooks';
 import * as qzTray from '@/lib/printing/qzTray';
 import * as printAgentClient from '@/lib/printing/printAgentClient';
@@ -66,6 +68,8 @@ export function AutoPrintSettingsForm() {
     auto_print_printer_name: null as string | null,
     auto_print_paper_size: '80mm' as AutoPrintPaperSize,
     auto_print_device_mode: null as AutoPrintDeviceMode | null,
+    kot_printer_name: null as string | null,
+    kot_paper_size: '80mm' as KotPaperSize,
   });
   const [error, setError] = useState<string | null>(null);
   const [qzStatus, setQzStatus] = useState<QzStatus>('idle');
@@ -82,6 +86,8 @@ export function AutoPrintSettingsForm() {
   const [agentPrinters, setAgentPrinters] = useState<printAgentClient.AgentPrinterInfo[]>([]);
   const [agentTestPrintStatus, setAgentTestPrintStatus] = useState<TestPrintStatus>('idle');
   const [agentDownloadStatus, setAgentDownloadStatus] = useState<'idle' | 'checking'>('idle');
+  // Only shown to tenants who actually run a kitchen — the KOT module is enabled per tenant.
+  const kotEnabled = useFeatureFlag('kot');
 
   // The printer connection itself is local to this device (see deviceProfile.ts) — check whether
   // it's already paired from a previous visit, separately from the tenant-wide settings below.
@@ -186,6 +192,8 @@ export function AutoPrintSettingsForm() {
         auto_print_printer_name: settings.auto_print_printer_name,
         auto_print_paper_size: settings.auto_print_paper_size,
         auto_print_device_mode: settings.auto_print_device_mode,
+        kot_printer_name: settings.kot_printer_name,
+        kot_paper_size: settings.kot_paper_size,
       });
       // A till with no pairing-bound override of its own follows the tenant-wide transport, so
       // setting a printer up once reaches every other till instead of only the browser it was
@@ -197,7 +205,12 @@ export function AutoPrintSettingsForm() {
   }, [settings]);
 
   const mutation = useMutation({
-    mutationFn: () => settingsApi.updateSettings({ ...form, auto_print_device_mode: deviceMode }),
+    mutationFn: () =>
+      settingsApi.updateSettings({
+        ...form,
+        auto_print_device_mode: deviceMode,
+        kot_printer_name: form.kot_printer_name?.trim() || null,
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
       toast.success('Automatic printing settings updated');
@@ -752,6 +765,50 @@ export function AutoPrintSettingsForm() {
           at the OS level. This is the only option currently available on iOS/iPad, since Safari
           doesn't support direct USB or Bluetooth printer access.
         </p>
+      </div>
+      )}
+
+      {kotEnabled && (
+      <div className="rounded-md border p-4 space-y-4">
+        <div>
+          <p className="text-sm font-medium">Kitchen printer (KOT)</p>
+          <p className="text-xs text-muted-foreground">
+            Kitchen tickets print at the pass while bills print at the till, so the KOT can go to its own
+            printer. Leave the name blank to use the same printer as the bill.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="kot-printer-name">Kitchen printer name</Label>
+            <Input
+              id="kot-printer-name"
+              placeholder="Same as billing printer"
+              value={form.kot_printer_name ?? ''}
+              onChange={(e) => setForm((prev) => ({ ...prev, kot_printer_name: e.target.value }))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use the printer's exact name as this device lists it above.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Kitchen paper size</Label>
+            <Select
+              value={form.kot_paper_size}
+              onValueChange={(v) => setForm((prev) => ({ ...prev, kot_paper_size: v as KotPaperSize }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>{(value: string | null) => PAPER_SIZE_LABELS[(value as AutoPrintPaperSize) ?? '80mm']}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(['58mm', '80mm'] as KotPaperSize[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {PAPER_SIZE_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
       )}
 
