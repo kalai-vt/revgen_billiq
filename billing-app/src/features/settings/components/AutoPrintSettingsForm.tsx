@@ -77,6 +77,7 @@ export function AutoPrintSettingsForm() {
   const [agentPairingCode, setAgentPairingCode] = useState<string | null>(null);
   const [agentPrinters, setAgentPrinters] = useState<printAgentClient.AgentPrinterInfo[]>([]);
   const [agentTestPrintStatus, setAgentTestPrintStatus] = useState<TestPrintStatus>('idle');
+  const [agentDownloadStatus, setAgentDownloadStatus] = useState<'idle' | 'checking'>('idle');
 
   // The printer connection itself is local to this device (see deviceProfile.ts) — check whether
   // it's already paired from a previous visit, separately from the tenant-wide settings below.
@@ -261,6 +262,29 @@ export function AutoPrintSettingsForm() {
       toast.error(err instanceof Error ? err.message : 'Secure printer authorization failed. Please contact support.');
     } finally {
       setTestPrintStatus('idle');
+    }
+  }
+
+  /** Plain `<a href="/api/printing/agent/download">` used to navigate straight to the endpoint —
+   * when no installer is configured yet (settings.print_agent_download_url unset server-side, see
+   * backend/app/modules/printing/router.py), that endpoint 404s with a JSON body, so the browser
+   * just navigated the whole page to a raw `{"detail": "..."}` blob instead of downloading
+   * anything. A HEAD request first (no body transferred either way) lets a failure show as a
+   * normal toast with the page intact, and only navigates — same tab, so the browser's own
+   * download handling kicks in — once the download is actually going to work. */
+  async function downloadPrintAgent() {
+    setAgentDownloadStatus('checking');
+    try {
+      const response = await fetch('/api/printing/agent/download', { method: 'HEAD' });
+      if (!response.ok) {
+        toast.error("The Print Agent installer isn't available for download yet. Contact support.");
+        return;
+      }
+      window.location.href = '/api/printing/agent/download';
+    } catch {
+      toast.error('Could not reach the download server. Check your connection and try again.');
+    } finally {
+      setAgentDownloadStatus('idle');
     }
   }
 
@@ -531,12 +555,14 @@ export function AutoPrintSettingsForm() {
               Install the RevGenAI Print Agent once on this till, then connect it below — no
               certificates or trust popups to manage, and no need to reconfirm on every print.
             </p>
-            <a
-              href="/api/printing/agent/download"
-              className="mt-1 inline-block text-xs font-medium text-primary underline underline-offset-2"
+            <button
+              type="button"
+              onClick={downloadPrintAgent}
+              disabled={agentDownloadStatus === 'checking'}
+              className="mt-1 inline-block text-xs font-medium text-primary underline underline-offset-2 disabled:opacity-60"
             >
-              Don't have it installed yet? Download for Windows
-            </a>
+              {agentDownloadStatus === 'checking' ? 'Checking…' : "Don't have it installed yet? Download for Windows"}
+            </button>
           </div>
           {agentPairStatus === 'paired' && <Badge variant="secondary">Connected</Badge>}
           {agentPairStatus === 'error' && <Badge variant="destructive">Not connected</Badge>}
