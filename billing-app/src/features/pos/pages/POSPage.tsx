@@ -414,6 +414,7 @@ export function POSPage() {
             onPaymentReferenceChange={setPaymentReference}
             tableId={tableId}
             onTableIdChange={handleTableChange}
+            isTableMode={cart.isTableMode}
             onPrintKot={() => printKot.mutate()}
             isPrintingKot={printKot.isPending}
             amountTendered={amountTendered}

@@ -46,6 +46,7 @@ const baseProps = {
   onPaymentReferenceChange: vi.fn(),
   tableId: '__no_table__',
   onTableIdChange: vi.fn(),
+  isTableMode: false,
   onPrintKot: vi.fn(),
   isPrintingKot: false,
   amountTendered: null,
@@ -337,5 +338,19 @@ describe('CheckoutPanel — Print Kitchen KOT', () => {
   it('Print Order Bill is now toggleable too', () => {
     render(<CheckoutPanel {...baseProps} checkoutConfig={configWith({ print_order_bill: false })} />);
     expect(screen.queryByRole('button', { name: /print order bill/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPanel — Hold Bill', () => {
+  it('is offered for a counter sale, which has nowhere else to keep the cart', () => {
+    render(<CheckoutPanel {...baseProps} />);
+    expect(screen.getByRole('button', { name: /hold bill/i })).toBeInTheDocument();
+  });
+
+  it('is withdrawn in table mode — the table already holds the order', () => {
+    // Offering it here produced a duplicate held bill and emptied the table's order, leaving the
+    // table occupied with nothing on it.
+    render(<CheckoutPanel {...baseProps} tableId="t1" isTableMode />);
+    expect(screen.queryByRole('button', { name: /hold bill/i })).not.toBeInTheDocument();
   });
 });
