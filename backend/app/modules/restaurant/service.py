@@ -39,6 +39,7 @@ from app.schemas.restaurant import (
     TableCreate,
     TableUpdate,
 )
+from app.modules.sales.service import SalesError
 from app.schemas.sales import InvoiceCreate, InvoiceLineCreate
 
 
@@ -873,9 +874,17 @@ def bill_order(db: Session, tenant_id: str, order_id: str, current_user: User, p
         amount_tendered=payload.amount_tendered,
         payment_type="paid" if payload.mark_paid else "credit",
         paid_now=float(totals["total"]) if payload.mark_paid else 0.0,
+        due_date=payload.due_date,
         idempotency_key=payload.client_reference_id,
     )
-    invoice = sales_service.create_invoice(db, tenant_id, current_user, invoice_payload)
+    try:
+        invoice = sales_service.create_invoice(db, tenant_id, current_user, invoice_payload)
+    except SalesError as err:
+        # The sales layer enforces the money rules — a credit sale needs a customer to collect
+        # from, credit limits, manager approval. Those are the caller's problem to fix, not a
+        # server fault, but only RestaurantError was being translated here so they surfaced as a
+        # 500 and the cashier saw "Internal Server Error" instead of what to do.
+        raise RestaurantError(err.status_code, err.message) from err
 
     order.invoice_id = invoice.id
     order.status = "billed"

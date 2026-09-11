@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
 import { CartPanel } from '@/features/pos/components/CartPanel';
+import { CustomerPicker } from '@/features/pos/components/CustomerPicker';
 import {
   buildProvisionalBillSnapshot,
   storeProvisionalBillSnapshot,
@@ -64,6 +65,10 @@ export function RestaurantOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentType, setPaymentType] = useState<PaymentType>('paid');
   const [paymentReference, setPaymentReference] = useState('');
+  // A bill left unpaid has to name who owes it and when — the sales layer refuses otherwise, and
+  // without these the table page could only ever take payment in full.
+  const [dueDate, setDueDate] = useState('');
+  const [paidNow, setPaidNow] = useState<number | null>(null);
 
   const [billOpen, setBillOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -127,6 +132,12 @@ export function RestaurantOrderPage() {
     else await restaurantApi.markKotPrintFailed(kot.id, kotPrintFailureMessage(result)).catch(() => undefined);
     return result;
   }
+
+  const setOrderCustomer = useMutation({
+    mutationFn: (customerId: string | null) => restaurantApi.updateOrder(id!, { customer_id: customerId }),
+    onSuccess: () => refresh(),
+    onError: (err) => fail(err, 'Could not attach that customer'),
+  });
 
   const clearOrder = useMutation({
     // Sequential: these all mutate one order, so firing them in parallel makes the last write
@@ -386,12 +397,24 @@ export function RestaurantOrderPage() {
                   onAmountTenderedChange={() => undefined}
                   showAmountTendered={false}
                   showChangeDue={false}
-                  paidNow={null}
-                  onPaidNowChange={() => undefined}
-                  dueDate=""
-                  onDueDateChange={() => undefined}
+                  paidNow={paidNow}
+                  onPaidNowChange={setPaidNow}
+                  dueDate={dueDate}
+                  onDueDateChange={setDueDate}
                   total={order.totals?.total ?? 0}
                 />
+
+                {paymentType !== 'paid' && (
+                  <div className="space-y-1">
+                    <CustomerPicker
+                      customerId={order.customer_id}
+                      onSelect={(customer) => setOrderCustomer.mutate(customer?.id ?? null)}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      An unpaid bill is collected later, so it has to be attached to a customer.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   {invoiceDesignerEnabled && checkoutConfig.print_order_bill && (
@@ -425,6 +448,7 @@ export function RestaurantOrderPage() {
                           ? paymentReference.trim() || null
                           : null,
                       mark_paid: paymentType === 'paid',
+                      due_date: paymentType !== 'paid' ? dueDate || null : null,
                     })
                   }
                 >
