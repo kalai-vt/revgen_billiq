@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeftRight, ChefHat, Loader2, Merge, Printer, Receipt, Split, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, ChefHat, Loader2, Merge, Printer, Receipt, Split } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,14 +10,30 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
+import { CartPanel } from '@/features/pos/components/CartPanel';
+import {
+  buildProvisionalBillSnapshot,
+  storeProvisionalBillSnapshot,
+} from '@/features/pos/lib/provisionalBill';
+import {
+  printProvisionalBillSilently,
+  silentPrintFailureMessage,
+  type SilentPrintResult,
+} from '@/features/pos/lib/silentPrint';
+import { appPath } from '@/lib/app-path';
+import { PaymentMethodSelector } from '@/features/pos/components/PaymentMethodSelector';
+import { cartLinesFromOrder, orderItemForProduct } from '@/features/restaurant/lib/orderCartLines';
 import { BillOrderDialog } from '@/features/restaurant/components/BillOrderDialog';
 import { MergeOrdersDialog } from '@/features/restaurant/components/MergeOrdersDialog';
 import { SplitOrderDialog, type SplitSelection } from '@/features/restaurant/components/SplitOrderDialog';
 import { TransferTableDialog } from '@/features/restaurant/components/TransferTableDialog';
 import * as restaurantApi from '@/features/restaurant/api';
-import type { BillOrderPayload, Kot, OrderItem, RestaurantOrder } from '@/features/restaurant/api';
+import type { BillOrderPayload, Kot, RestaurantOrder } from '@/features/restaurant/api';
 import { kotPrintFailureMessage, printKot, type KotPrintResult } from '@/features/restaurant/lib/kotPrint';
 import { useFeatureFlag } from '@/features/settings/hooks/useFeatureFlags';
+import { useCheckoutConfig } from '@/features/pos/lib/checkoutElements';
+import { getVisiblePaymentMethods, getVisiblePaymentTypes } from '@/features/pos/lib/checkoutLayout';
+import type { PaymentMethod, PaymentType } from '@/features/pos/api';
 import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/query-error';
@@ -31,63 +47,23 @@ const KOT_STATUS_STYLES: Record<restaurantApi.KotStatus, string> = {
   cancelled: 'bg-destructive/10 text-destructive',
 };
 
-function OrderLine({
-  item,
-  onChangeQuantity,
-  onRemove,
-  disabled,
-}: {
-  item: OrderItem;
-  onChangeQuantity: (quantity: number) => void;
-  onRemove: () => void;
-  disabled: boolean;
-}) {
-  // Anything already with the kitchen can't be quietly reduced or removed here — the server
-  // rejects it, so the UI shows why rather than letting the click fail.
-  const sent = item.sent_quantity > 0;
-  return (
-    <div className="flex items-center gap-2 border-b py-2 last:border-b-0">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.product_name}</p>
-        <p className="text-[11px] text-muted-foreground">
-          {item.unit_price.toFixed(2)} each
-          {sent && ` · ${item.sent_quantity} sent to kitchen`}
-        </p>
-        {item.notes && <p className="text-[11px] italic text-muted-foreground">{item.notes}</p>}
-      </div>
-      <Input
-        type="number"
-        min={item.sent_quantity || 1}
-        step="1"
-        value={item.quantity}
-        disabled={disabled}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (next > 0) onChangeQuantity(next);
-        }}
-        className="h-8 w-16 text-center"
-      />
-      <span className="w-20 text-right text-sm font-medium">{item.line_total.toFixed(2)}</span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        disabled={disabled || sent}
-        title={sent ? 'Already sent to the kitchen — cancel its KOT instead' : 'Remove'}
-        onClick={onRemove}
-      >
-        <Trash2 className="size-4" />
-      </Button>
-    </div>
-  );
-}
-
 export function RestaurantOrderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [cancelReason, setCancelReason] = useState('');
   const [cancellingKotId, setCancellingKotId] = useState<string | null>(null);
+  // Same feature-toggle rules as Billing — a dine-in bill must not offer a payment type or
+  // method the tenant has switched off at the counter.
+  const outstandingEnabled = useFeatureFlag('payments_credit');
+  const invoiceDesignerEnabled = useFeatureFlag('invoice_designer');
+  const checkoutConfig = useCheckoutConfig();
+  const visiblePaymentTypes = getVisiblePaymentTypes(checkoutConfig, outstandingEnabled);
+  const visiblePaymentMethods = getVisiblePaymentMethods(checkoutConfig);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentType, setPaymentType] = useState<PaymentType>('paid');
+  const [paymentReference, setPaymentReference] = useState('');
+
   const [billOpen, setBillOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -253,6 +229,51 @@ export function RestaurantOrderPage() {
 
   const isOpen = order.status === 'open';
   const unsent = order.items.reduce((sum, item) => sum + Math.max(0, item.quantity - item.sent_quantity), 0);
+  // The same mapping Billing uses in table mode, so both screens render one order identically.
+  const cartLines = cartLinesFromOrder(order);
+  function itemFor(productId: string) {
+    return orderItemForProduct(order, productId);
+  }
+
+  /** The provisional bill a guest asks for before paying. Same path as Billing's Print Order
+   * Bill — one snapshot builder, one silent-print attempt, one browser-dialog fallback — so the
+   * paper a dine-in guest gets is identical to a counter one. */
+  async function printOrderBill(current: RestaurantOrder) {
+    const snapshot = buildProvisionalBillSnapshot({
+      lines: cartLinesFromOrder(current),
+      totals: {
+        subtotal: current.totals?.subtotal ?? 0,
+        taxableAmount: current.totals?.subtotal ?? 0,
+        taxAmount: current.totals?.tax_amount ?? 0,
+        total: current.totals?.total ?? 0,
+        discountAmount: 0,
+        effectiveTaxPercentage: 0,
+      },
+      customerName: current.customer_name ?? '',
+      customerPhone: current.customer_phone ?? '',
+      discountType: null,
+      discountValue: 0,
+      taxPercentage: 0,
+      paymentType,
+      paymentMethod,
+    });
+    const printed = await printProvisionalBillSilently(snapshot).catch(
+      (err): SilentPrintResult => ({
+        ok: false,
+        reason: 'transport-failed',
+        detail: err instanceof Error ? err.message : undefined,
+      }),
+    );
+    if (printed.ok) {
+      toast.success('Order bill sent to printer');
+      return;
+    }
+    const reason = silentPrintFailureMessage(printed);
+    if (reason) toast.warning(reason);
+    storeProvisionalBillSnapshot(snapshot);
+    window.open(appPath('/pos/provisional-bill/print'), '_blank', 'noopener,noreferrer');
+  }
+
   const activeKots = order.kots.filter((k) => k.status !== 'cancelled');
 
   return (
@@ -276,33 +297,33 @@ export function RestaurantOrderPage() {
 
       {/* Same three columns, proportions and components as Billing: this screen is another way
           into the same order, so it should not look or behave like a different product. */}
-      <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[2.78fr_5fr_2.9fr]">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[2.78fr_5fr_2.9fr]">
         <Card className="min-h-0 p-2">
           <ProductSearchPanel onAdd={(product) => addItem.mutate(product)} />
         </Card>
 
         <Card className="min-h-0 p-2">
-          <div className="mb-1 flex items-center justify-between px-1">
-            <p className="text-sm font-medium">Current Cart ({order.items.length} items)</p>
-            {unsent > 0 && <Badge variant="outline">{unsent} not yet sent</Badge>}
-          </div>
-          {order.items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Nothing on this order yet — search for a dish to add it.
-            </p>
-          ) : (
-            <div className="min-h-0 overflow-y-auto scrollbar-thin">
-              {order.items.map((item) => (
-                <OrderLine
-                  key={item.id}
-                  item={item}
-                  disabled={!isOpen}
-                  onChangeQuantity={(quantity) => changeQuantity.mutate({ itemId: item.id, quantity })}
-                  onRemove={() => removeItem.mutate(item.id)}
-                />
-              ))}
-            </div>
+          {unsent > 0 && (
+            <Badge variant="outline" className="mb-1 ml-1">{unsent} not yet sent</Badge>
           )}
+          {/* Billing's own cart, not a lookalike: one component means the two screens cannot
+              drift apart, and a fix to either lands on both. */}
+          <CartPanel
+            lines={cartLines}
+            onQuantityChange={(productId, quantity) => {
+              const item = itemFor(productId);
+              if (!item) return;
+              if (quantity <= 0) removeItem.mutate(item.id);
+              else changeQuantity.mutate({ itemId: item.id, quantity });
+            }}
+            onPriceChange={() => undefined}
+            onRemove={(productId) => {
+              const item = itemFor(productId);
+              if (item) removeItem.mutate(item.id);
+            }}
+            onClear={() => order.items.filter((i) => !i.is_cancelled).forEach((i) => removeItem.mutate(i.id))}
+            canOverridePrice={false}
+          />
         </Card>
 
         <div className="min-h-0 space-y-3 overflow-y-auto scrollbar-thin">
@@ -337,26 +358,69 @@ export function RestaurantOrderPage() {
 
             {isOpen && (
               <div className="space-y-2">
-                {kotEnabled && (
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    disabled={unsent === 0 || sendKot.isPending}
-                    onClick={() => sendKot.mutate()}
-                    title={unsent === 0 ? 'Everything has already gone to the kitchen' : undefined}
-                  >
-                    {sendKot.isPending ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />}
-                    Send to kitchen
-                  </Button>
-                )}
+                {/* Billing's own payment control, so a dine-in bill is taken exactly the way a
+                    counter sale is — same visuals, same feature toggles, same rules. */}
+                <PaymentMethodSelector
+                  method={paymentMethod}
+                  onMethodChange={setPaymentMethod}
+                  visiblePaymentMethods={visiblePaymentMethods}
+                  paymentType={paymentType}
+                  onPaymentTypeChange={setPaymentType}
+                  visiblePaymentTypes={visiblePaymentTypes}
+                  showPaymentType={outstandingEnabled}
+                  paymentReference={paymentReference}
+                  onPaymentReferenceChange={setPaymentReference}
+                  showPaymentReference={checkoutConfig.payment_reference}
+                  amountTendered={null}
+                  onAmountTenderedChange={() => undefined}
+                  showAmountTendered={false}
+                  showChangeDue={false}
+                  paidNow={null}
+                  onPaidNowChange={() => undefined}
+                  dueDate=""
+                  onDueDateChange={() => undefined}
+                  total={order.totals?.total ?? 0}
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  {invoiceDesignerEnabled && checkoutConfig.print_order_bill && (
+                    <Button variant="outline" className="text-xs" onClick={() => printOrderBill(order)}>
+                      <Printer className="size-4" />
+                      Print Order Bill
+                    </Button>
+                  )}
+                  {kotEnabled && checkoutConfig.print_kot && (
+                    <Button
+                      variant="outline"
+                      className="text-xs"
+                      disabled={unsent === 0 || sendKot.isPending}
+                      onClick={() => sendKot.mutate()}
+                      title={unsent === 0 ? 'Everything has already gone to the kitchen' : undefined}
+                    >
+                      {sendKot.isPending ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />}
+                      Print Kitchen KOT
+                    </Button>
+                  )}
+                </div>
+
                 <Button
                   className="w-full"
                   disabled={order.items.length === 0 || billOrder.isPending}
-                  onClick={() => setBillOpen(true)}
+                  onClick={() =>
+                    billOrder.mutate({
+                      payment_method: paymentMethod,
+                      payment_reference:
+                        paymentMethod !== 'cash' && paymentType !== 'credit'
+                          ? paymentReference.trim() || null
+                          : null,
+                      mark_paid: paymentType === 'paid',
+                    })
+                  }
                 >
                   {billOrder.isPending ? <Loader2 className="size-4 animate-spin" /> : <Receipt className="size-4" />}
-                  Bill & close table
+                  Checkout · {(order.totals?.total ?? 0).toFixed(2)}
                 </Button>
+
                 {transferEnabled && (
                   <Button className="w-full" variant="ghost" onClick={() => setTransferOpen(true)}>
                     <ArrowLeftRight className="size-4" />

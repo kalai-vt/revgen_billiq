@@ -58,7 +58,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('RestaurantOrderPage — per-tenant feature gating', () => {
   it('offers every table action when the modules are on', async () => {
     await renderPage({});
-    expect(screen.getByRole('button', { name: /send to kitchen/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /print kitchen kot/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /move to another table/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^merge$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^split$/i })).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe('RestaurantOrderPage — per-tenant feature gating', () => {
 
   it('hides an action whose module is off rather than offering a call that would 402', async () => {
     await renderPage({ kot: false, table_transfer: false, table_merge: false, table_split: false });
-    expect(screen.queryByRole('button', { name: /send to kitchen/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /print kitchen kot/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /move to another table/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^merge$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^split$/i })).not.toBeInTheDocument();
@@ -78,11 +78,11 @@ describe('RestaurantOrderPage — per-tenant feature gating', () => {
     await renderPage({ table_merge: false });
     expect(screen.queryByRole('button', { name: /^merge$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^split$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send to kitchen/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /print kitchen kot/i })).toBeInTheDocument();
   });
 
   it('always allows billing — a table that cannot be billed is not a usable restaurant', async () => {
     await renderPage({ kot: false, table_transfer: false, table_merge: false, table_split: false });
-    expect(screen.getByRole('button', { name: /bill & close table/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /checkout/i })).toBeInTheDocument();
   });
 });

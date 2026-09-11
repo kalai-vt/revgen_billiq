@@ -239,6 +239,30 @@ def sync_table_status(db: Session, table: RestaurantTable | None) -> None:
     db.add(table)
 
 
+def kitchen_state(order: RestaurantOrder | None) -> str | None:
+    """How far the kitchen has got with this table's food.
+
+    The table's own status stays the simple Available/Occupied/Billing that staff read at a
+    glance; this is the detail behind it, so a server crossing the floor can see which table's
+    food is ready without opening the order. Derived from the KOTs rather than stored, so it can
+    never disagree with them.
+    """
+    if not order:
+        return None
+    live = [kot for kot in order.kots if kot.status != "cancelled"]
+    if not live:
+        return None
+    # Reported in the order a cook works through them: anything still waiting outranks anything
+    # already plated, because that is what the floor needs to know.
+    if any(kot.status == "pending" for kot in live):
+        return "sent"
+    if any(kot.status == "preparing" for kot in live):
+        return "preparing"
+    if any(kot.status == "ready" for kot in live):
+        return "ready"
+    return "served"
+
+
 def _active_order_for_table(db: Session, tenant_id: str, table_id: str) -> RestaurantOrder | None:
     return db.execute(
         select(RestaurantOrder).where(

@@ -36,6 +36,15 @@ const STATUS_DOT: Record<restaurantApi.TableStatus, string> = {
   cleaning: 'bg-muted-foreground/50',
 };
 
+/** The floor reads these, not the KOT lifecycle: what a server needs crossing the room is
+ * whether the food is ready, not which ticket is in which state. */
+const KITCHEN_STATE_LABELS: Record<'sent' | 'preparing' | 'ready' | 'served', string> = {
+  sent: 'Sent to kitchen',
+  preparing: 'Preparing',
+  ready: 'Food ready',
+  served: 'Served',
+};
+
 function TableCard({
   table,
   onSelect,
@@ -99,6 +108,11 @@ function TableCard({
           <span className={cn('size-1.5 rounded-full', STATUS_DOT[table.status])} />
           {restaurantApi.TABLE_STATUS_LABELS[table.status]}
         </span>
+        {table.kitchen_state && (
+          <span className="text-[11px] font-medium text-muted-foreground">
+            {KITCHEN_STATE_LABELS[table.kitchen_state]}
+          </span>
+        )}
         {table.active_order_id && (
           <p className="text-[11px] text-muted-foreground">
             {table.active_order_number} · {table.active_order_item_count} item

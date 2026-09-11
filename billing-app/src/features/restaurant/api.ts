@@ -53,6 +53,8 @@ export interface TableWithOrder extends RestaurantTable {
   active_order_total: number | null;
   active_order_item_count: number | null;
   active_order_opened_at: string | null;
+  /** Kitchen progress behind the simple table status — which table's food is ready. */
+  kitchen_state: 'sent' | 'preparing' | 'ready' | 'served' | null;
 }
 
 export interface FloorLayout {

@@ -150,6 +150,7 @@ def get_layout(
                 out.active_order_total = float(totals["total"])
                 out.active_order_item_count = int(totals["item_count"])
                 out.active_order_opened_at = order.created_at
+                out.kitchen_state = service.kitchen_state(order)
             tables.append(out)
         payload.append(
             FloorLayoutOut(
