@@ -12,7 +12,7 @@ import { InvoiceSuccessDialog } from '@/features/pos/components/InvoiceSuccessDi
 import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel';
 import { PageHeaderAction } from '@/components/layout/pageActions';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { useCart } from '@/features/pos/hooks/useCart';
+import { useOrderCart } from '@/features/pos/hooks/useOrderCart';
 import { useCreateInvoice } from '@/features/pos/hooks/useCreateInvoice';
 import { useKeyboardShortcuts } from '@/features/pos/hooks/useKeyboardShortcuts';
 import { computeTotals } from '@/features/pos/lib/calc';
@@ -28,11 +28,15 @@ import type { DiscountType, HeldBill, Invoice, PaymentMethod, PaymentType } from
 import * as restaurantApi from '@/features/restaurant/api';
 import { kotPrintFailureMessage, printKot as printKotTicket } from '@/features/restaurant/lib/kotPrint';
 import { NO_TABLE } from '@/features/pos/components/TableSelector';
+import { ChangeTableDialog } from '@/features/pos/components/ChangeTableDialog';
 import { ApiError } from '@/lib/api-client';
+import { apiErrorMessage } from '@/lib/query-error';
 import { appPath } from '@/lib/app-path';
 
 export function POSPage() {
-  const cart = useCart();
+  const [tableId, setTableId] = useState<string>(NO_TABLE);
+  const [pendingTableChange, setPendingTableChange] = useState<string | null>(null);
+  const cart = useOrderCart(tableId);
   const { canOverridePrice } = useAuth();
   const outstandingEnabled = useFeatureFlag('payments_credit');
   const checkoutConfig = useCheckoutConfig();
@@ -55,7 +59,6 @@ export function POSPage() {
   const [paymentType, setPaymentType] = useState<PaymentType>('paid');
   const [amountTendered, setAmountTendered] = useState<number | null>(null);
   const [paymentReference, setPaymentReference] = useState('');
-  const [tableId, setTableId] = useState<string>(NO_TABLE);
   const [paidNow, setPaidNow] = useState<number | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -82,14 +85,8 @@ export function POSPage() {
    * so the cart on screen and the tab on the table stay one and the same order. */
   const printKot = useMutation({
     mutationFn: async () => {
-      const order = await restaurantApi.openTableOrder(
-        tableId,
-        cart.lines.map((line) => ({
-          product_id: line.product.id,
-          quantity: line.quantity,
-          unit_price: line.overridePrice ?? undefined,
-        })),
-      );
+      // The cart is already this table's order — firing a KOT never creates another one.
+      const order = cart.order ?? (await restaurantApi.openTableOrder(tableId, []));
       const kot = await restaurantApi.createKot(order.id, {});
       return { order, kot, print: await printKotTicket(kot, order, false) };
     },
@@ -176,7 +173,36 @@ export function POSPage() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Something went wrong'),
   });
 
+  /** Switching tables with a cart in hand is ambiguous — the items might belong to the guests who
+   * just moved, or to the table they came from. Silently carrying them either way loses somebody's
+   * order, so the choice goes to the cashier.
+   *
+   * Moving keeps the same order (and its number and kitchen tickets) and only reassigns the
+   * table, which is the existing transfer path — not a copy into a new order. */
+  function handleTableChange(nextTableId: string) {
+    const leavingATabBehind = cart.isTableMode && cart.lines.length > 0 && nextTableId !== tableId;
+    if (leavingATabBehind) {
+      setPendingTableChange(nextTableId);
+      return;
+    }
+    setTableId(nextTableId);
+  }
+
+  const moveOrderToTable = useMutation({
+    mutationFn: (toTableId: string) => restaurantApi.transferOrder(cart.order!.id, toTableId),
+    onSuccess: (updated) => {
+      toast.success(`Order moved to Table ${updated.table_name}`);
+      setTableId(updated.table_id ?? NO_TABLE);
+      setPendingTableChange(null);
+      queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not move that order')),
+  });
+
   function resumeHeldBill(heldBill: HeldBill) {
+    // A held bill is a counter sale with no table behind it, so resuming one leaves table mode
+    // rather than trying to graft a local cart onto somebody's tab.
+    setTableId(NO_TABLE);
     cart.setLines(
       heldBill.lines.map((line) => ({
         product: line.product,
@@ -271,17 +297,11 @@ export function POSPage() {
       // A table turns this into a dine-in sale: it has to go through the restaurant path so a
       // real order exists, the table's status is synced, and table-wise reporting sees it. The
       // resulting Invoice is identical either way — bill_order reuses the same sales service.
-      if (tableId !== NO_TABLE) {
-        const billed = await restaurantApi.quickBillTable({
-          table_id: tableId,
-          items: cart.lines.map((line) => ({
-            product_id: line.product.id,
-            quantity: line.quantity,
-            unit_price: line.overridePrice ?? undefined,
-          })),
-          customer_id: customerId,
-          customer_name: customerName || null,
-          customer_phone: customerPhone || null,
+      if (cart.order) {
+        // The cart *is* this table's order, so checkout bills that order rather than creating a
+        // second one — the same call the Tables screen makes, so both routes share one checkout
+        // path and one invoice.
+        const billed = await restaurantApi.billOrder(cart.order.id, {
           payment_method: paymentMethod,
           payment_reference:
             paymentMethod !== 'cash' && paymentType !== 'credit' ? paymentReference.trim() || null : null,
@@ -393,7 +413,7 @@ export function POSPage() {
             paymentReference={paymentReference}
             onPaymentReferenceChange={setPaymentReference}
             tableId={tableId}
-            onTableIdChange={setTableId}
+            onTableIdChange={handleTableChange}
             onPrintKot={() => printKot.mutate()}
             isPrintingKot={printKot.isPending}
             amountTendered={amountTendered}
@@ -432,6 +452,14 @@ export function POSPage() {
         autoPrintDeviceMode={preferences?.auto_print_device_mode ?? null}
       />
       <HeldBillsDialog open={heldBillsOpen} onClose={() => setHeldBillsOpen(false)} onResume={resumeHeldBill} />
+      <ChangeTableDialog
+        open={pendingTableChange !== null}
+        itemCount={cart.lines.length}
+        isPending={moveOrderToTable.isPending}
+        onOpenChange={(next) => !next && setPendingTableChange(null)}
+        onKeepCurrent={() => setPendingTableChange(null)}
+        onMove={() => moveOrderToTable.mutate(pendingTableChange!)}
+      />
     </div>
   );
 }

@@ -53,6 +53,8 @@ export interface TableWithOrder extends RestaurantTable {
   active_order_total: number | null;
   active_order_item_count: number | null;
   active_order_opened_at: string | null;
+  /** Kitchen progress behind the simple table status — which table's food is ready. */
+  kitchen_state: 'sent' | 'preparing' | 'ready' | 'served' | null;
 }
 
 export interface FloorLayout {
@@ -260,6 +262,21 @@ export function splitOrder(
  * now, bill later" step from the Billing screen. */
 export function openTableOrder(tableId: string, items: OrderItemInput[]): Promise<RestaurantOrder> {
   return request(`/api/restaurant/tables/${tableId}/order`, { method: 'POST', body: JSON.stringify(items) });
+}
+
+/** The table's open order, or null when it's free. Both Billing and the table board read this so
+ * they resume one tab instead of each starting their own. */
+export function getTableActiveOrder(tableId: string): Promise<RestaurantOrder | null> {
+  return request(`/api/restaurant/tables/${tableId}/active-order`);
+}
+
+/** Frees an occupied table. Releases the occupancy, never the table configuration —
+ * `cancelOrder` is required before a tab with items is discarded. */
+export function releaseTable(tableId: string, cancelOrder = false): Promise<RestaurantTable> {
+  return request(`/api/restaurant/tables/${tableId}/release`, {
+    method: 'POST',
+    body: JSON.stringify({ cancel_order: cancelOrder }),
+  });
 }
 
 export interface TableQuickBillPayload extends BillOrderPayload {

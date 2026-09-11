@@ -90,6 +90,8 @@ class TableWithOrderOut(TableOut):
     active_order_total: float | None = None
     active_order_item_count: int | None = None
     active_order_opened_at: datetime | None = None
+    # Kitchen progress behind the simple table status — see service.kitchen_state.
+    kitchen_state: Literal["sent", "preparing", "ready", "served"] | None = None
 
 
 class FloorLayoutOut(BaseModel):
@@ -253,6 +255,13 @@ class KotOut(BaseModel):
     last_print_error: str | None = None
     created_at: datetime
     items: list[KotItemOut] = Field(default_factory=list)
+
+
+class TableReleaseRequest(BaseModel):
+    """`cancel_order` is the API-level counterpart of the confirmation dialog: a tab with items is
+    never discarded just because someone clicked the X."""
+
+    cancel_order: bool = False
 
 
 class KotPrintFailure(BaseModel):
