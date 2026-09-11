@@ -406,7 +406,7 @@ def post_release_table(
 ) -> dict[str, Any]:
     """Frees an occupied table. Releases the occupancy, never the table configuration."""
     try:
-        table = service.release_table(db, current_user.tenant_id, table_id, payload.cancel_order)
+        table = service.release_table(db, current_user.tenant_id, table_id, payload.cancel_order, current_user)
     except RestaurantError as err:
         raise _handle(err) from err
     return make_response(True, "Table released", TableOut.model_validate(table).model_dump(mode="json"))
