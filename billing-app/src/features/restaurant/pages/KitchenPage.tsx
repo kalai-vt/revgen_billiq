@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertTriangle, ChefHat, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as restaurantApi from '@/features/restaurant/api';
@@ -12,8 +14,12 @@ import { ApiError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 
-/** The kitchen board only ever moves a ticket forward. Cancelling is deliberately not here — it
- * needs a reason, and that belongs with the order, not the pass. */
+/** The kitchen board moves a ticket forward, or pulls it.
+ *
+ * Cancelling used to live only on the order screen, on the theory that a reason belongs with the
+ * order rather than the pass. In practice that left the kitchen with no way to pull a ticket at
+ * all, and made "cancel those first, then release the table" an instruction with nowhere to carry
+ * it out. The reason is still required here — it is the trail for why food was pulled. */
 const NEXT_STATUS: Partial<Record<KotStatus, { next: KotStatus; label: string }>> = {
   pending: { next: 'preparing', label: 'Start preparing' },
   preparing: { next: 'ready', label: 'Mark ready' },
@@ -26,8 +32,23 @@ const COLUMNS: { status: KotStatus; label: string; accent: string }[] = [
   { status: 'ready', label: 'Ready', accent: 'border-t-emerald-500' },
 ];
 
-function KotCard({ kot, onAdvance, isBusy }: { kot: Kot; onAdvance: () => void; isBusy: boolean }) {
+function KotCard({
+  kot,
+  onAdvance,
+  onCancel,
+  isBusy,
+  isCancelling,
+}: {
+  kot: Kot;
+  onAdvance: () => void;
+  onCancel: (reason: string) => void;
+  isBusy: boolean;
+  isCancelling: boolean;
+}) {
   const action = NEXT_STATUS[kot.status];
+  const [asking, setAsking] = useState(false);
+  const [reason, setReason] = useState('');
+
   return (
     <div className="rounded-md border bg-card p-2.5">
       <div className="flex items-center justify-between gap-2">
@@ -45,10 +66,57 @@ function KotCard({ kot, onAdvance, isBusy }: { kot: Kot; onAdvance: () => void; 
         ))}
       </ul>
       {kot.notes && <p className="mt-1 text-[11px] italic text-muted-foreground">{kot.notes}</p>}
-      {action && (
-        <Button size="sm" className="mt-2 h-7 w-full text-xs" disabled={isBusy} onClick={onAdvance}>
-          {action.label}
-        </Button>
+      {asking ? (
+        <div className="mt-2 space-y-1.5">
+          {/* A reason is required: cancelling means food may already be on the pass, so the trail
+              for why it was pulled matters. Same rule as the order screen. */}
+          <Input
+            placeholder="Reason for cancelling…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="h-8 text-xs"
+          />
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 flex-1 text-xs"
+              disabled={isCancelling}
+              onClick={() => {
+                setAsking(false);
+                setReason('');
+              }}
+            >
+              Keep
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 flex-1 text-xs"
+              disabled={!reason.trim() || isCancelling}
+              onClick={() => onCancel(reason.trim())}
+            >
+              Confirm
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 flex gap-1.5">
+          {action && (
+            <Button size="sm" className="h-7 flex-1 text-xs" disabled={isBusy} onClick={onAdvance}>
+              {action.label}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className={cn('h-7 text-xs text-destructive hover:text-destructive', action ? 'px-2' : 'flex-1')}
+            disabled={isBusy}
+            onClick={() => setAsking(true)}
+          >
+            Cancel
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -70,6 +138,17 @@ export function KitchenPage() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not update that ticket'),
   });
 
+  const cancelKot = useMutation({
+    mutationFn: ({ kotId, reason }: { kotId: string; reason: string }) => restaurantApi.cancelKot(kotId, reason),
+    onSuccess: (kot) => {
+      // The order's line quantities go back to "not yet sent" when a ticket is pulled, so the
+      // table board and any open order screen are refreshed too, not just this list.
+      queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+      toast.success(`${kot.kot_number} cancelled`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not cancel that ticket'),
+  });
+
   const live = (kots ?? []).filter((k) => k.status !== 'cancelled' && k.status !== 'served');
 
   return (
@@ -77,7 +156,7 @@ export function KitchenPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold">Kitchen KOT</h1>
-          <p className="text-sm text-muted-foreground">Tickets move forward only — Pending, Preparing, Ready.</p>
+          <p className="text-sm text-muted-foreground">Tickets move forward — Pending, Preparing, Ready. Cancel one to pull it from the kitchen.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
@@ -114,11 +193,13 @@ export function KitchenPage() {
                     <KotCard
                       key={kot.id}
                       kot={kot}
-                      isBusy={advance.isPending}
+                      isBusy={advance.isPending || cancelKot.isPending}
+                      isCancelling={cancelKot.isPending}
                       onAdvance={() => {
                         const next = NEXT_STATUS[kot.status];
                         if (next) advance.mutate({ kotId: kot.id, status: next.next });
                       }}
+                      onCancel={(reason) => cancelKot.mutate({ kotId: kot.id, reason })}
                     />
                   ))}
                   {items.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">Empty</p>}

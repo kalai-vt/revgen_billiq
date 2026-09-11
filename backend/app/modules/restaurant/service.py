@@ -718,11 +718,9 @@ def set_kot_status(db: Session, tenant_id: str, kot_id: str, status: str) -> Kot
     return get_kot(db, tenant_id, kot_id)
 
 
-def cancel_kot(db: Session, tenant_id: str, kot_id: str, current_user: User, reason: str) -> Kot:
-    kot = get_kot(db, tenant_id, kot_id)
-    if kot.status in ("cancelled", "served"):
-        raise RestaurantError(400, f"This KOT is already {kot.status}.")
-
+def _pull_kot(db: Session, tenant_id: str, kot: Kot, current_user: User, reason: str) -> None:
+    """Cancel one ticket and put its quantities back. Does not commit — the caller decides how
+    much work is one transaction, so releasing a table cannot half-cancel its tickets."""
     kot.status = "cancelled"
     kot.cancel_reason = reason
     kot.cancelled_by = current_user.id
@@ -739,6 +737,13 @@ def cancel_kot(db: Session, tenant_id: str, kot_id: str, current_user: User, rea
             item.sent_quantity = max(0.0, item.sent_quantity - kot_item.quantity)
             db.add(item)
 
+
+def cancel_kot(db: Session, tenant_id: str, kot_id: str, current_user: User, reason: str) -> Kot:
+    kot = get_kot(db, tenant_id, kot_id)
+    if kot.status in ("cancelled", "served"):
+        raise RestaurantError(400, f"This KOT is already {kot.status}.")
+
+    _pull_kot(db, tenant_id, kot, current_user, reason)
     db.commit()
     return get_kot(db, tenant_id, kot_id)
 
@@ -779,35 +784,49 @@ def active_order_for_table(db: Session, tenant_id: str, table_id: str) -> Restau
     return _active_order_for_table(db, tenant_id, table_id)
 
 
-def release_table(db: Session, tenant_id: str, table_id: str, cancel_order: bool = False) -> RestaurantTable:
+def release_table(
+    db: Session,
+    tenant_id: str,
+    table_id: str,
+    cancel_order: bool = False,
+    current_user: User | None = None,
+) -> RestaurantTable:
     """Puts an occupied table back to available.
 
     Never deletes the table itself — this releases the *occupancy*, which is why the UI calls it
     Release rather than Delete.
 
-    An order with items is not discarded silently: the caller has to pass cancel_order, which is
-    the API-level counterpart of the confirmation dialog. A tab whose tickets are still *with the
-    kitchen* is refused outright — that food is being cooked, so releasing the table would strand
-    it, and those KOTs have to be cancelled through their own flow first, where the reason is
-    recorded. Tickets that were already served do not block: the food has left the kitchen and the
-    board no longer shows them, so refusing there only made a finished table unreleasable.
+    Nothing is discarded silently: an order with items, or with tickets still in the kitchen,
+    needs `cancel_order` — the API-level counterpart of the confirmation dialog. But once that
+    confirmation is given, releasing cancels the whole thing, kitchen tickets included.
+
+    Refusing on live tickets (as this used to) was a dead end. It told staff to cancel the tickets
+    first, and the kitchen board had no cancel control at all — so a table whose food had been
+    fired could not be cleared from either screen. Cancelling them here records the same reason
+    and audit trail as the per-ticket flow, and returns the quantities to "not yet sent".
     """
     table = get_table(db, tenant_id, table_id)
     order = _active_order_for_table(db, tenant_id, table.id)
 
     if order:
         live_kots = kots_with_kitchen(order)
-        if live_kots:
-            raise RestaurantError(
-                409,
-                f"{table_label(table.name)} has {len(live_kots)} kitchen ticket(s) with the kitchen. "
-                "Cancel those first, then release the table.",
-            )
         has_items = any(not item.is_cancelled for item in order.items)
-        if has_items and not cancel_order:
+        if (has_items or live_kots) and not cancel_order:
             raise RestaurantError(
                 409, f"{table_label(table.name)} has an order with items. Confirm cancelling it to release the table."
             )
+        if live_kots:
+            if current_user is None:
+                # Every cancellation is attributable, so a caller with no user cannot pull food
+                # the kitchen is already cooking.
+                raise RestaurantError(
+                    409,
+                    f"{table_label(table.name)} has {len(live_kots)} kitchen ticket(s) with the kitchen. "
+                    "Cancel those first, then release the table.",
+                )
+            reason = f"{table_label(table.name)} released — order cancelled"
+            for kot in live_kots:
+                _pull_kot(db, tenant_id, kot, current_user, reason)
         order.status = "cancelled"
         order.closed_at = _now()
         db.add(order)

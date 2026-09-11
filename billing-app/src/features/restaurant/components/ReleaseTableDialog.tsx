@@ -15,16 +15,17 @@ interface ReleaseTableDialogProps {
 /** Frees a table that was taken by mistake, or whose guests left without ordering.
  *
  * The wording changes with what is actually at stake, because "Release table" means something
- * very different when there is ₹630 of food on it. A tab with items is never discarded on a
- * single click, and one whose tickets are still with the kitchen is refused by the server
- * outright — that food is being cooked, so it has to go through KOT cancellation where a reason
- * is recorded. Tickets already served do not block: the food has gone out and the kitchen board
- * no longer shows them.
+ * very different when there is ₹630 of food on it, and different again when some of it is already
+ * on the pass. A tab with items is never discarded on a single click; confirming cancels the
+ * order and pulls any tickets still with the kitchen, so this says so before it happens rather
+ * than letting the kitchen find out by the food going uncollected.
  */
 export function ReleaseTableDialog({ table, open, onOpenChange, onConfirm, isPending }: ReleaseTableDialogProps) {
   const itemCount = table.active_order_item_count ?? 0;
   const total = table.active_order_total ?? 0;
   const hasOrder = itemCount > 0;
+  // `served` means the food already went out, so there is nothing left for the kitchen to stop.
+  const inKitchen = table.kitchen_state === 'sent' || table.kitchen_state === 'preparing' || table.kitchen_state === 'ready';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -43,7 +44,9 @@ export function ReleaseTableDialog({ table, open, onOpenChange, onConfirm, isPen
               worth <span className="font-medium">{total.toFixed(2)}</span>.
             </p>
             <p className="text-muted-foreground">
-              Releasing the table will cancel that order. This can&apos;t be undone.
+              Releasing the table will cancel that order
+              {inKitchen ? ' and pull its kitchen ticket(s) — tell the kitchen to stop' : ''}. This can&apos;t be
+              undone.
             </p>
           </div>
         ) : (

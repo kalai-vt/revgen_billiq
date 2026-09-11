@@ -566,9 +566,13 @@ def test_a_table_with_items_is_not_released_without_confirmation(client: TestCli
     assert confirmed.json()["data"]["status"] == "available"
 
 
-def test_a_table_with_kitchen_tickets_cannot_be_released_at_all(client: TestClient, db_session: Session):
-    """The food is already being cooked — releasing the table would strand it, so the KOTs have to
-    be cancelled through their own flow, where a reason is recorded."""
+def test_releasing_a_table_pulls_its_kitchen_tickets(client: TestClient, db_session: Session):
+    """Confirming the release cancels the whole tab, tickets included.
+
+    Refusing here was a dead end: it told staff to cancel the tickets first, and the kitchen board
+    had no cancel control, so a table whose food had been fired could not be cleared from either
+    screen. The cancellation still records who and why, and returns the quantities to "not sent".
+    """
     _, headers = _setup(client, db_session)
     table = _table(client, headers, "Table S5")
     item = _product(client, headers, "Dosa", 100.0)
@@ -577,13 +581,50 @@ def test_a_table_with_kitchen_tickets_cannot_be_released_at_all(client: TestClie
         json=[{"product_id": item["id"], "quantity": 1}],
         headers=headers,
     ).json()["data"]
-    client.post(f"/api/restaurant/orders/{order['id']}/kot", json={}, headers=headers)
+    kot = client.post(f"/api/restaurant/orders/{order['id']}/kot", json={}, headers=headers).json()["data"]
 
-    refused = client.post(
+    # Still not a single click: without the confirmation the tab is left alone.
+    refused = client.post(f"/api/restaurant/tables/{table['id']}/release", json={}, headers=headers)
+    assert refused.status_code == 409
+
+    released = client.post(
         f"/api/restaurant/tables/{table['id']}/release", json={"cancel_order": True}, headers=headers
     )
-    assert refused.status_code == 409
-    assert "kitchen ticket" in refused.json()["detail"].lower()
+    assert released.status_code == 200, released.text
+    assert released.json()["data"]["status"] == "available"
+
+    after = client.get(f"/api/restaurant/kots", headers=headers).json()["data"]
+    pulled = next(k for k in after if k["id"] == kot["id"])
+    assert pulled["status"] == "cancelled"
+    assert pulled["cancel_reason"]
+    # ...and nothing is left showing on the kitchen board.
+    assert [k for k in after if k["status"] in ("pending", "preparing", "ready")] == []
+
+
+def test_a_kitchen_ticket_can_be_cancelled_with_a_reason(client: TestClient, db_session: Session):
+    """The cancel control the kitchen board now offers. A reason is required, and the quantities
+    go back to "not yet sent" so the line can be re-fired or removed."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S5a")
+    item = _product(client, headers, "Uttapam", 90.0)
+    order = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 2}],
+        headers=headers,
+    ).json()["data"]
+    kot = client.post(f"/api/restaurant/orders/{order['id']}/kot", json={}, headers=headers).json()["data"]
+
+    blank = client.post(f"/api/restaurant/kots/{kot['id']}/cancel", json={"reason": ""}, headers=headers)
+    assert blank.status_code == 422
+
+    cancelled = client.post(
+        f"/api/restaurant/kots/{kot['id']}/cancel", json={"reason": "Guest left"}, headers=headers
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["data"]["status"] == "cancelled"
+
+    reopened = client.get(f"/api/restaurant/orders/{order['id']}", headers=headers).json()["data"]
+    assert reopened["items"][0]["sent_quantity"] == 0
 
 
 def test_a_table_whose_food_was_served_can_be_released(client: TestClient, db_session: Session):
