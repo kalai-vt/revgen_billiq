@@ -38,6 +38,7 @@ import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
+import { orderLocationLabel } from '@/features/restaurant/lib/tableLabel';
 
 const KOT_STATUS_STYLES: Record<restaurantApi.KotStatus, string> = {
   pending: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
@@ -127,6 +128,16 @@ export function RestaurantOrderPage() {
     return result;
   }
 
+  const clearOrder = useMutation({
+    // Sequential: these all mutate one order, so firing them in parallel makes the last write
+    // win over the others' view of it and leaves items behind.
+    mutationFn: async (itemIds: string[]) => {
+      for (const itemId of itemIds) await restaurantApi.removeOrderItem(id!, itemId);
+    },
+    onSuccess: () => refresh(),
+    onError: (err) => fail(err, 'Could not clear this order'),
+  });
+
   const sendKot = useMutation({
     mutationFn: async () => {
       const kot = await restaurantApi.createKot(id!, {});
@@ -175,7 +186,7 @@ export function RestaurantOrderPage() {
   const transferOrder = useMutation({
     mutationFn: (toTableId: string) => restaurantApi.transferOrder(id!, toTableId),
     onSuccess: (updated) => {
-      toast.success(`Moved to Table ${updated.table_name}`);
+      toast.success(`Moved to ${orderLocationLabel(updated.table_name)}`);
       setTransferOpen(false);
       refresh(updated);
     },
@@ -277,11 +288,11 @@ export function RestaurantOrderPage() {
   const activeKots = order.kots.filter((k) => k.status !== 'cancelled');
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-3 md:h-full md:overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
-            {order.table_name ? `Table ${order.table_name}` : 'Takeaway'}
+            {orderLocationLabel(order.table_name)}
             <Badge variant="secondary">{order.order_number}</Badge>
             {!isOpen && <Badge variant="outline">{order.status}</Badge>}
           </h1>
@@ -297,14 +308,14 @@ export function RestaurantOrderPage() {
 
       {/* Same three columns, proportions and components as Billing: this screen is another way
           into the same order, so it should not look or behave like a different product. */}
-      <div className="grid min-h-0 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[2.78fr_5fr_2.9fr]">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:flex-1 md:grid-cols-2 md:overflow-hidden lg:grid-cols-[2.78fr_5fr_2.9fr]">
         <Card className="min-h-0 p-2">
           <ProductSearchPanel onAdd={(product) => addItem.mutate(product)} />
         </Card>
 
-        <Card className="min-h-0 p-2">
+        <Card className="flex min-h-0 flex-col gap-1 p-2">
           {unsent > 0 && (
-            <Badge variant="outline" className="mb-1 ml-1">{unsent} not yet sent</Badge>
+            <Badge variant="outline" className="ml-1 w-fit shrink-0">{unsent} not yet sent</Badge>
           )}
           {/* Billing's own cart, not a lookalike: one component means the two screens cannot
               drift apart, and a fix to either lands on both. */}
@@ -321,7 +332,7 @@ export function RestaurantOrderPage() {
               const item = itemFor(productId);
               if (item) removeItem.mutate(item.id);
             }}
-            onClear={() => order.items.filter((i) => !i.is_cancelled).forEach((i) => removeItem.mutate(i.id))}
+            onClear={() => clearOrder.mutate(order.items.filter((i) => !i.is_cancelled).map((i) => i.id))}
             canOverridePrice={false}
           />
         </Card>
@@ -330,7 +341,7 @@ export function RestaurantOrderPage() {
           <Card className="space-y-2 p-4">
             <div>
               <p className="text-sm font-semibold">
-                {order.table_name ? `Table ${order.table_name}` : 'Takeaway'}
+                {orderLocationLabel(order.table_name)}
               </p>
               <p className="text-xs text-muted-foreground">{order.order_number}</p>
             </div>

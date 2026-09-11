@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import type { TableWithOrder } from '@/features/restaurant/api';
+import { tableLabel } from '@/features/restaurant/lib/tableLabel';
 
 interface ReleaseTableDialogProps {
   table: TableWithOrder;
@@ -27,13 +28,13 @@ export function ReleaseTableDialog({ table, open, onOpenChange, onConfirm, isPen
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Release Table {table.name}?</DialogTitle>
+          <DialogTitle>Release {tableLabel(table.name)}?</DialogTitle>
         </DialogHeader>
 
         {hasOrder ? (
           <div className="space-y-2 py-1 text-sm">
             <p>
-              Table {table.name} has an active order with{' '}
+              {tableLabel(table.name)} has an active order with{' '}
               <span className="font-medium">
                 {itemCount} item{itemCount === 1 ? '' : 's'}
               </span>{' '}

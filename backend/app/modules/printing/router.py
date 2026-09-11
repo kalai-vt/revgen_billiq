@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_role
+from app.core.limits import require_feature
 from app.core.rate_limit import limiter
 from app.core.responses import make_response
 from app.models.user import User
@@ -171,7 +172,7 @@ def post_agent_device_revoke(
 
 # ---- Printer destinations --------------------------------------------------------------------
 
-@router.get("/config/{role}")
+@router.get("/config/{role}", dependencies=[Depends(require_feature("kot"))])
 def get_printer_configuration(
     role: PrinterRoleParam,
     current_user: User = Depends(require_role("owner", "manager")),
@@ -181,7 +182,7 @@ def get_printer_configuration(
     return make_response(True, "Printer configuration loaded", _config_out(config))
 
 
-@router.put("/config/{role}")
+@router.put("/config/{role}", dependencies=[Depends(require_feature("kot"))])
 def put_printer_configuration(
     role: PrinterRoleParam,
     payload: PrinterConfigurationUpdate,
@@ -192,7 +193,7 @@ def put_printer_configuration(
     return make_response(True, "Printer configuration saved", _config_out(config))
 
 
-@router.post("/config/{role}/test-result")
+@router.post("/config/{role}/test-result", dependencies=[Depends(require_feature("kot"))])
 def post_connection_test_result(
     role: PrinterRoleParam,
     payload: ConnectionTestResult,

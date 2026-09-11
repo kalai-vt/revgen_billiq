@@ -32,6 +32,8 @@ interface CheckoutPanelProps {
   /** Dine-in: which table this cart belongs to, or NO_TABLE for an ordinary counter sale. */
   tableId: string;
   onTableIdChange: (value: string) => void;
+  /** True while the cart is a view over a table's server-side order. */
+  isTableMode: boolean;
   onPrintKot: () => void;
   isPrintingKot: boolean;
   amountTendered: number | null;
@@ -80,6 +82,7 @@ export function CheckoutPanel({
   onPaymentReferenceChange,
   tableId,
   onTableIdChange,
+  isTableMode,
   onPrintKot,
   isPrintingKot,
   amountTendered,
@@ -284,7 +287,11 @@ export function CheckoutPanel({
           </div>
         )}
         <div className="flex gap-2">
-          {checkoutConfig.hold_bill && (
+          {/* A table's order is already held — it lives on the server and survives a refresh, which
+              is what Hold Bill exists to do for a counter sale. Offering it here produced a
+              duplicate held bill AND emptied the table's order, stranding the table as occupied
+              with nothing on it. */}
+          {checkoutConfig.hold_bill && !isTableMode && (
             <Button
               variant="outline"
               className="rounded-xl border-primary text-xs text-primary hover:bg-primary/5"

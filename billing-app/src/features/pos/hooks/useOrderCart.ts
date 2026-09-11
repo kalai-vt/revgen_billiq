@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
+import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart, type CartLine } from '@/features/pos/hooks/useCart';
 import * as restaurantApi from '@/features/restaurant/api';
 import type { RestaurantOrder } from '@/features/restaurant/api';
 import type { Product } from '@/features/products/api';
 import { NO_TABLE } from '@/features/pos/components/TableSelector';
+import { apiErrorMessage } from '@/lib/query-error';
 
 /** One cart interface over two different backing stores.
  *
@@ -75,17 +77,30 @@ export function useOrderCart(tableId: string): OrderCart {
     mutationFn: (product: Product) =>
       restaurantApi.openTableOrder(tableId, [{ product_id: product.id, quantity: 1 }]),
     onSuccess: refresh,
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not add that item to the table')),
   });
 
   const setQuantityMutation = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
       restaurantApi.updateOrderItem(order!.id, itemId, { quantity }),
     onSuccess: refresh,
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not change that quantity')),
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async (items: { id: string }[]) => {
+      // Sequential on purpose: these all mutate one order, and firing them in parallel makes the
+      // last write win over the others' view of it.
+      for (const item of items) await restaurantApi.removeOrderItem(order!.id, item.id);
+    },
+    onSuccess: refresh,
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not clear the table order')),
   });
 
   const removeMutation = useMutation({
     mutationFn: (itemId: string) => restaurantApi.removeOrderItem(order!.id, itemId),
     onSuccess: refresh,
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not remove that item')),
   });
 
   const lines = useMemo(
@@ -130,14 +145,11 @@ export function useOrderCart(tableId: string): OrderCart {
       const itemId = itemIdFor(productId);
       if (itemId) removeMutation.mutate(itemId);
     },
-    clear: () => {
-      for (const item of order?.items ?? []) {
-        if (!item.is_cancelled) removeMutation.mutate(item.id);
-      }
-    },
+    clear: () => clearMutation.mutate((order?.items ?? []).filter((item) => !item.is_cancelled)),
     setLines: () => undefined,
     order: order ?? null,
     isTableMode: true,
-    isSyncing: addItem.isPending || setQuantityMutation.isPending || removeMutation.isPending,
+    isSyncing:
+      addItem.isPending || setQuantityMutation.isPending || removeMutation.isPending || clearMutation.isPending,
   };
 }

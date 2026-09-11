@@ -16,6 +16,7 @@ import type { TableWithOrder } from '@/features/restaurant/api';
 import { ApiError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
+import { tableLabel } from '@/features/restaurant/lib/tableLabel';
 
 /** Status colours for the floor board. Driven off the table's own status — which the server keeps
  * in step with the order sitting on it — rather than each screen deciding for itself what
@@ -165,7 +166,7 @@ export function TablesPage() {
     mutationFn: ({ tableId, cancelOrder }: { tableId: string; cancelOrder: boolean }) =>
       restaurantApi.releaseTable(tableId, cancelOrder),
     onSuccess: (table) => {
-      toast.success(`Table ${table.name} released`);
+      toast.success(`${tableLabel(table.name)} released`);
       setReleasing(null);
       queryClient.invalidateQueries({ queryKey: ['restaurant'] });
     },

@@ -46,6 +46,7 @@ const baseProps = {
   onPaymentReferenceChange: vi.fn(),
   tableId: '__no_table__',
   onTableIdChange: vi.fn(),
+  isTableMode: false,
   onPrintKot: vi.fn(),
   isPrintingKot: false,
   amountTendered: null,
@@ -85,10 +86,12 @@ function configWith(overrides: Partial<Record<CheckoutElementKey, boolean>>) {
  * `wrapper` (rather than wrapping the element) is deliberate: RTL re-applies it on `rerender`,
  * so the toggle tests below keep their provider across the second render too.
  */
-function render(ui: ReactElement) {
-  // No retries and no network: the flag query has no server here, and every flag defaults to
-  // enabled when absent (see useFeatureFlag), which is the state these tests assume.
+function render(ui: ReactElement, flags: Record<string, boolean> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // Seeded rather than left to fetch: feature gates now hide until the flags actually resolve
+  // (an unresolved flag must never read as enabled, or a disabled module flashes on screen), so
+  // a test with no flag data would render a tenant who has nothing — not what these assert.
+  queryClient.setQueryData(['feature-flags'], flags);
   return rtlRender(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -337,5 +340,40 @@ describe('CheckoutPanel — Print Kitchen KOT', () => {
   it('Print Order Bill is now toggleable too', () => {
     render(<CheckoutPanel {...baseProps} checkoutConfig={configWith({ print_order_bill: false })} />);
     expect(screen.queryByRole('button', { name: /print order bill/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPanel — Hold Bill', () => {
+  it('is offered for a counter sale, which has nowhere else to keep the cart', () => {
+    render(<CheckoutPanel {...baseProps} />);
+    expect(screen.getByRole('button', { name: /hold bill/i })).toBeInTheDocument();
+  });
+
+  it('is withdrawn in table mode — the table already holds the order', () => {
+    // Offering it here produced a duplicate held bill and emptied the table's order, leaving the
+    // table occupied with nothing on it.
+    render(<CheckoutPanel {...baseProps} tableId="t1" isTableMode />);
+    expect(screen.queryByRole('button', { name: /hold bill/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPanel — a disabled module never shows, even for a moment', () => {
+  it('hides KOT and the table picker for a tenant whose modules are off', () => {
+    render(<CheckoutPanel {...baseProps} />, { kot: false, table_management: false, invoice_designer: false });
+    expect(screen.queryByRole('button', { name: /print kitchen kot/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /print order bill/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^table$/i)).not.toBeInTheDocument();
+  });
+
+  it('hides them while the flags are still loading, rather than flashing them on', () => {
+    // Reporting "enabled" for an unresolved flag is what made a disabled module appear for one
+    // round-trip and then vanish — the customer saw something they do not have.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } });
+    rtlRender(
+      <QueryClientProvider client={queryClient}>
+        <CheckoutPanel {...baseProps} />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /print kitchen kot/i })).not.toBeInTheDocument();
   });
 });
