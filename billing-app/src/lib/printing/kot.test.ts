@@ -25,6 +25,14 @@ describe('buildKotCommands — the kitchen ticket', () => {
     expect(out).toContain('ORD-000012');
   });
 
+  it('does not say TABLE twice when the table is already named "Table 4"', () => {
+    // Restaurants name tables both ways, and a cook reading TABLE TABLE 4 across the pass has to
+    // stop and parse it.
+    const out = text(buildKotCommands({ ...base, tableName: 'Table 4' }, '80mm'));
+    expect(out).toContain('TABLE 4');
+    expect(out).not.toContain('TABLE TABLE');
+  });
+
   it('never prints money on a kitchen ticket', () => {
     // A KOT is a work order for the pass. Prices on it invite it being handed over as a bill.
     const out = text(buildKotCommands(base, '80mm'));

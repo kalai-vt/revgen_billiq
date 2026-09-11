@@ -7,6 +7,7 @@ reconcile against the order.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -52,6 +53,36 @@ class RestaurantError(Exception):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# ---- Naming ----------------------------------------------------------------------------------
+
+def table_label(name: str | None) -> str:
+    """How a table is named in a sentence.
+
+    Restaurants name their tables both ways — "4" and "Table 4" are both common — so a message
+    built as f"Table {table.name}" reads "Table Table 4" for half of them. Mirrors
+    `billing-app/src/features/restaurant/lib/tableLabel.ts` so the API and the UI say the same
+    thing about the same table.
+    """
+    trimmed = (name or "").strip()
+    if not trimmed:
+        return "Table"
+    return trimmed if re.match(r"^table\b", trimmed, re.IGNORECASE) else f"Table {trimmed}"
+
+
+# ---- Kitchen ---------------------------------------------------------------------------------
+
+# A ticket is only *with the kitchen* while the food is still theirs to cook. Served tickets have
+# been delivered and cancelled ones were pulled; neither appears on the kitchen board, so treating
+# them as live is what made a finished table impossible to release while the kitchen screen sat
+# empty. Defined once so the board, the order and the table can never disagree about what "live"
+# means.
+KOT_WITH_KITCHEN: tuple[str, ...] = ("pending", "preparing", "ready")
+
+
+def kots_with_kitchen(order: RestaurantOrder) -> list[Kot]:
+    return [kot for kot in order.kots if kot.status in KOT_WITH_KITCHEN]
 
 
 # ---- Numbering -------------------------------------------------------------------------------
@@ -198,7 +229,7 @@ def set_table_status(db: Session, tenant_id: str, table_id: str, status: str) ->
     if active:
         # Reserving or clearing a table that is actively being served would desync the board from
         # the order behind it. The order has to be billed or cancelled first.
-        raise RestaurantError(400, f"Table {table.name} has an open order. Bill or cancel it first.")
+        raise RestaurantError(400, f"{table_label(table.name)} has an open order. Bill or cancel it first.")
     table.status = status
     db.add(table)
     db.commit()
@@ -209,7 +240,7 @@ def set_table_status(db: Session, tenant_id: str, table_id: str, status: str) ->
 def delete_table(db: Session, tenant_id: str, table_id: str) -> None:
     table = get_table(db, tenant_id, table_id)
     if _active_order_for_table(db, tenant_id, table_id):
-        raise RestaurantError(400, f"Table {table.name} has an open order. Bill or cancel it first.")
+        raise RestaurantError(400, f"{table_label(table.name)} has an open order. Bill or cancel it first.")
     db.delete(table)
     db.commit()
 
@@ -338,7 +369,7 @@ def create_order(db: Session, tenant_id: str, current_user: User, payload: Order
         if existing:
             # Selecting an occupied table opens its existing order rather than starting a second
             # one on the same table — two live orders on one table is the bug this prevents.
-            raise RestaurantError(409, f"Table {table.name} already has an open order.")
+            raise RestaurantError(409, f"{table_label(table.name)} already has an open order.")
 
     order = RestaurantOrder(
         tenant_id=tenant_id,
@@ -442,7 +473,7 @@ def remove_item(db: Session, tenant_id: str, order_id: str, item_id: str) -> Res
 def cancel_order(db: Session, tenant_id: str, order_id: str) -> RestaurantOrder:
     order = get_order(db, tenant_id, order_id)
     _require_open(order)
-    live_kots = [k for k in order.kots if k.status not in ("cancelled", "served")]
+    live_kots = kots_with_kitchen(order)
     if live_kots:
         raise RestaurantError(400, "This order has KOTs in the kitchen. Cancel them first.")
     order.status = "cancelled"
@@ -497,7 +528,7 @@ def transfer_order(db: Session, tenant_id: str, order_id: str, to_table_id: str)
     if order.table_id == target.id:
         raise RestaurantError(400, "That order is already on this table.")
     if _active_order_for_table(db, tenant_id, target.id):
-        raise RestaurantError(409, f"Table {target.name} already has an open order.")
+        raise RestaurantError(409, f"{table_label(target.name)} already has an open order.")
 
     source = get_table(db, tenant_id, order.table_id) if order.table_id else None
     order.table_id = target.id
@@ -552,7 +583,7 @@ def split_order(
     if to_table_id:
         target_table = get_table(db, tenant_id, to_table_id)
         if _active_order_for_table(db, tenant_id, target_table.id):
-            raise RestaurantError(409, f"Table {target_table.name} already has an open order.")
+            raise RestaurantError(409, f"{table_label(target_table.name)} already has an open order.")
 
     new_order = RestaurantOrder(
         tenant_id=tenant_id,
@@ -755,25 +786,27 @@ def release_table(db: Session, tenant_id: str, table_id: str, cancel_order: bool
     Release rather than Delete.
 
     An order with items is not discarded silently: the caller has to pass cancel_order, which is
-    the API-level counterpart of the confirmation dialog. A tab that already has kitchen tickets
-    is refused outright — the food is being cooked, so releasing the table would strand it, and
-    the KOTs have to be cancelled through their own flow first, where the reason is recorded.
+    the API-level counterpart of the confirmation dialog. A tab whose tickets are still *with the
+    kitchen* is refused outright — that food is being cooked, so releasing the table would strand
+    it, and those KOTs have to be cancelled through their own flow first, where the reason is
+    recorded. Tickets that were already served do not block: the food has left the kitchen and the
+    board no longer shows them, so refusing there only made a finished table unreleasable.
     """
     table = get_table(db, tenant_id, table_id)
     order = _active_order_for_table(db, tenant_id, table.id)
 
     if order:
-        live_kots = [kot for kot in order.kots if kot.status != "cancelled"]
+        live_kots = kots_with_kitchen(order)
         if live_kots:
             raise RestaurantError(
                 409,
-                f"Table {table.name} has {len(live_kots)} kitchen ticket(s) with the kitchen. "
+                f"{table_label(table.name)} has {len(live_kots)} kitchen ticket(s) with the kitchen. "
                 "Cancel those first, then release the table.",
             )
         has_items = any(not item.is_cancelled for item in order.items)
         if has_items and not cancel_order:
             raise RestaurantError(
-                409, f"Table {table.name} has an order with items. Confirm cancelling it to release the table."
+                409, f"{table_label(table.name)} has an order with items. Confirm cancelling it to release the table."
             )
         order.status = "cancelled"
         order.closed_at = _now()
