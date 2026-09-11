@@ -153,16 +153,25 @@ export function isLeafVisible(
   featureFlags?: Record<string, boolean>,
 ): boolean {
   if (role && !leaf.roles.includes(role)) return false;
+
+  // No resolved flag map means we do not know what this tenant has, so nothing gated is shown.
+  // The old code passed `undefined` straight through to the optional reads below, where "no
+  // entry for this key" means "enabled" — so a feature-flags request that failed rendered the
+  // customer every module in the product, including ones an admin had explicitly switched off.
+  // Callers must show a skeleton (or a retry) until the map arrives rather than relying on this,
+  // but the predicate fails closed so a missed caller can never open a module by accident.
+  if (!featureFlags) return !leaf.feature && !leaf.moduleKey;
+
   if (leaf.feature) {
     // The Admin Portal's Feature Management page can enable some plan-tier features per-tenant
     // (e.g. "advanced_analytics"), overriding the plan default — when we have a resolved flag
     // for this exact key, it's authoritative. Keys with no matching admin module (e.g. a plan
     // feature that isn't independently toggleable) aren't in this map, so they fall back to the
     // static plan check.
-    const override = featureFlags?.[leaf.feature];
+    const override = featureFlags[leaf.feature];
     const enabled = override !== undefined ? override : hasFeature(plan, leaf.feature);
     if (!enabled) return false;
   }
-  if (leaf.moduleKey && featureFlags?.[leaf.moduleKey] === false) return false;
+  if (leaf.moduleKey && featureFlags[leaf.moduleKey] === false) return false;
   return true;
 }

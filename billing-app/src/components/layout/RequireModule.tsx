@@ -18,15 +18,16 @@ interface RequireModuleProps {
  * typed URL still reaches the page directly. Wrap a route's element with this so disabling a
  * module in the Admin Portal blocks the page itself, not just its nav entry.
  *
- * Waits for the feature-flags fetch to resolve before deciding — on a cold load, rendering the
- * real page (or the blocked screen) off the "defaults to enabled" value before this query
- * resolves would flash a disabled module's actual content for one round-trip, same class of bug
- * as the sidebar flicker this mirrors (see SidebarNav.tsx).
+ * Decides only from a flag map it actually has. "Absent key means enabled" is correct within a
+ * *loaded* map, but applied to a map that is still arriving — or that failed to arrive — it
+ * renders a disabled module's real content. Pending gets a skeleton; a failed fetch says so and
+ * offers a retry rather than either opening the page or claiming the module isn't on the account,
+ * which would be a guess. Same rule as the sidebar this mirrors (see SidebarNav.tsx).
  */
 export function RequireModule({ moduleKey, label, children }: RequireModuleProps) {
-  const { data: flags, isLoading } = useFeatureFlags();
+  const { data: flags, isPending, isError, refetch } = useFeatureFlags();
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
@@ -40,7 +41,21 @@ export function RequireModule({ moduleKey, label, children }: RequireModuleProps
     );
   }
 
-  const enabled = flags?.[moduleKey] !== false;
+  if (isError || !flags) {
+    return (
+      <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">{label}</h1>
+        <p className="text-sm text-muted-foreground">
+          We couldn&apos;t check which modules are enabled for your account, so this page is closed for now.
+        </p>
+        <Button variant="outline" onClick={() => void refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  const enabled = flags[moduleKey] !== false;
   if (!enabled) {
     return (
       <div className="mx-auto max-w-lg space-y-3 py-16 text-center">

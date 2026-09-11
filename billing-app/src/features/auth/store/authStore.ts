@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as authApi from '@/features/auth/api';
 import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from '@/lib/api-client';
 import { clearSidebarExpansionState } from '@/components/layout/sidebar/sidebarStorage';
+import { queryClient } from '@/lib/query-client';
 import { clearDeviceMode } from '@/lib/printing/deviceProfile';
 import { useSubscriptionGateStore } from '@/lib/subscriptionGateStore';
 import type { AuthResult, PlanId, Tenant, User } from '@/features/auth/api';
@@ -55,6 +56,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Every fresh sign-in starts with all sidebar modules collapsed — never inherit expansion
     // state left over from a previous user/session on this browser.
     clearSidebarExpansionState();
+    // And the same for everything TanStack Query is holding. The cache is in-memory and keyed by
+    // resource, not by account, so without this a sign-in on a browser that was already used
+    // renders the *previous* session's data to the new one until each query refetches. The
+    // feature-flag map is the one that bites: the incoming tenant's sidebar would be built from
+    // the outgoing tenant's modules. Dropping it here is also why a reload used to "fix" things —
+    // a reload is just a cache clear with extra steps.
+    queryClient.clear();
     // Same idea for the subscription-blocked gate (subscriptionGateStore.ts) — a fresh sign-in
     // should never carry over a previous session/tenant's suspension state; AppShell's own
     // billing-usage check re-populates this for the new session if it's actually blocked.
@@ -75,6 +83,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     clearTokens();
     clearSidebarExpansionState();
+    // Nothing this account loaded should still be in memory for whoever signs in next.
+    queryClient.clear();
     // A shared till must not carry one account's printer pairing into the next account's
     // session — the incoming tenant's own transport comes from its server settings instead.
     clearDeviceMode();
