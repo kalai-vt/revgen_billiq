@@ -36,6 +36,11 @@ export interface TenantFeatureItem {
   version_gated: boolean;
   config_schema: ConfigFieldSchema[];
   status: FlagStatus;
+  /** What the customer actually gets. `status` is this module's own switch; a module can be
+   * switched on and still unusable because something it requires is off. */
+  effective_status: FlagStatus;
+  blocked_by: string[];
+  blocked_by_labels: string[];
   hidden_from_nav: boolean;
   access_level: AccessLevel;
   config: Record<string, unknown> | null;

@@ -42,7 +42,10 @@ export function ModuleCard({ tenantId, item, allItems, onOpenConfig, onOpenSched
   const [checkingImpact, setCheckingImpact] = useState(false);
 
   const byKey = new Map(allItems.map((i) => [i.module_key, i]));
-  const missingRequirement = item.requires.find((key) => byKey.get(key)?.status !== 'enabled');
+  // The server resolves the whole prerequisite chain, so this catches a module blocked two levels
+  // up — the local check only ever saw direct requirements.
+  const blockedBy = item.blocked_by_labels ?? [];
+  const missingRequirement = blockedBy.length > 0;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-features', tenantId] });
@@ -87,8 +90,14 @@ export function ModuleCard({ tenantId, item, allItems, onOpenConfig, onOpenSched
     }
   }
 
+  // A module switched on but blocked by a prerequisite is NOT what the customer gets, and showing
+  // a green "Enabled" over a 402 is exactly how an admin concludes the toggle is broken.
   const statusBadge =
-    item.status === 'enabled' ? (
+    item.status === 'enabled' && item.effective_status === 'disabled' ? (
+      <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-400">
+        On, but blocked
+      </Badge>
+    ) : item.status === 'enabled' ? (
       <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
         Enabled
       </Badge>
@@ -169,7 +178,9 @@ export function ModuleCard({ tenantId, item, allItems, onOpenConfig, onOpenSched
       {item.requires.length > 0 && (
         <p className={`flex items-center gap-1 text-xs ${missingRequirement ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
           <ShieldAlert className="size-3" />
-          Requires: {item.requires.map((k) => byKey.get(k)?.label ?? k).join(', ')}
+          {missingRequirement
+            ? `Needs ${blockedBy.join(', ')} — the customer can't use this until ${blockedBy.length === 1 ? 'it is' : 'they are'} on`
+            : `Requires: ${item.requires.map((k) => byKey.get(k)?.label ?? k).join(', ')}`}
         </p>
       )}
       {item.updated_by_admin_name && (

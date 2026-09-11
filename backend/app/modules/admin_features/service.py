@@ -163,7 +163,39 @@ def list_tenant_features(db: Session, tenant_id: str) -> list[dict[str, Any]]:
         if not flag:
             item["status"] = _default_status(module, defaults)
         items.append(item)
+
+    # A module is only usable if its prerequisites are too — assert_feature cascades, so a module
+    # switched on while something it requires is off still returns 402 to the customer. Reporting
+    # only the stored status made that invisible: the admin saw "Enabled", the customer saw the
+    # feature missing, and nothing on the page explained the gap.
+    by_key = {item["module_key"]: item for item in items}
+    for item in items:
+        blocked_by = [
+            req
+            for req in item["requires"]
+            if req in by_key and not _effective(by_key, req, set())
+        ]
+        item["blocked_by"] = blocked_by
+        item["blocked_by_labels"] = [FEATURE_BY_KEY[req]["label"] for req in blocked_by]
+        # What the customer actually gets, as opposed to what is stored against this one module.
+        item["effective_status"] = "enabled" if item["status"] == "enabled" and not blocked_by else "disabled"
     return items
+
+
+def _effective(by_key: dict[str, dict[str, Any]], key: str, seen: set[str]) -> bool:
+    """Whether `key` resolves to enabled once its own prerequisite chain is applied.
+
+    `seen` guards against a cycle in `requires` — a malformed catalog should render the page with
+    that module reading disabled, not hang the request.
+    """
+    if key in seen:
+        return False
+    item = by_key.get(key)
+    if item is None:
+        return False
+    if item["status"] != "enabled":
+        return False
+    return all(_effective(by_key, req, seen | {key}) for req in item["requires"])
 
 
 def get_tenant_feature(db: Session, tenant_id: str, module_key: str) -> dict[str, Any]:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 Category = Literal["core", "business", "ai", "premium"]
 # Must stay in lockstep with app/core/feature_catalog.py's own Domain — this schema validates
@@ -41,6 +41,13 @@ class TenantFeatureItem(BaseModel):
     updated_at: datetime | None = None
     updated_by_admin_name: str | None = None
     reason: str | None = None
+    # What the customer actually gets. `status` is this module's own switch; a module can be
+    # switched on and still unusable because something it requires is off, and the page has to
+    # say so rather than showing a green toggle over a 402.
+    effective_status: FlagStatus = "enabled"
+    blocked_by: list[str] = Field(default_factory=list)
+    blocked_by_labels: list[str] = Field(default_factory=list)
+
 
 
 class FeatureUpdateRequest(BaseModel):
