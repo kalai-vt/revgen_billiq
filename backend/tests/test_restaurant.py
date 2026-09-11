@@ -607,3 +607,67 @@ def test_billing_a_table_order_releases_the_table(client: TestClient, db_session
     closed = client.get(f"/api/restaurant/orders/{order['id']}", headers=headers).json()["data"]
     assert closed["status"] == "billed"
     assert closed["invoice_id"] == billed.json()["data"]["invoice_id"]
+
+
+def test_billing_a_tab_as_unpaid_without_a_customer_explains_itself(
+    client: TestClient, db_session: Session
+):
+    """A running tab settled later is ordinary restaurant work, and the sales layer rightly
+    insists an unpaid bill names who owes it. That rule reaching the cashier as a 500 is not
+    ordinary: only RestaurantError was translated here, so every money rule the sales layer
+    enforces — credit limits, manager approval, this one — surfaced as Internal Server Error.
+    """
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Credit Table")
+    item = _product(client, headers, "Dosa", 100.0)
+    order = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 2}],
+        headers=headers,
+    ).json()["data"]
+
+    refused = client.post(
+        f"/api/restaurant/orders/{order['id']}/bill",
+        json={"payment_method": "cash", "mark_paid": False},
+        headers=headers,
+    )
+    assert refused.status_code == 400, refused.text
+    assert "customer" in refused.json()["detail"].lower()
+
+    # The tab is untouched, so the cashier can pick a customer and bill it properly.
+    still_open = client.get(f"/api/restaurant/orders/{order['id']}", headers=headers).json()["data"]
+    assert still_open["status"] == "open"
+
+
+def test_a_tab_with_a_customer_bills_as_unpaid_and_lands_in_outstanding(
+    client: TestClient, db_session: Session
+):
+    """The running-tab case the feature exists for: bill it to a customer now, collect later."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Tab Table")
+    item = _product(client, headers, "Dosa", 100.0)
+    customer = client.post(
+        "/api/customers", json={"name": "Regular Guest", "phone": "9876500011"}, headers=headers
+    ).json()["data"]
+    order = client.post(
+        "/api/restaurant/orders",
+        json={
+            "order_type": "dine_in",
+            "table_id": table["id"],
+            "customer_id": customer["id"],
+            "items": [{"product_id": item["id"], "quantity": 2}],
+        },
+        headers=headers,
+    ).json()["data"]
+
+    billed = client.post(
+        f"/api/restaurant/orders/{order['id']}/bill",
+        json={"payment_method": "cash", "mark_paid": False, "due_date": "2026-12-31"},
+        headers=headers,
+    )
+    assert billed.status_code == 200, billed.text
+    invoice = client.get(f"/api/invoices/{billed.json()['data']['invoice_id']}", headers=headers).json()["data"]
+    assert invoice["payment_status"] != "paid"
+    assert invoice["outstanding_amount"] > 0
+    # And the table is free again — the food is served, the money is owed, not the table.
+    assert client.get(f"/api/restaurant/tables/{table['id']}/active-order", headers=headers).json().get("data") is None

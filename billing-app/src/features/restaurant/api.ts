@@ -229,6 +229,10 @@ export function removeOrderItem(orderId: string, itemId: string): Promise<Restau
   return request(`/api/restaurant/orders/${orderId}/items/${itemId}`, { method: 'DELETE' });
 }
 
+export function updateOrder(orderId: string, payload: { customer_id?: string | null }): Promise<RestaurantOrder> {
+  return request(`/api/restaurant/orders/${orderId}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
 export function cancelOrder(orderId: string): Promise<RestaurantOrder> {
   return request(`/api/restaurant/orders/${orderId}/cancel`, { method: 'POST' });
 }
@@ -303,6 +307,7 @@ export interface BillOrderPayload {
   tax_percentage?: number | null;
   amount_tendered?: number | null;
   mark_paid?: boolean;
+  due_date?: string | null;
   client_reference_id?: string | null;
 }
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -279,8 +279,11 @@ class OrderBillRequest(BaseModel):
     tax_percentage: float | None = Field(default=None, ge=0, le=100)
     amount_tendered: float | None = Field(default=None, ge=0)
     # Dine-in bills are frequently settled later (a running tab), so the caller can mark the
-    # invoice unpaid and let the existing Outstanding flow collect it.
+    # invoice unpaid and let the existing Outstanding flow collect it. An unpaid bill needs a due
+    # date and a customer on the order — the sales layer enforces both, and without a way to pass
+    # the date here the running-tab case could not be billed at all.
     mark_paid: bool = True
+    due_date: date | None = None
     client_reference_id: str | None = Field(default=None, max_length=64)
 
 
