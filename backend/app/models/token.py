@@ -21,5 +21,9 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # When it was revoked. Reuse detection invalidates sessions up to this moment rather than to
+    # "now", so a session legitimately issued after the revocation — the fresh one a password
+    # change hands back — is not killed by a later replay of the token it replaced.
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     remembered: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -82,6 +82,36 @@ def test_change_password_keeps_current_session_alive_but_revokes_others(client: 
     assert old_login.status_code == 401
 
 
+def test_replaying_the_old_refresh_token_does_not_kill_the_new_session(client: TestClient) -> None:
+    """Changing your password must not sign you out.
+
+    change_password revokes the old refresh token and hands back a fresh session. Reuse detection
+    then invalidated every session as of *now*, so replaying that dead token once more — a retry,
+    a second tab, another device — killed the session that had just replaced it. It only surfaced
+    when a whole-second boundary fell between the two, which is why it read as a flaky test rather
+    than the sign-out bug it is.
+    """
+    owner = _register(client, email="replay@acme.test")
+    old_refresh = owner["refresh_token"]
+    time.sleep(1.1)
+
+    changed = client.put(
+        "/api/auth/change-password",
+        json={"current_password": "StrongPass!123", "new_password": "NewStrongPass!456"},
+        headers=_headers(owner["access_token"]),
+    )
+    assert changed.status_code == 200
+    new_access = changed.json()["data"]["access_token"]
+
+    # Past the second boundary, so a "now"-dated invalidation would post-date the new token.
+    time.sleep(1.1)
+    replay = client.post("/api/auth/refresh", json={"refresh_token": old_refresh})
+    assert replay.status_code == 401, "the dead token is still refused"
+
+    still_signed_in = client.get("/api/auth/me", headers=_headers(new_access))
+    assert still_signed_in.status_code == 200, "but the session it replaced must survive"
+
+
 def test_change_password_rejects_wrong_current_password(client: TestClient) -> None:
     owner = _register(client)
     headers = _headers(owner["access_token"])
