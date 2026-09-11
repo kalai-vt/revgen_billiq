@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion';
+import { AlertTriangle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { getFeatureFlags } from '@/features/settings/api';
+import { useFeatureFlags } from '@/features/settings/hooks/useFeatureFlags';
 import { cn } from '@/lib/utils';
 import { NAV_ENTRIES, isGroup, isLeafVisible, type NavGroup, type NavLeaf } from '@/components/layout/sidebar/nav-config';
 import { EXPANDED_GROUPS_KEY, loadExpandedGroups } from '@/components/layout/sidebar/sidebarStorage';
@@ -139,11 +139,7 @@ function ModuleGroup({
 
 export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpand }: SidebarNavProps) {
   const { user, plan } = useAuth();
-  const { data: featureFlags, isLoading: flagsLoading } = useQuery({
-    queryKey: ['feature-flags'],
-    queryFn: getFeatureFlags,
-    staleTime: 60_000,
-  });
+  const { data: featureFlags, isPending: flagsPending, isError: flagsFailed, refetch: refetchFlags } = useFeatureFlags();
 
   // Deliberately NOT auto-expanded from the active route and NOT restored across a fresh
   // login — every module starts collapsed after sign-in. Within a session, manually expanding
@@ -161,12 +157,18 @@ export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpa
     onRequestSidebarExpand?.();
   }
 
-  // Feature flags default to "visible" once loaded (see isLeafVisible) so an unrecognized/absent
-  // key never hides a module — but on a cold load (fresh login, hard refresh) that same default
-  // would flash every disabled module on-screen for the one round-trip before this query
-  // resolves. Rendering a skeleton instead until the fetch completes is what actually prevents
-  // that flash — the "optimistic default" alone only avoids it on cached in-app navigations.
-  if (flagsLoading) {
+  // The nav is never built from a flag map we do not have. Within a *loaded* map an absent key
+  // means enabled (see isLeafVisible), which is what keeps a tenant no admin has ever touched
+  // seeing the whole app — but that same default applied to a missing map showed every module in
+  // the product. Two ways the map can be missing, and each gets its own screen:
+  //
+  //   still arriving (cold load, fresh login, a retry in flight) -> skeleton, so nothing wrong
+  //   flashes on-screen for the round-trip;
+  //
+  //   failed outright -> say so and offer a retry. Rendering the nav here is what the customer
+  //   actually hit: modules an admin had switched off were listed until a manual page reload
+  //   happened to make the request succeed.
+  if (flagsPending) {
     return (
       <nav aria-label="Main navigation" className={cn('flex flex-col gap-1.5', collapsed ? 'items-center px-2' : 'px-2.5')}>
         {Array.from({ length: 7 }).map((_, i) => (
@@ -175,6 +177,29 @@ export function SidebarNav({ collapsed = false, onNavigate, onRequestSidebarExpa
             className={cn('bg-sidebar-accent', collapsed ? 'size-10 shrink-0 rounded-md' : 'h-9 w-full rounded-md')}
           />
         ))}
+      </nav>
+    );
+  }
+
+  if (flagsFailed || !featureFlags) {
+    return (
+      <nav
+        aria-label="Main navigation"
+        className={cn('flex flex-col items-center gap-2 text-center', collapsed ? 'px-1' : 'px-2.5')}
+      >
+        <AlertTriangle className="size-5 shrink-0 text-sidebar-foreground/70" aria-hidden />
+        {!collapsed && (
+          <p className="text-xs leading-snug text-sidebar-foreground/70">
+            Couldn&apos;t load your modules.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => void refetchFlags()}
+          className="rounded-md px-2 py-1 text-xs font-medium text-sidebar-foreground/90 underline-offset-2 hover:bg-sidebar-accent hover:underline"
+        >
+          Retry
+        </button>
       </nav>
     );
   }

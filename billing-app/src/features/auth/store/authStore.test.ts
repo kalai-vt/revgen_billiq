@@ -13,6 +13,7 @@ vi.mock('@/features/auth/api', () => ({
 
 const authApi = await import('@/features/auth/api');
 const { useAuthStore } = await import('./authStore');
+const { queryClient } = await import('@/lib/query-client');
 
 const user: User = {
   id: 'user-1',
@@ -149,6 +150,35 @@ describe('useAuthStore', () => {
 
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(localStorage.getItem('revgeniq_access_token')).toBeNull();
+  });
+
+  it('login() drops every cached query so a new account never sees the last one\'s data', async () => {
+    // The query cache is in-memory and keyed by resource, not by account. Signing in on a browser
+    // that was already used rendered the *previous* session's data to the new one until each
+    // query happened to refetch — and the feature-flag map is the one that bit: the incoming
+    // tenant's sidebar was built from the outgoing tenant's modules.
+    queryClient.setQueryData(['feature-flags'], { restaurant: true, inventory: true });
+    vi.mocked(authApi.login).mockResolvedValue({
+      access_token: 'access-123',
+      refresh_token: 'refresh-456',
+      user,
+      tenant,
+    } as AuthResult);
+
+    await useAuthStore.getState().login('owner@example.com', 'pw');
+
+    expect(queryClient.getQueryData(['feature-flags'])).toBeUndefined();
+  });
+
+  it('logout() drops every cached query so nothing is left for whoever signs in next', async () => {
+    queryClient.setQueryData(['feature-flags'], { restaurant: true });
+    queryClient.setQueryData(['customers'], [{ id: 'c1' }]);
+    vi.mocked(authApi.logout).mockResolvedValue(undefined as never);
+
+    await useAuthStore.getState().logout();
+
+    expect(queryClient.getQueryData(['feature-flags'])).toBeUndefined();
+    expect(queryClient.getQueryData(['customers'])).toBeUndefined();
   });
 
   it('register() delegates straight to the API without touching session state', async () => {
