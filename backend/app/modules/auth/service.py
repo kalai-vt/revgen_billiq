@@ -259,7 +259,7 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
     db.add(user)
 
     db.query(RefreshToken).filter(RefreshToken.user_id == user.id, RefreshToken.revoked.is_(False)).update(
-        {"revoked": True}
+        {"revoked": True, "revoked_at": utc_now()}
     )
     log_event(db, event_type=PASSWORD_CHANGED, email=user.email, user_id=user.id, tenant_id=user.tenant_id)
     db.commit()
@@ -298,7 +298,7 @@ def change_password(db: Session, user: User, current_password: str, new_password
     db.add(user)
 
     db.query(RefreshToken).filter(RefreshToken.user_id == user.id, RefreshToken.revoked.is_(False)).update(
-        {"revoked": True}
+        {"revoked": True, "revoked_at": utc_now()}
     )
     log_event(db, event_type=PASSWORD_CHANGED, email=user.email, user_id=user.id, tenant_id=user.tenant_id)
     db.commit()
@@ -406,10 +406,18 @@ def rotate_refresh_token(db: Session, refresh_token: str) -> tuple[User, str, st
         # just reject this one request.
         user = db.get(User, record.user_id)
         if user:
-            user.session_invalidated_at = utc_now()
+            # Dated to when THIS token was revoked, not to now. change_password revokes the old
+            # refresh token and immediately issues a fresh session; replaying that dead token
+            # afterwards must not kill the session that replaced it, or changing your password
+            # signs you out. Anything issued before the revocation — including whatever a thief
+            # holds — is still invalidated.
+            cutoff = as_aware_utc(record.revoked_at) if record.revoked_at else utc_now()
+            existing = as_aware_utc(user.session_invalidated_at) if user.session_invalidated_at else None
+            if existing is None or cutoff > existing:
+                user.session_invalidated_at = cutoff
             db.add(user)
             db.query(RefreshToken).filter(RefreshToken.user_id == user.id, RefreshToken.revoked.is_(False)).update(
-                {"revoked": True}
+                {"revoked": True, "revoked_at": utc_now()}
             )
             db.commit()
         raise AuthError(401, "This session was already used elsewhere and has been signed out for safety. Please sign in again.")
@@ -426,6 +434,7 @@ def rotate_refresh_token(db: Session, refresh_token: str) -> tuple[User, str, st
         raise AuthError(403, "This account has been suspended. Please contact support.")
 
     record.revoked = True
+    record.revoked_at = utc_now()
     db.add(record)
     # Carry the original "remember me" choice forward so a remembered session doesn't quietly
     # downgrade to the short-lived expiry on its first token refresh.
@@ -438,6 +447,7 @@ def revoke_refresh_token(db: Session, refresh_token: str) -> None:
     record = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
     if record and not record.revoked:
         record.revoked = True
+        record.revoked_at = utc_now()
         db.add(record)
         # /logout takes no auth header, so the user is resolved from the refresh token itself
         # (which is what proves who's logging out) purely to attribute the audit event.
