@@ -38,6 +38,7 @@ import type { Product } from '@/features/products/api';
 import { ApiError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
+import { orderLocationLabel } from '@/features/restaurant/lib/tableLabel';
 
 const KOT_STATUS_STYLES: Record<restaurantApi.KotStatus, string> = {
   pending: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
@@ -185,7 +186,7 @@ export function RestaurantOrderPage() {
   const transferOrder = useMutation({
     mutationFn: (toTableId: string) => restaurantApi.transferOrder(id!, toTableId),
     onSuccess: (updated) => {
-      toast.success(`Moved to Table ${updated.table_name}`);
+      toast.success(`Moved to ${orderLocationLabel(updated.table_name)}`);
       setTransferOpen(false);
       refresh(updated);
     },
@@ -291,7 +292,7 @@ export function RestaurantOrderPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
-            {order.table_name ? `Table ${order.table_name}` : 'Takeaway'}
+            {orderLocationLabel(order.table_name)}
             <Badge variant="secondary">{order.order_number}</Badge>
             {!isOpen && <Badge variant="outline">{order.status}</Badge>}
           </h1>
@@ -340,7 +341,7 @@ export function RestaurantOrderPage() {
           <Card className="space-y-2 p-4">
             <div>
               <p className="text-sm font-semibold">
-                {order.table_name ? `Table ${order.table_name}` : 'Takeaway'}
+                {orderLocationLabel(order.table_name)}
               </p>
               <p className="text-xs text-muted-foreground">{order.order_number}</p>
             </div>

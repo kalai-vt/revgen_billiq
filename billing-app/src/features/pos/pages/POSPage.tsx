@@ -13,6 +13,7 @@ import { ProductSearchPanel } from '@/features/pos/components/ProductSearchPanel
 import { PageHeaderAction } from '@/components/layout/pageActions';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useOrderCart } from '@/features/pos/hooks/useOrderCart';
+import type { CartLine } from '@/features/pos/hooks/useCart';
 import { useCreateInvoice } from '@/features/pos/hooks/useCreateInvoice';
 import { useKeyboardShortcuts } from '@/features/pos/hooks/useKeyboardShortcuts';
 import { computeTotals } from '@/features/pos/lib/calc';
@@ -32,6 +33,7 @@ import { ChangeTableDialog } from '@/features/pos/components/ChangeTableDialog';
 import { ApiError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/query-error';
 import { appPath } from '@/lib/app-path';
+import { orderLocationLabel } from '@/features/restaurant/lib/tableLabel';
 
 export function POSPage() {
   const [tableId, setTableId] = useState<string>(NO_TABLE);
@@ -185,13 +187,43 @@ export function POSPage() {
       setPendingTableChange(nextTableId);
       return;
     }
+
+    // Picking a table with a counter cart already rung up must carry those items onto the table,
+    // not drop them. The cart becomes a view over the table's order the moment the table is set,
+    // so anything not pushed across first would silently vanish in front of the cashier — and
+    // this is the ordinary way an order starts: ring it up, then say which table it's for.
+    if (!cart.isTableMode && nextTableId !== NO_TABLE && cart.lines.length > 0) {
+      moveCartToTable.mutate({ tableId: nextTableId, lines: cart.lines });
+      return;
+    }
     setTableId(nextTableId);
   }
+
+  const moveCartToTable = useMutation({
+    mutationFn: ({ tableId: toTableId, lines }: { tableId: string; lines: CartLine[] }) =>
+      restaurantApi.openTableOrder(
+        toTableId,
+        lines.map((line) => ({
+          product_id: line.product.id,
+          quantity: line.quantity,
+          unit_price: line.overridePrice ?? undefined,
+        })),
+      ),
+    onSuccess: (order, variables) => {
+      // Only now is it safe to empty the local cart: the items are on the server order the cart
+      // is about to start reading from.
+      cart.clear();
+      setTableId(variables.tableId);
+      queryClient.invalidateQueries({ queryKey: ['restaurant'] });
+      toast.success(`Order moved to ${orderLocationLabel(order.table_name)}`);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not put this cart on that table')),
+  });
 
   const moveOrderToTable = useMutation({
     mutationFn: (toTableId: string) => restaurantApi.transferOrder(cart.order!.id, toTableId),
     onSuccess: (updated) => {
-      toast.success(`Order moved to Table ${updated.table_name}`);
+      toast.success(`Order moved to ${orderLocationLabel(updated.table_name)}`);
       setTableId(updated.table_id ?? NO_TABLE);
       setPendingTableChange(null);
       queryClient.invalidateQueries({ queryKey: ['restaurant'] });

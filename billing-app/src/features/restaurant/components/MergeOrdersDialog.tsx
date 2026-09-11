@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import * as restaurantApi from '@/features/restaurant/api';
 import type { RestaurantOrder } from '@/features/restaurant/api';
+import { orderLocationLabel } from '@/features/restaurant/lib/tableLabel';
 
 interface MergeOrdersDialogProps {
   order: RestaurantOrder;
@@ -65,7 +66,7 @@ export function MergeOrdersDialog({ order, open, onOpenChange, onConfirm, isPend
                     onChange={() => toggle(candidate.id)}
                   />
                   <span className="font-medium">
-                    {candidate.table_name ? `Table ${candidate.table_name}` : 'Takeaway'}
+                    {orderLocationLabel(candidate.table_name)}
                   </span>
                   <span className="text-muted-foreground">{candidate.order_number}</span>
                   <span className="ml-auto text-muted-foreground">

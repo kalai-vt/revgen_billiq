@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { BillOrderPayload, RestaurantOrder } from '@/features/restaurant/api';
+import { orderLocationLabel } from '@/features/restaurant/lib/tableLabel';
 
 const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash' },
@@ -64,7 +65,7 @@ export function BillOrderDialog({ order, open, onOpenChange, onConfirm, isPendin
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Bill {order.table_name ? `Table ${order.table_name}` : 'takeaway order'} — {order.order_number}
+            Bill {orderLocationLabel(order.table_name, 'takeaway order')} — {order.order_number}
           </DialogTitle>
         </DialogHeader>
 
