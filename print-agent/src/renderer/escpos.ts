@@ -437,6 +437,18 @@ export interface KotTicketData {
   notes?: string | null;
 }
 
+/** The big line at the top of a kitchen ticket that tells a cook where the food is going.
+ *
+ * Restaurants name their tables both ways — "4" and "Table 4" are both common — so prefixing
+ * unconditionally prints TABLE TABLE 4 for half of them. Kept in step with
+ * `features/restaurant/lib/tableLabel.ts`, which does the same job on screen.
+ */
+function kotTableLine(tableName: string | null | undefined): string {
+  const trimmed = (tableName ?? '').trim().toUpperCase();
+  if (!trimmed) return 'TABLE -';
+  return /^TABLE\b/.test(trimmed) ? trimmed : `TABLE ${trimmed}`;
+}
+
 /** Quantities print double-height at the start of the line because this is read at arm's length
  * across a hot pass, not held in the hand like a receipt — the quantity is the single most
  * important thing on the ticket and misreading "1" as "7" wastes food. */
@@ -454,7 +466,7 @@ export function buildKotCommands(data: KotTicketData, paperSize: ThermalPaperSiz
   }
   out.push(bold(false));
 
-  const where = data.orderType === 'takeaway' ? 'TAKEAWAY' : `TABLE ${data.tableName ?? '-'}`;
+  const where = data.orderType === 'takeaway' ? 'TAKEAWAY' : kotTableLine(data.tableName);
   out.push(bold(true), textSize(2), `${where}\n`, textSize(1), bold(false));
 
   out.push(align('left'), divider(width));

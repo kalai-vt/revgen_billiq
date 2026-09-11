@@ -31,6 +31,14 @@ describe('buildKotCommands', () => {
     expect(joined).not.toContain('Rs.');
   });
 
+  it('does not say TABLE twice when the table is already named "Table 4"', () => {
+    // Restaurants name tables both ways, and a cook reading TABLE TABLE 4 across the pass has to
+    // stop and parse it.
+    const joined = buildKotCommands(ticket({ tableName: 'Table 4' }), '80mm').join('');
+    expect(joined).toContain('TABLE 4');
+    expect(joined).not.toContain('TABLE TABLE');
+  });
+
   it('marks takeaway rather than inventing a table number', () => {
     const joined = buildKotCommands(ticket({ orderType: 'takeaway', tableName: null }), '80mm').join('');
     expect(joined).toContain('TAKEAWAY');

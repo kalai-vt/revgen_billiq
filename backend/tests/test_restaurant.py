@@ -586,6 +586,59 @@ def test_a_table_with_kitchen_tickets_cannot_be_released_at_all(client: TestClie
     assert "kitchen ticket" in refused.json()["detail"].lower()
 
 
+def test_a_table_whose_food_was_served_can_be_released(client: TestClient, db_session: Session):
+    """A served ticket has left the kitchen and no longer shows on the board, so it must not keep
+    the table hostage — blocking on it meant a finished table could never be cleared while the
+    kitchen screen sat empty."""
+    _, headers = _setup(client, db_session)
+    table = _table(client, headers, "Table S5b")
+    item = _product(client, headers, "Idli", 60.0)
+    order = client.post(
+        f"/api/restaurant/tables/{table['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 1}],
+        headers=headers,
+    ).json()["data"]
+    kot = client.post(f"/api/restaurant/orders/{order['id']}/kot", json={}, headers=headers).json()["data"]
+    served = client.put(f"/api/restaurant/kots/{kot['id']}/status", json={"status": "served"}, headers=headers)
+    assert served.status_code == 200, served.text
+
+    released = client.post(
+        f"/api/restaurant/tables/{table['id']}/release", json={"cancel_order": True}, headers=headers
+    )
+    assert released.status_code == 200, released.text
+    assert released.json()["data"]["status"] == "available"
+
+    # ...and the kitchen has nothing left showing for it.
+    board = client.get("/api/restaurant/kots", headers=headers).json()["data"]
+    assert [k for k in board if k["order_id"] == order["id"] and k["status"] in ("pending", "preparing", "ready")] == []
+
+
+def test_table_messages_never_say_table_twice(client: TestClient, db_session: Session):
+    """Restaurants name tables both ways. "Table 4" must not be read back as "Table Table 4", and a
+    table named just "7" still has to read as a table in a sentence."""
+    _, headers = _setup(client, db_session)
+    item = _product(client, headers, "Vada", 40.0)
+
+    prefixed = _table(client, headers, "Table S5c")
+    client.post(
+        f"/api/restaurant/tables/{prefixed['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 1}],
+        headers=headers,
+    )
+    detail = client.post(f"/api/restaurant/tables/{prefixed['id']}/release", json={}, headers=headers).json()["detail"]
+    assert "Table Table" not in detail
+    assert detail.startswith("Table S5c ")
+
+    bare = _table(client, headers, "S5d")
+    client.post(
+        f"/api/restaurant/tables/{bare['id']}/order",
+        json=[{"product_id": item["id"], "quantity": 1}],
+        headers=headers,
+    )
+    bare_detail = client.post(f"/api/restaurant/tables/{bare['id']}/release", json={}, headers=headers).json()["detail"]
+    assert bare_detail.startswith("Table S5d ")
+
+
 def test_billing_a_table_order_releases_the_table(client: TestClient, db_session: Session):
     """Checkout from either screen ends the same way: invoice created, order closed, table free."""
     _, headers = _setup(client, db_session)

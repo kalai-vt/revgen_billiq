@@ -16,8 +16,10 @@ interface ReleaseTableDialogProps {
  *
  * The wording changes with what is actually at stake, because "Release table" means something
  * very different when there is ₹630 of food on it. A tab with items is never discarded on a
- * single click, and one with kitchen tickets is refused by the server outright — the food is
- * already being cooked, so it has to go through KOT cancellation where a reason is recorded.
+ * single click, and one whose tickets are still with the kitchen is refused by the server
+ * outright — that food is being cooked, so it has to go through KOT cancellation where a reason
+ * is recorded. Tickets already served do not block: the food has gone out and the kitchen board
+ * no longer shows them.
  */
 export function ReleaseTableDialog({ table, open, onOpenChange, onConfirm, isPending }: ReleaseTableDialogProps) {
   const itemCount = table.active_order_item_count ?? 0;

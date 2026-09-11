@@ -71,7 +71,7 @@ function TableCard({
             render={
               <button
                 type="button"
-                aria-label={`Release table ${table.name}`}
+                aria-label={`Release ${tableLabel(table.name)}`}
                 className="absolute right-1.5 top-1.5 z-10 rounded-md p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(event) => {
                   // The card behind this is itself a button — without stopping here, releasing a
