@@ -67,6 +67,7 @@ export function ProvisionalBillPrintPage() {
     msme_udyam_number: settings.msme_udyam_number,
     social_links: settings.social_links,
     feedback_url: settings.feedback_url,
+    upi_vpa: settings.upi_vpa,
   };
 
   return (

@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import type { InvoiceTemplateConfig, PreviewData, PromotionContent } from '@/features/invoice-designer/api';
 import { cn } from '@/lib/utils';
-import { paymentQrEnabled, paymentQrVisibleForAmount } from '@/lib/upi';
+import { buildUpiUri, paymentQrEnabled, paymentQrVisibleForAmount } from '@/lib/upi';
+import { QrCode } from '@/features/invoice-designer/components/QrCode';
 
 const BILLIQ_BRAND_COLOR = '#6C47FF';
 const PROMOTION_FONT_SIZE_PX: Record<InvoiceTemplateConfig['billiq_promotion']['font_size'], number> = {
@@ -102,13 +103,23 @@ function addressLine(branding: BrandingValues): string | null {
   return parts.length ? parts.join(', ') : null;
 }
 
-function QrPlaceholder({ label, imageUrl }: { label: string; imageUrl?: string }) {
-  // A tenant who uploaded their own code should see *that* code here, not a mock pattern — the
-  // whole point of the preview is answering "is this what will print?".
+/** One QR on the document: the tenant's uploaded image if they have one, otherwise a real code
+ * encoding `value`. Only falls back to the decorative grid when there is nothing to encode (e.g.
+ * a website QR switched on before a website is saved), where a stand-in is honest because no code
+ * would print either. */
+function QrPlaceholder({ label, imageUrl, value }: { label: string; imageUrl?: string; value?: string | null }) {
   if (imageUrl) {
     return (
       <div className="flex flex-col items-center gap-1">
         <img src={imageUrl} alt={label} className="size-14 border bg-white object-contain p-0.5" />
+        <span className="text-[9px] text-muted-foreground">{label}</span>
+      </div>
+    );
+  }
+  if (value) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <QrCode value={value} size={56} />
         <span className="text-[9px] text-muted-foreground">{label}</span>
       </div>
     );
@@ -175,7 +186,9 @@ function PromotionBlock({
       </p>
       {config.qr_enabled && (
         <div className={cn('flex', textAlign === 'center' ? 'justify-center' : textAlign === 'right' ? 'justify-end' : 'justify-start')} style={{ marginTop: gap }}>
-          <QrPlaceholder label="Scan to learn more" />
+          {/* RevGenAI's own promo link, the same one the PDF renderer encodes (promo.qr_url).
+              Falls back to the website when no explicit QR URL is configured. */}
+          <QrPlaceholder label="Scan to learn more" value={content.qr_url || content.website} />
         </div>
       )}
       {!isThermal && layout === 'banner' && (
@@ -413,20 +426,53 @@ export function TemplatePreview({ config, branding, mode, data, promotionContent
         signature.show_authorized_signature || signature.show_customer_signature) && (
         <div className={cn('mt-4 flex gap-4 border-t pt-3', stacked ? 'flex-col items-center' : 'flex-wrap items-end justify-between')}>
           <div className="flex flex-wrap justify-center gap-4">
+            {/* Each encodes exactly what the PDF and thermal renderers encode for the same type
+                (pdf_renderer.py, silentPrint.ts), so a code scanned off a printed page carries the
+                same payload whichever path printed it. */}
             {config.qr_barcode.invoice_qr && (
-              <QrPlaceholder label="Invoice QR" imageUrl={config.qr_barcode.custom_images?.invoice_qr} />
+              <QrPlaceholder
+                label="Invoice QR"
+                imageUrl={config.qr_barcode.custom_images?.invoice_qr}
+                value={`Invoice:${data.number}|Amount:${(data.totals.grand_total ?? 0).toFixed(2)}`}
+              />
             )}
             {config.qr_barcode.payment_qr && (
-              <QrPlaceholder label="Pay via UPI" imageUrl={config.qr_barcode.custom_images?.payment_qr} />
+              <QrPlaceholder
+                label="Pay via UPI"
+                imageUrl={config.qr_barcode.custom_images?.payment_qr}
+                value={
+                  branding.upi_vpa
+                    ? buildUpiUri({
+                        vpa: branding.upi_vpa,
+                        payeeName: branding.company_name,
+                        amount: data.totals.grand_total ?? null,
+                        transactionRef: data.number,
+                        transactionNote: `Invoice ${data.number}`,
+                      })
+                    : null
+                }
+              />
             )}
             {config.qr_barcode.business_qr && (
-              <QrPlaceholder label="Business Card" imageUrl={config.qr_barcode.custom_images?.business_qr} />
+              <QrPlaceholder
+                label="Business Card"
+                imageUrl={config.qr_barcode.custom_images?.business_qr}
+                value={`${branding.company_name}\n${branding.phone ?? ''}\n${branding.email ?? ''}`}
+              />
             )}
             {config.qr_barcode.website_qr && (
-              <QrPlaceholder label="Website" imageUrl={config.qr_barcode.custom_images?.website_qr} />
+              <QrPlaceholder
+                label="Website"
+                imageUrl={config.qr_barcode.custom_images?.website_qr}
+                value={branding.website}
+              />
             )}
             {config.qr_barcode.feedback_qr && (
-              <QrPlaceholder label="Feedback" imageUrl={config.qr_barcode.custom_images?.feedback_qr} />
+              <QrPlaceholder
+                label="Feedback"
+                imageUrl={config.qr_barcode.custom_images?.feedback_qr}
+                value={branding.feedback_url}
+              />
             )}
             {config.qr_barcode.barcode && <BarcodePlaceholder />}
           </div>
@@ -487,32 +533,35 @@ function PaymentQrBlock({
 
   const size = PAYMENT_QR_PREVIEW_PX[qr.size];
   const uploaded = config.qr_barcode.custom_images?.payment_qr;
+  // The same URI the PDF and thermal paths build (app/core/upi.py, lib/upi.ts), so the code a
+  // customer scans off this page is the code they would scan off any other output.
+  const upiUri = branding.upi_vpa
+    ? buildUpiUri({
+        vpa: branding.upi_vpa,
+        payeeName: branding.company_name,
+        amount: qr.show_amount ? amountDue : null,
+        transactionRef: data.number,
+        transactionNote: `Invoice ${data.number}`,
+      })
+    : null;
   return (
     <div className="mt-4 flex flex-col items-center gap-1 border-t pt-3">
       {uploaded ? (
-        // Their own code, shown exactly as it will print.
+        // Their own code, exactly as it will print.
         <img
           src={uploaded}
           alt="Payment QR"
           style={{ width: size, height: size }}
           className="border bg-white object-contain p-0.5"
         />
+      ) : upiUri ? (
+        <QrCode value={upiUri} size={size} />
       ) : (
-        <>
-          <div
-            className="grid grid-cols-4 grid-rows-4 gap-px border p-1"
-            style={{ width: size, height: size, borderColor: 'currentColor' }}
-            aria-hidden
-          >
-            {Array.from({ length: 16 }).map((_, i) => (
-              <div key={i} className={cn((i * 7) % 3 === 0 ? 'bg-current' : 'bg-transparent')} />
-            ))}
-          </div>
-          {/* Said plainly, because the pattern above is a layout stand-in and reading it as the
-              real code is exactly how someone concludes the product ignored their UPI ID. The
-              printed bill carries a real scannable code built from the ID shown below. */}
-          <span className="text-[9px] italic text-muted-foreground">Sample pattern — the real code prints on the bill</span>
-        </>
+        // No merchant VPA, so there is nothing payable to encode. Say so rather than drawing a
+        // code that cannot be paid.
+        <span className="text-[9px] italic text-muted-foreground">
+          Add your UPI ID in Settings to print a payment QR
+        </span>
       )}
       {qr.label && <span className="text-[11px] font-medium">{qr.label}</span>}
       {qr.show_amount && amountDue > 0 && (

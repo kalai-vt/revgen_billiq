@@ -282,7 +282,9 @@ describe('TemplatePreview — Payment QR', () => {
     expect(screen.queryByText(/Sample pattern/i)).not.toBeInTheDocument();
   });
 
-  it('says the pattern is a stand-in when no image was uploaded', () => {
+  it('renders a real scannable code from the saved UPI id, not a mock pattern', async () => {
+    // This component is what /invoices/:id/print renders, so whatever it draws is what comes out
+    // of the printer. It used to draw a fixed 4x4 grid that no scanner could read.
     render(
       <TemplatePreview
         config={withPaymentQr}
@@ -292,6 +294,21 @@ describe('TemplatePreview — Payment QR', () => {
         promotionContent={null}
       />,
     );
-    expect(screen.getByText(/Sample pattern/i)).toBeInTheDocument();
+    const codes = await screen.findAllByRole('img', { name: /qr code/i });
+    expect(codes.length).toBeGreaterThan(0);
+    expect(codes[0].querySelector('svg')).toBeTruthy();
+  });
+
+  it('says what is missing instead of printing an unpayable code', () => {
+    render(
+      <TemplatePreview
+        config={withPaymentQr}
+        branding={{ ...branding, upi_vpa: null }}
+        mode="thermal80"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    expect(screen.getByText(/Add your UPI ID in Settings/i)).toBeInTheDocument();
   });
 });
