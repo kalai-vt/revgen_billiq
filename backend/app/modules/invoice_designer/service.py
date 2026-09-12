@@ -3,9 +3,18 @@ from __future__ import annotations
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.core.blob import UploadValidationError, upload_file
 from app.models.invoice_template import DOCUMENT_TYPES, InvoiceTemplate
 from app.modules.invoice_designer import defaults
 from app.schemas.invoice_template import InvoiceTemplateConfig
+
+
+# A QR is a flat black-and-white image; SVG is left out (unlike the logo) because the renderers
+# rasterize it for thermal printing and an SVG has no pixels to read.
+ALLOWED_QR_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+# Smaller than the logo's 2MB on purpose — a QR that needs more than this is a photograph of one,
+# which will not survive being thresholded to 1-bit for a thermal printer anyway.
+MAX_QR_SIZE_BYTES = 1024 * 1024
 
 
 class InvoiceTemplateError(Exception):
@@ -144,3 +153,23 @@ def set_default(db: Session, tenant_id: str, template: InvoiceTemplate) -> Invoi
 
 def get_defaults_by_type(db: Session, tenant_id: str) -> dict[str, InvoiceTemplate]:
     return {document_type: get_or_create_default(db, tenant_id, document_type) for document_type in DOCUMENT_TYPES}
+
+
+def save_qr_image(tenant_id: str, kind: str, content: bytes, content_type: str) -> str:
+    """Store a tenant's own QR image for one QR type and return its URL.
+
+    Keyed by tenant and kind rather than randomly named, so re-uploading replaces the previous
+    image instead of leaving orphans behind in the blob store. The URL is what gets written into
+    the template config, and the config validator only accepts URLs of this shape.
+    """
+    ext = ALLOWED_QR_CONTENT_TYPES.get(content_type, "")
+    try:
+        return upload_file(
+            f"qr/{tenant_id}/{kind}.{ext}",
+            content,
+            content_type,
+            allowed_content_types=ALLOWED_QR_CONTENT_TYPES,
+            max_size_bytes=MAX_QR_SIZE_BYTES,
+        )
+    except UploadValidationError as exc:
+        raise InvoiceTemplateError(400, exc.message) from exc

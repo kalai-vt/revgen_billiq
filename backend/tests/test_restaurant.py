@@ -765,3 +765,37 @@ def test_a_tab_with_a_customer_bills_as_unpaid_and_lands_in_outstanding(
     assert invoice["outstanding_amount"] > 0
     # And the table is free again — the food is served, the money is owed, not the table.
     assert client.get(f"/api/restaurant/tables/{table['id']}/active-order", headers=headers).json().get("data") is None
+
+
+def test_tables_are_listed_in_numeric_order(client: TestClient, db_session: Session):
+    """A text sort puts Table 10 between Table 1 and Table 2, which is how the board, the setup
+    list and every table dropdown ended up out of order. Created deliberately out of sequence."""
+    _, headers = _setup(client, db_session)
+    for name in ["Table 10", "Table 2", "Table 1", "Table 9", "Table 20", "Table 3"]:
+        _table(client, headers, name)
+
+    listed = client.get("/api/restaurant/tables", headers=headers).json()["data"]
+    assert [t["name"] for t in listed] == [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "Table 9",
+        "Table 10",
+        "Table 20",
+    ]
+
+    # The floor board reads through the same call, so the two screens cannot disagree.
+    layout = client.get("/api/restaurant/layout", headers=headers).json()["data"]
+    board = [t["name"] for group in layout for t in group["tables"]]
+    assert board == [t["name"] for t in listed]
+
+
+def test_table_ordering_handles_names_that_are_not_numbered(client: TestClient, db_session: Session):
+    """Not every restaurant numbers its tables, and a mixed list must not blow up comparing a
+    string against an int."""
+    _, headers = _setup(client, db_session)
+    for name in ["Patio", "Table 2", "Bar", "Table 1"]:
+        _table(client, headers, name)
+
+    names = [t["name"] for t in client.get("/api/restaurant/tables", headers=headers).json()["data"]]
+    assert names == ["Bar", "Patio", "Table 1", "Table 2"]

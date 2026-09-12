@@ -20,7 +20,7 @@ import * as webBluetoothPrinter from '@/lib/printing/webBluetoothPrinter';
 import { resolveDeviceMode } from '@/lib/printing/deviceProfile';
 import { buildReceiptCommands, type ThermalPaperSize } from '@/lib/printing/escpos';
 import { buildLogoCommand } from '@/lib/printing/escposLogo';
-import { buildInvoiceReceiptPayload } from '@/features/pos/lib/silentPrint';
+import { buildInvoiceReceiptPayload, buildQrImageCommands, type QrImageCommands } from '@/features/pos/lib/silentPrint';
 import { ApiError } from '@/lib/api-client';
 import { appPath } from '@/lib/app-path';
 
@@ -98,12 +98,13 @@ export function InvoiceSuccessDialog({
     // never needs to know which printer protocol the agent ends up using. Shared with
     // silentPrint.ts's own manual-print entry points so an invoice's receipt renders identically
     // whether it was auto-printed here or reprinted later from the Invoices list.
-    function buildReceiptPayload(logoCommand: string | null) {
+    function buildReceiptPayload(logoCommand: string | null, qrImages: QrImageCommands = {}) {
       if (!settings) return null;
       return buildInvoiceReceiptPayload(
         currentInvoice,
         { settings, template: taxInvoiceTemplate, promotionContent: promotionContent ?? null, tenant },
         logoCommand,
+        qrImages,
       );
     }
 
@@ -113,9 +114,12 @@ export function InvoiceSuccessDialog({
         thermal && settings && taxInvoiceTemplate?.config.branding.show_logo && settings.logo_url
           ? await buildLogoCommand(settings.logo_url, autoPrintPaperSize)
           : null;
+      // Rasterized here for the same reason as the logo: the payload builders are synchronous,
+      // and a tenant's uploaded QR needs a fetch and a canvas pass before it can be printed.
+      const qrImages = thermal ? await buildQrImageCommands(taxInvoiceTemplate?.config, autoPrintPaperSize) : {};
 
       if (usesWebTransport && thermal) {
-        const receipt = buildReceiptPayload(logoCommand);
+        const receipt = buildReceiptPayload(logoCommand, qrImages);
         if (receipt) {
           try {
             const commands = buildReceiptCommands(receipt.business, receipt.data, autoPrintPaperSize);
@@ -130,7 +134,7 @@ export function InvoiceSuccessDialog({
       } else if (deviceMode === 'qz' && autoPrintPrinterName) {
         try {
           if (thermal) {
-            const receipt = buildReceiptPayload(logoCommand);
+            const receipt = buildReceiptPayload(logoCommand, qrImages);
             if (!receipt) throw new Error('Business settings were not available for the receipt.');
             await qzTray.printRaw(autoPrintPrinterName, buildReceiptCommands(receipt.business, receipt.data, autoPrintPaperSize));
           } else {
@@ -145,7 +149,7 @@ export function InvoiceSuccessDialog({
       } else if (deviceMode === 'revgenai-agent' && autoPrintPrinterName) {
         try {
           if (thermal) {
-            const receipt = buildReceiptPayload(logoCommand);
+            const receipt = buildReceiptPayload(logoCommand, qrImages);
             if (!receipt) throw new Error('Business settings were not available for the receipt.');
             await printAgentClient.printThermal(autoPrintPrinterName, receipt.business, receipt.data, autoPrintPaperSize);
           } else {

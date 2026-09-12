@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
+
+import httpx
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -57,6 +60,42 @@ def _qr_flowable(data: str, size: float = 22 * mm) -> Image | None:
         return Image(buffer, width=size, height=size)
     except Exception:
         return None
+
+
+def _custom_qr_bytes(url: str) -> bytes | None:
+    """Fetch a tenant-uploaded QR image. Fails soft — a blocked or missing image must never take
+    the whole bill down with it; the caller falls back to generating the QR."""
+    try:
+        if url.startswith("/uploads/"):
+            path = (Path("uploads") / url[len("/uploads/"):]).resolve()
+            root = Path("uploads").resolve()
+            if root not in path.parents:
+                return None
+            return path.read_bytes() if path.is_file() else None
+        # Only our own blob host reaches here — the config validator rejects anything else.
+        response = httpx.get(url, timeout=5.0)
+        response.raise_for_status()
+        return response.content
+    except Exception:
+        return None
+
+
+def _qr_for(config, kind: str, data: str, size: float = 22 * mm) -> Image | None:
+    """The QR for one type: the tenant's own image when they uploaded one, otherwise generated.
+
+    Falling back to the generated code on any loading failure is deliberate — a bill that prints
+    with the wrong-but-working QR beats a bill that prints with no way to pay or reach the
+    business at all.
+    """
+    url = (config.qr_barcode.custom_images or {}).get(kind)
+    if url:
+        content = _custom_qr_bytes(url)
+        if content:
+            try:
+                return Image(io.BytesIO(content), width=size, height=size)
+            except Exception:
+                pass
+    return _qr_flowable(data, size=size)
 
 
 def _barcode_flowable(value: str, width: float = 55 * mm, height: float = 14 * mm):
@@ -181,7 +220,7 @@ def _payment_qr_flowables(config, data, settings, tenant, styles) -> list:
         transaction_ref=data.number,
         transaction_note=f"Invoice {data.number}",
     )
-    image = _qr_flowable(uri, size=_PAYMENT_QR_SIZE_MM[qr_config.size] * mm)
+    image = _qr_for(config, "payment_qr", uri, size=_PAYMENT_QR_SIZE_MM[qr_config.size] * mm)
     if not image:
         return []
 
@@ -440,19 +479,19 @@ def render_document_pdf(
     qr = config.qr_barcode
     qr_flowables = []
     if qr.invoice_qr:
-        flow = _qr_flowable(f"Invoice:{data.number}|Amount:{data.totals.get('grand_total', 0):.2f}")
+        flow = _qr_for(config, "invoice_qr", f"Invoice:{data.number}|Amount:{data.totals.get('grand_total', 0):.2f}")
         if flow:
             qr_flowables.append(flow)
     if qr.website_qr and settings and settings.website:
-        flow = _qr_flowable(settings.website)
+        flow = _qr_for(config, "website_qr", settings.website)
         if flow:
             qr_flowables.append(flow)
     if qr.feedback_qr and settings and settings.feedback_url:
-        flow = _qr_flowable(settings.feedback_url)
+        flow = _qr_for(config, "feedback_qr", settings.feedback_url)
         if flow:
             qr_flowables.append(flow)
     if qr.business_qr:
-        flow = _qr_flowable(f"{tenant.company_name}\n{tenant.phone or ''}\n{tenant.email or ''}")
+        flow = _qr_for(config, "business_qr", f"{tenant.company_name}\n{tenant.phone or ''}\n{tenant.email or ''}")
         if flow:
             qr_flowables.append(flow)
     payment_qr_flow = (

@@ -99,7 +99,17 @@ function addressLine(branding: BrandingValues): string | null {
   return parts.length ? parts.join(', ') : null;
 }
 
-function QrPlaceholder({ label }: { label: string }) {
+function QrPlaceholder({ label, imageUrl }: { label: string; imageUrl?: string }) {
+  // A tenant who uploaded their own code should see *that* code here, not a mock pattern — the
+  // whole point of the preview is answering "is this what will print?".
+  if (imageUrl) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <img src={imageUrl} alt={label} className="size-14 border bg-white object-contain p-0.5" />
+        <span className="text-[9px] text-muted-foreground">{label}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center gap-1">
       <div
@@ -400,11 +410,21 @@ export function TemplatePreview({ config, branding, mode, data, promotionContent
         signature.show_authorized_signature || signature.show_customer_signature) && (
         <div className={cn('mt-4 flex gap-4 border-t pt-3', stacked ? 'flex-col items-center' : 'flex-wrap items-end justify-between')}>
           <div className="flex flex-wrap justify-center gap-4">
-            {config.qr_barcode.invoice_qr && <QrPlaceholder label="Invoice QR" />}
-            {config.qr_barcode.payment_qr && <QrPlaceholder label="Pay via UPI" />}
-            {config.qr_barcode.business_qr && <QrPlaceholder label="Business Card" />}
-            {config.qr_barcode.website_qr && <QrPlaceholder label="Website" />}
-            {config.qr_barcode.feedback_qr && <QrPlaceholder label="Feedback" />}
+            {config.qr_barcode.invoice_qr && (
+              <QrPlaceholder label="Invoice QR" imageUrl={config.qr_barcode.custom_images?.invoice_qr} />
+            )}
+            {config.qr_barcode.payment_qr && (
+              <QrPlaceholder label="Pay via UPI" imageUrl={config.qr_barcode.custom_images?.payment_qr} />
+            )}
+            {config.qr_barcode.business_qr && (
+              <QrPlaceholder label="Business Card" imageUrl={config.qr_barcode.custom_images?.business_qr} />
+            )}
+            {config.qr_barcode.website_qr && (
+              <QrPlaceholder label="Website" imageUrl={config.qr_barcode.custom_images?.website_qr} />
+            )}
+            {config.qr_barcode.feedback_qr && (
+              <QrPlaceholder label="Feedback" imageUrl={config.qr_barcode.custom_images?.feedback_qr} />
+            )}
             {config.qr_barcode.barcode && <BarcodePlaceholder />}
           </div>
           {(signature.show_authorized_signature || signature.show_customer_signature) && (

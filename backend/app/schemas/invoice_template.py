@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.invoice_template import DOCUMENT_TYPES
 
@@ -18,6 +18,9 @@ ItemColumnKey = Literal[
 ]
 ColumnAlign = Literal["left", "center", "right"]
 FooterKey = Literal["thank_you", "return_policy", "exchange_policy", "warranty", "terms_conditions", "business_notes"]
+# QR types a tenant can supply their own image for. `barcode` is deliberately absent: it is
+# generated from the invoice number and there is nothing static to upload in its place.
+QrKind = Literal["invoice_qr", "payment_qr", "business_qr", "website_qr", "feedback_qr"]
 FontFamily = Literal["sans", "serif", "mono"]
 FontSize = Literal["sm", "md", "lg"]
 BorderStyle = Literal["solid", "dashed", "none"]
@@ -152,6 +155,26 @@ class QrBarcodeConfig(BaseModel):
     website_qr: bool = False
     feedback_qr: bool = False
     barcode: bool = False
+    # The tenant's own QR image per type, replacing the generated one where present. A restaurant
+    # that already has a printed UPI or feedback QR wants *that* code on the bill, not a
+    # regenerated one pointing somewhere else. Only types switched on above are rendered, so an
+    # upload left behind by a toggle being turned off is kept but ignored.
+    custom_images: dict[QrKind, str] = Field(default_factory=dict)
+
+    @field_validator("custom_images")
+    @classmethod
+    def _only_our_own_uploads(cls, value: dict[str, str]) -> dict[str, str]:
+        """Every URL here must be one our upload endpoint issued.
+
+        The template is tenant-editable and its image URLs are fetched by the renderers, so an
+        arbitrary URL would let a saved template point the server (and every printed bill) at a
+        third-party host — a tracking pixel at best. Uploads land on Vercel Blob in production and
+        under /uploads locally, and nothing else is accepted.
+        """
+        for kind, url in value.items():
+            if not (url.startswith("/uploads/") or url.startswith("https://") and ".public.blob.vercel-storage.com/" in url):
+                raise ValueError(f"{kind}: QR image must be uploaded through the designer")
+        return value
 
 
 class PaymentQrConfig(BaseModel):

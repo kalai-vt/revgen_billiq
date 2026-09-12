@@ -71,6 +71,20 @@ def table_label(name: str | None) -> str:
     return trimmed if re.match(r"^table\b", trimmed, re.IGNORECASE) else f"Table {trimmed}"
 
 
+def natural_key(name: str | None) -> list:
+    """Sort key that reads the numbers in a name as numbers.
+
+    Tables are named "Table 1" … "Table 10", and a plain text sort puts Table 10 between Table 1
+    and Table 2 — which is how the board, the setup list and every table dropdown ended up out of
+    order. Splitting on digit runs and comparing those as integers gives 1, 2, … 9, 10.
+
+    The leading "" keeps the pairs type-consistent (str, int, str, int …) whether or not the name
+    starts with a digit, so "10A" and "Patio" never compare str against int.
+    """
+    parts = re.split(r"(\d+)", (name or "").strip().casefold())
+    return [int(part) if part.isdigit() else part for part in parts]
+
+
 # ---- Kitchen ---------------------------------------------------------------------------------
 
 # A ticket is only *with the kitchen* while the food is still theirs to cook. Served tickets have
@@ -111,7 +125,10 @@ def list_floors(db: Session, tenant_id: str, *, include_inactive: bool = False) 
     stmt = select(RestaurantFloor).where(RestaurantFloor.tenant_id == tenant_id)
     if not include_inactive:
         stmt = stmt.where(RestaurantFloor.is_active.is_(True))
-    return list(db.execute(stmt.order_by(RestaurantFloor.sort_order, RestaurantFloor.name)).scalars())
+    rows = list(db.execute(stmt.order_by(RestaurantFloor.sort_order)).scalars())
+    # Same numbers-as-numbers rule as tables, so "Floor 2" never sorts after "Floor 10".
+    rows.sort(key=lambda floor: (floor.sort_order, natural_key(floor.name)))
+    return rows
 
 
 def create_floor(db: Session, tenant_id: str, payload: FloorCreate) -> RestaurantFloor:
@@ -187,7 +204,13 @@ def list_tables(db: Session, tenant_id: str, *, floor_id: str | None = None, inc
         stmt = stmt.where(RestaurantTable.floor_id == floor_id)
     if not include_inactive:
         stmt = stmt.where(RestaurantTable.is_active.is_(True))
-    return list(db.execute(stmt.order_by(RestaurantTable.sort_order, RestaurantTable.name)).scalars())
+    rows = list(db.execute(stmt).scalars())
+    # Sorted here rather than in SQL: neither SQLite nor Postgres orders "Table 10" after
+    # "Table 9" without a collation trick, and every screen reads tables through this one call,
+    # so doing it here is what makes the order the same on the board, in Table Setup and in every
+    # table picker.
+    rows.sort(key=lambda table: natural_key(table.name))
+    return rows
 
 
 def create_table(db: Session, tenant_id: str, payload: TableCreate) -> RestaurantTable:

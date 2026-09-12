@@ -186,3 +186,68 @@ def test_mutations_require_owner_role(client: TestClient, admin_db_session: Sess
         ).status_code
         == 403
     )
+
+
+def test_a_tenant_can_upload_their_own_qr_image(client: TestClient, admin_db_session: Session) -> None:
+    """A restaurant with a printed UPI or feedback QR already on the counter wants *that* code on
+    the bill, not a regenerated one pointing somewhere else."""
+    owner = _register(client, admin_db_session, email="qr-upload@acme.test")
+    headers = _headers(owner["access_token"])
+
+    # Smallest valid PNG — the endpoint stores bytes, it does not decode them.
+    png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
+        b"\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00"
+        b"\x00\x00IEND\xaeB`\x82"
+    )
+    response = client.post(
+        "/api/invoice-templates/qr-image/payment_qr",
+        files={"file": ("upi.png", png, "image/png")},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    url = response.json()["data"]["url"]
+    assert url
+
+    # The URL only takes effect once it is saved onto a template, so an upload never changes a
+    # live bill on its own.
+    client.get("/api/invoice-templates/defaults", headers=headers)  # seed builtin default
+    template = client.post(
+        "/api/invoice-templates", json={"document_type": "tax_invoice", "name": "With my QR"}, headers=headers
+    ).json()["data"]
+    config = template["config"]
+    config["qr_barcode"]["payment_qr"] = True
+    config["qr_barcode"]["custom_images"] = {"payment_qr": url}
+    saved = client.put(
+        f"/api/invoice-templates/{template['id']}", json={"config": config}, headers=headers
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["data"]["config"]["qr_barcode"]["custom_images"]["payment_qr"] == url
+
+
+def test_a_qr_image_url_we_did_not_issue_is_rejected(client: TestClient, admin_db_session: Session) -> None:
+    """The template is tenant-editable and its image URLs are fetched when a bill renders, so an
+    arbitrary URL would point the server — and every printed bill — at a third-party host."""
+    owner = _register(client, admin_db_session, email="qr-evil@acme.test")
+    headers = _headers(owner["access_token"])
+
+    client.get("/api/invoice-templates/defaults", headers=headers)  # seed builtin default
+    template = client.post(
+        "/api/invoice-templates", json={"document_type": "tax_invoice", "name": "Tracker"}, headers=headers
+    ).json()["data"]
+    config = template["config"]
+    config["qr_barcode"]["custom_images"] = {"payment_qr": "https://evil.example.com/tracker.png"}
+
+    refused = client.put(f"/api/invoice-templates/{template['id']}", json={"config": config}, headers=headers)
+    assert refused.status_code in (400, 422), refused.text
+
+
+def test_an_unknown_qr_type_is_rejected(client: TestClient, admin_db_session: Session) -> None:
+    owner = _register(client, admin_db_session, email="qr-kind@acme.test")
+    headers = _headers(owner["access_token"])
+    response = client.post(
+        "/api/invoice-templates/qr-image/not_a_qr",
+        files={"file": ("x.png", b"x", "image/png")},
+        headers=headers,
+    )
+    assert response.status_code == 422

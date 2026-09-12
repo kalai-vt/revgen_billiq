@@ -146,6 +146,11 @@ export interface ReceiptFooterSection {
 export interface ReceiptQrCode {
   caption: string;
   data: string;
+  /** A pre-rasterized ESC/POS bit-image of the tenant's own uploaded QR, when they supplied one
+   * for this type. BillIQ builds it (rasterizing needs a canvas the agent does not have) and
+   * sends it with the document; when present it replaces the generated code, and `data` remains
+   * the fallback for when the image could not be loaded. */
+  imageCommand?: string | null;
 }
 
 export interface ReceiptBarcode {
@@ -351,8 +356,8 @@ export function buildReceiptCommands(business: ReceiptBusinessInfo, data: Receip
 
   if (data.qrCodes && data.qrCodes.length > 0) {
     out.push(align('center'));
-    for (const { caption, data: qrData } of data.qrCodes) {
-      out.push(feed(1), `${caption}\n`, qrCode(qrData), feed(1));
+    for (const { caption, data: qrData, imageCommand } of data.qrCodes) {
+      out.push(feed(1), `${caption}\n`, imageCommand || qrCode(qrData), feed(1));
     }
   }
 
