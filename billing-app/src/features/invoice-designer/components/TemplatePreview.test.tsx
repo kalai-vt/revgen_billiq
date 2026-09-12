@@ -229,3 +229,106 @@ describe('TemplatePreview — Payment QR element', () => {
     expect(screen.queryByText('Amount: 750.00')).not.toBeInTheDocument();
   });
 });
+
+describe('TemplatePreview — Payment QR', () => {
+  const withPaymentQr = {
+    ...baseConfig,
+    payment_qr: { ...baseConfig.payment_qr, enabled: true, show_upi_id: true, visibility: 'always' as const },
+  };
+
+  it('shows the tenant\'s real UPI id, not a placeholder', () => {
+    // A hardcoded "your-upi@bank" here reads as the product having ignored the UPI ID they just
+    // saved in Settings, which is how a correct printed QR gets reported as broken.
+    render(
+      <TemplatePreview
+        config={withPaymentQr}
+        branding={{ ...branding, upi_vpa: 'kalai18it@oksbi' }}
+        mode="thermal80"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    expect(screen.getByText('kalai18it@oksbi')).toBeInTheDocument();
+    expect(screen.queryByText('your-upi@bank')).not.toBeInTheDocument();
+  });
+
+  it('points at Settings when no UPI id is saved yet', () => {
+    render(
+      <TemplatePreview
+        config={withPaymentQr}
+        branding={{ ...branding, upi_vpa: null }}
+        mode="thermal80"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    expect(screen.getByText(/Set your UPI ID/i)).toBeInTheDocument();
+  });
+
+  it('shows an uploaded QR image instead of the sample pattern', () => {
+    render(
+      <TemplatePreview
+        config={{
+          ...withPaymentQr,
+          qr_barcode: { ...withPaymentQr.qr_barcode, custom_images: { payment_qr: '/uploads/qr/t1/payment_qr.png' } },
+        }}
+        branding={{ ...branding, upi_vpa: 'kalai18it@oksbi' }}
+        mode="thermal80"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    expect(screen.getByAltText('Payment QR')).toHaveAttribute('src', '/uploads/qr/t1/payment_qr.png');
+    expect(screen.queryByText(/Sample pattern/i)).not.toBeInTheDocument();
+  });
+
+  it('renders a real scannable code from the saved UPI id, not a mock pattern', async () => {
+    // This component is what /invoices/:id/print renders, so whatever it draws is what comes out
+    // of the printer. It used to draw a fixed 4x4 grid that no scanner could read.
+    render(
+      <TemplatePreview
+        config={withPaymentQr}
+        branding={{ ...branding, upi_vpa: 'kalai18it@oksbi' }}
+        mode="thermal80"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    const codes = await screen.findAllByRole('img', { name: /qr code/i });
+    expect(codes.length).toBeGreaterThan(0);
+    expect(codes[0].querySelector('svg')).toBeTruthy();
+  });
+
+  it('says what is missing instead of printing an unpayable code', () => {
+    render(
+      <TemplatePreview
+        config={withPaymentQr}
+        branding={{ ...branding, upi_vpa: null }}
+        mode="thermal80"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    expect(screen.getByText(/Add your UPI ID in Settings/i)).toBeInTheDocument();
+  });
+});
+
+describe('TemplatePreview — barcode', () => {
+  it('renders a real Code 128 of the invoice number, not a drawing', async () => {
+    // Printed output, not a mockup: this used to be 28 bars of pseudo-random height, which reads
+    // as a barcode to a person and as nothing at all to a scanner.
+    render(
+      <TemplatePreview
+        config={{ ...baseConfig, qr_barcode: { ...baseConfig.qr_barcode, barcode: true } }}
+        branding={branding}
+        mode="a4"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    const bars = await screen.findByRole('img', { name: /^Barcode / });
+    expect(bars.querySelector('svg')).toBeTruthy();
+    // Real bars carry explicit widths; the decorative version had none.
+    expect(bars.querySelectorAll('rect').length).toBeGreaterThan(10);
+  });
+});

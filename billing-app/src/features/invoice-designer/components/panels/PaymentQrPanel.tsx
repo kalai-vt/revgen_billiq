@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FieldToggle } from '@/features/invoice-designer/components/FieldToggle';
+import { QrImageUpload } from '@/features/invoice-designer/components/QrImageUpload';
 import type {
   PaymentQrPosition,
   PaymentQrSize,
@@ -79,6 +80,30 @@ export function PaymentQrPanel({ config, onChange }: PanelProps) {
 
       {qr.enabled && (
         <>
+          {/* Offered here as well as on the QR & Barcode panel, because this is the panel a tenant
+              is already in when they are setting the Payment QR up. Both write the same value, so
+              they cannot disagree. A restaurant with a UPI QR already printed on the counter wants
+              that exact code on the bill. */}
+          <div className="space-y-1.5">
+            <Label>Your own QR image</Label>
+            <p className="text-xs text-muted-foreground">
+              Optional. Upload the UPI QR you already use and it replaces the generated one. A fixed image
+              can&apos;t carry the amount due, so the customer types it in themselves.
+            </p>
+            <QrImageUpload
+              kind="payment_qr"
+              url={config.qr_barcode.custom_images?.payment_qr}
+              onChange={(url) =>
+                onChange((cfg) => {
+                  const next = { ...(cfg.qr_barcode.custom_images ?? {}) };
+                  if (url) next.payment_qr = url;
+                  else delete next.payment_qr;
+                  return { ...cfg, qr_barcode: { ...cfg.qr_barcode, custom_images: next } };
+                })
+              }
+            />
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="payment-qr-label">Label</Label>
             <Input
