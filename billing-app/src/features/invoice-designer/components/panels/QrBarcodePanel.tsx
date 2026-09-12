@@ -1,13 +1,8 @@
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { ImageUp, Loader2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { FieldToggle } from '@/features/invoice-designer/components/FieldToggle';
+import { QrImageUpload } from '@/features/invoice-designer/components/QrImageUpload';
 import type { PanelProps } from '@/features/invoice-designer/components/panels/types';
-import { uploadQrImage, type QrKind } from '@/features/invoice-designer/api';
-import { apiErrorMessage } from '@/lib/query-error';
-
-const ACCEPT = 'image/png,image/jpeg,image/webp';
+import type { QrKind } from '@/features/invoice-designer/api';
+import { paymentQrEnabled } from '@/lib/upi';
 
 type Field = {
   key: keyof PanelProps['config']['qr_barcode'];
@@ -38,96 +33,6 @@ const FIELDS: Field[] = [
   { key: 'barcode', label: 'Barcode', hint: 'Invoice number as a barcode' },
 ];
 
-/** The upload half of one QR type: shows the tenant's own image when they have one, otherwise
- * offers to take one. Only rendered for a type that is switched on — uploading an image for a QR
- * that will not print is a way to waste someone's afternoon. */
-function QrImageUpload({
-  kind,
-  url,
-  dynamic,
-  onChange,
-}: {
-  kind: QrKind;
-  url: string | undefined;
-  dynamic?: string;
-  onChange: (url: string | null) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function handleFile(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const { url: uploaded } = await uploadQrImage(kind, file);
-      onChange(uploaded);
-      toast.success('QR image uploaded — save the template to use it');
-    } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not upload that image'));
-    } finally {
-      setBusy(false);
-      // Clearing lets the same file be picked again after a failure.
-      if (inputRef.current) inputRef.current.value = '';
-    }
-  }
-
-  return (
-    <div className="mt-1.5 pl-1">
-      <input
-        ref={inputRef}
-        type="file"
-        accept={ACCEPT}
-        className="hidden"
-        onChange={(e) => void handleFile(e.target.files?.[0])}
-      />
-      {url ? (
-        <div className="flex items-center gap-2">
-          <img
-            src={url}
-            alt={`Your ${kind.replace(/_/g, ' ')}`}
-            className="size-10 shrink-0 rounded border bg-white object-contain p-0.5"
-          />
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-[11px] font-medium">Your own QR</span>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                className="text-[11px] underline-offset-2 hover:underline"
-                disabled={busy}
-                onClick={() => inputRef.current?.click()}
-              >
-                Replace
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center gap-0.5 text-[11px] text-destructive underline-offset-2 hover:underline"
-                disabled={busy}
-                onClick={() => onChange(null)}
-              >
-                <X className="size-3" />
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-[11px]"
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-        >
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <ImageUp className="size-3" />}
-          Upload your QR
-        </Button>
-      )}
-      {url && dynamic && <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-500">{dynamic}</p>}
-    </div>
-  );
-}
-
 export function QrBarcodePanel({ config, onChange }: PanelProps) {
   const qr = config.qr_barcode;
   const custom = qr.custom_images ?? {};
@@ -139,6 +44,17 @@ export function QrBarcodePanel({ config, onChange }: PanelProps) {
       else delete next[kind];
       return { ...cfg, qr_barcode: { ...cfg.qr_barcode, custom_images: next } };
     });
+  }
+
+  /** Whether this type will actually print, which is what decides if an upload is worth offering.
+   *
+   * The Payment QR has two switches — the checkbox here and the richer one on the Payment QR Code
+   * panel — and either turns it on (see `paymentQrEnabled`). Checking only the checkbox hid the
+   * upload from every tenant who had switched the element on from the other panel, which is most
+   * of them, since that is where the label, size and visibility live. */
+  function isOn(key: Field['key']): boolean {
+    if (key === 'payment_qr') return paymentQrEnabled(qr.payment_qr, config.payment_qr.enabled);
+    return qr[key] as boolean;
   }
 
   return (
@@ -154,7 +70,7 @@ export function QrBarcodePanel({ config, onChange }: PanelProps) {
           <p className="mt-1 pl-1 text-[11px] text-muted-foreground">{hint}</p>
           {/* The barcode is generated from the invoice number — there is no static image to
               upload in its place, so it is the one row with no upload control. */}
-          {key !== 'barcode' && qr[key] && (
+          {key !== 'barcode' && isOn(key) && (
             <QrImageUpload
               kind={key as QrKind}
               url={custom[key as QrKind]}

@@ -246,6 +246,7 @@ export function InvoiceDesignerPage() {
     pincode: settings?.pincode ?? null,
     website: settings?.website ?? null,
     pan_number: settings?.pan_number ?? null,
+    upi_vpa: settings?.upi_vpa ?? null,
     fssai_number: settings?.fssai_number ?? null,
     drug_license_number: settings?.drug_license_number ?? null,
     msme_udyam_number: settings?.msme_udyam_number ?? null,

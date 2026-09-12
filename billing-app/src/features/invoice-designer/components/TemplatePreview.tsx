@@ -59,6 +59,9 @@ export interface BrandingValues {
   msme_udyam_number: string | null;
   social_links: Record<string, string> | null;
   feedback_url: string | null;
+  /** The tenant's real merchant VPA. The Payment QR preview used to print a hardcoded
+   * "your-upi@bank", which reads as the product having ignored the UPI ID they just saved. */
+  upi_vpa?: string | null;
 }
 
 interface TemplatePreviewProps {
@@ -446,7 +449,7 @@ export function TemplatePreview({ config, branding, mode, data, promotionContent
         </div>
       )}
 
-      <PaymentQrBlock config={config} data={data} />
+      <PaymentQrBlock config={config} data={data} branding={branding} />
 
       {config.billiq_promotion.enabled && promotionContent && (
         <PromotionBlock config={config.billiq_promotion} content={promotionContent} isThermal={isThermal} />
@@ -465,7 +468,15 @@ const PAYMENT_QR_PREVIEW_PX: Record<InvoiceTemplateConfig['payment_qr']['size'],
  * backend app/core/upi.py) so the Designer shows what will actually print: the QR disappears once
  * nothing is outstanding unless it's set to always show, because a scannable QR on a settled bill
  * invites a second payment. */
-function PaymentQrBlock({ config, data }: { config: InvoiceTemplateConfig; data: PreviewData }) {
+function PaymentQrBlock({
+  config,
+  data,
+  branding,
+}: {
+  config: InvoiceTemplateConfig;
+  data: PreviewData;
+  branding: BrandingValues;
+}) {
   const qr = config.payment_qr;
   const outstanding = data.totals.outstanding;
   const amountDue = outstanding ?? data.totals.grand_total ?? 0;
@@ -475,22 +486,43 @@ function PaymentQrBlock({ config, data }: { config: InvoiceTemplateConfig; data:
   if (!paymentQrVisibleForAmount(qr.visibility, amountDue)) return null;
 
   const size = PAYMENT_QR_PREVIEW_PX[qr.size];
+  const uploaded = config.qr_barcode.custom_images?.payment_qr;
   return (
     <div className="mt-4 flex flex-col items-center gap-1 border-t pt-3">
-      <div
-        className="grid grid-cols-4 grid-rows-4 gap-px border p-1"
-        style={{ width: size, height: size, borderColor: 'currentColor' }}
-        aria-hidden
-      >
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div key={i} className={cn((i * 7) % 3 === 0 ? 'bg-current' : 'bg-transparent')} />
-        ))}
-      </div>
+      {uploaded ? (
+        // Their own code, shown exactly as it will print.
+        <img
+          src={uploaded}
+          alt="Payment QR"
+          style={{ width: size, height: size }}
+          className="border bg-white object-contain p-0.5"
+        />
+      ) : (
+        <>
+          <div
+            className="grid grid-cols-4 grid-rows-4 gap-px border p-1"
+            style={{ width: size, height: size, borderColor: 'currentColor' }}
+            aria-hidden
+          >
+            {Array.from({ length: 16 }).map((_, i) => (
+              <div key={i} className={cn((i * 7) % 3 === 0 ? 'bg-current' : 'bg-transparent')} />
+            ))}
+          </div>
+          {/* Said plainly, because the pattern above is a layout stand-in and reading it as the
+              real code is exactly how someone concludes the product ignored their UPI ID. The
+              printed bill carries a real scannable code built from the ID shown below. */}
+          <span className="text-[9px] italic text-muted-foreground">Sample pattern — the real code prints on the bill</span>
+        </>
+      )}
       {qr.label && <span className="text-[11px] font-medium">{qr.label}</span>}
       {qr.show_amount && amountDue > 0 && (
         <span className="text-[10px] text-muted-foreground">Amount: {amountDue.toFixed(2)}</span>
       )}
-      {qr.show_upi_id && <span className="text-[10px] text-muted-foreground">your-upi@bank</span>}
+      {qr.show_upi_id && (
+        <span className="text-[10px] text-muted-foreground">
+          {branding.upi_vpa || 'Set your UPI ID in Settings → Billing Settings'}
+        </span>
+      )}
       {qr.show_payment_status && (
         <span className="text-[10px] text-muted-foreground">
           {amountDue <= 0 ? 'Paid' : `Outstanding: ${amountDue.toFixed(2)}`}
