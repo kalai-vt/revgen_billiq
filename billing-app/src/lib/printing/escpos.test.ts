@@ -145,3 +145,41 @@ describe('buildTestPrintCommands', () => {
     expect(commands.join('')).toContain('\x1DV\x01');
   });
 });
+
+describe('buildReceiptCommands — a tenant\'s own uploaded QR', () => {
+  const IMAGE_COMMAND = '\x1Dv0\x00RASTER-BYTES';
+
+  it('prints the uploaded image instead of generating a code', () => {
+    const commands = buildReceiptCommands(
+      business,
+      { ...baseData(null), qrCodes: [{ caption: 'Scan to Pay', data: 'upi://pay?pa=x@y', imageCommand: IMAGE_COMMAND }] },
+      '80mm',
+    );
+    const joined = commands.join('');
+    expect(joined).toContain('Scan to Pay');
+    expect(joined).toContain(IMAGE_COMMAND);
+    // The generated code's payload must not also be emitted — two QRs where the tenant asked for
+    // one is worse than either on its own.
+    expect(joined).not.toContain('upi://pay?pa=x@y');
+  });
+
+  it('falls back to the generated code when the image could not be rasterized', () => {
+    // buildQrImageCommand returns null on a blocked or missing image. A bill that prints with a
+    // working generated QR beats one with no way to pay at all.
+    const commands = buildReceiptCommands(
+      business,
+      { ...baseData(null), qrCodes: [{ caption: 'Scan to Pay', data: 'upi://pay?pa=x@y', imageCommand: null }] },
+      '80mm',
+    );
+    expect(commands.join('')).toContain('upi://pay?pa=x@y');
+  });
+
+  it('still generates a code for types with no uploaded image', () => {
+    const commands = buildReceiptCommands(
+      business,
+      { ...baseData(null), qrCodes: [{ caption: 'Feedback', data: 'https://example.com/feedback' }] },
+      '80mm',
+    );
+    expect(commands.join('')).toContain('https://example.com/feedback');
+  });
+});

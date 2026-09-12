@@ -199,6 +199,10 @@ export interface FooterConfig {
   sections: FooterSection[];
 }
 
+/** QR types a tenant can supply their own image for. `barcode` is absent on purpose: it is
+ * generated from the invoice number, so there is nothing static to upload in its place. */
+export type QrKind = 'invoice_qr' | 'payment_qr' | 'business_qr' | 'website_qr' | 'feedback_qr';
+
 export interface QrBarcodeConfig {
   invoice_qr: boolean;
   payment_qr: boolean;
@@ -206,6 +210,8 @@ export interface QrBarcodeConfig {
   website_qr: boolean;
   feedback_qr: boolean;
   barcode: boolean;
+  /** The tenant's own QR image per type, replacing the generated one where present. */
+  custom_images: Partial<Record<QrKind, string>>;
 }
 
 export type PaymentQrPosition = 'header' | 'footer' | 'payment_section';
@@ -416,4 +422,16 @@ export interface PromotionContent {
 
 export function getPromotionConfig(): Promise<PromotionContent> {
   return request('/api/v1/promotion/config');
+}
+
+
+/** Uploads the tenant's own image for one QR type and returns its URL.
+ *
+ * Returns the URL only — the caller writes it into the template config and saves the template as
+ * usual, so an upload never changes a live bill on its own and is undone by simply not saving.
+ */
+export function uploadQrImage(kind: QrKind, file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request(`/api/invoice-templates/qr-image/${kind}`, { method: 'POST', body: formData });
 }

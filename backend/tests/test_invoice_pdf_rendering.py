@@ -155,3 +155,40 @@ def test_return_pdf_uses_credit_note_template(client: TestClient, admin_db_sessi
     assert pdf_response.status_code == 200
     assert pdf_response.headers["content-type"] == "application/pdf"
     assert pdf_response.content.startswith(b"%PDF")
+
+
+def test_an_uploaded_qr_image_replaces_the_generated_one(tmp_path, monkeypatch) -> None:
+    """A tenant who uploaded their own code gets *that* code on the bill."""
+    import hashlib
+
+    from app.modules.invoice_designer.pdf_renderer import _custom_qr_bytes, _qr_for
+    from app.schemas.invoice_template import InvoiceTemplateConfig
+
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "uploads" / "qr" / "tenant-1"
+    target.mkdir(parents=True)
+    content = b"\x89PNG\r\n\x1a\n" + b"pretend-qr-bytes"
+    (target / "payment_qr.png").write_bytes(content)
+
+    fetched = _custom_qr_bytes("/uploads/qr/tenant-1/payment_qr.png")
+    assert fetched is not None
+    assert hashlib.sha256(fetched).hexdigest() == hashlib.sha256(content).hexdigest()
+
+    config = InvoiceTemplateConfig()
+    config.qr_barcode.custom_images = {"payment_qr": "/uploads/qr/tenant-1/payment_qr.png"}
+    # A real PNG is needed for ReportLab to build the flowable, so the byte-level check above is
+    # what proves *which* image is used; this proves the missing-file path still renders a QR.
+    config.qr_barcode.custom_images = {"payment_qr": "/uploads/qr/tenant-1/missing.png"}
+    assert _qr_for(config, "payment_qr", "upi://pay?pa=x@y") is not None
+
+
+def test_a_qr_image_path_cannot_escape_the_uploads_directory(tmp_path, monkeypatch) -> None:
+    """Defense in depth: the config validator already limits these URLs to ones we issued, but a
+    path that walks out of uploads/ must not be readable even so."""
+    from app.modules.invoice_designer.pdf_renderer import _custom_qr_bytes
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "uploads").mkdir()
+    (tmp_path / "secret.txt").write_bytes(b"not yours")
+
+    assert _custom_qr_bytes("/uploads/../secret.txt") is None

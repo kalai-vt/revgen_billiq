@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -13,7 +13,13 @@ from app.models.invoice_template import InvoiceTemplate
 from app.models.user import User
 from app.modules.invoice_designer import service
 from app.modules.invoice_designer.service import InvoiceTemplateError
-from app.schemas.invoice_template import DocumentType, InvoiceTemplateCreate, InvoiceTemplateOut, InvoiceTemplateUpdate
+from app.schemas.invoice_template import (
+    DocumentType,
+    InvoiceTemplateCreate,
+    InvoiceTemplateOut,
+    InvoiceTemplateUpdate,
+    QrKind,
+)
 
 router = APIRouter(prefix="/api/invoice-templates", tags=["invoice-designer"])
 
@@ -133,3 +139,23 @@ def set_default_template(
     template = _get_or_404(db, current_user.tenant_id, template_id)
     template = service.set_default(db, current_user.tenant_id, template)
     return make_response(True, "Default invoice template updated", _out(template))
+
+
+@router.post("/qr-image/{kind}", dependencies=[Depends(require_feature("invoice_designer"))])
+async def post_qr_image(
+    kind: QrKind,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role("owner", "manager")),
+) -> dict[str, Any]:
+    """Upload the tenant's own image for one QR type.
+
+    Returns the URL only — the caller writes it into the template's `qr_barcode.custom_images` and
+    saves the template as usual, so an upload never changes a live bill on its own and is undone
+    by simply not saving.
+    """
+    content = await file.read()
+    try:
+        url = service.save_qr_image(current_user.tenant_id, kind, content, file.content_type or "")
+    except InvoiceTemplateError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return make_response(True, "QR image uploaded", {"url": url})

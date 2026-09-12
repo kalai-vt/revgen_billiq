@@ -16,7 +16,7 @@ import * as settingsApi from '@/features/settings/api';
 import type { AutoPrintPaperSize, Settings } from '@/features/settings/api';
 import * as invoiceDesignerApi from '@/features/invoice-designer/api';
 import { getPromotionConfig } from '@/features/invoice-designer/api';
-import type { InvoiceTemplate, PromotionContent } from '@/features/invoice-designer/api';
+import type { InvoiceTemplate, InvoiceTemplateConfig, PromotionContent } from '@/features/invoice-designer/api';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { buildPaymentQrEntry } from '@/lib/upi';
 import type { Tenant } from '@/features/auth/api';
@@ -31,9 +31,10 @@ import {
   type ReceiptBusinessInfo,
   type ReceiptData,
   type ReceiptPromotion,
+  type ReceiptQrCode,
   type ThermalPaperSize,
 } from '@/lib/printing/escpos';
-import { buildLogoCommand } from '@/lib/printing/escposLogo';
+import { buildLogoCommand, buildQrImageCommand } from '@/lib/printing/escposLogo';
 import type { ProvisionalBillSnapshot } from '@/features/pos/lib/provisionalBill';
 
 const THERMAL_PAPER_SIZES: AutoPrintPaperSize[] = ['58mm', '80mm'];
@@ -61,6 +62,34 @@ function formatEnumLabel(value: string): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** The QR types a tenant can replace with their own uploaded image. Mirrors the backend's
+ * `QrKind` in app/schemas/invoice_template.py. */
+export type QrKind = 'invoice_qr' | 'payment_qr' | 'business_qr' | 'website_qr' | 'feedback_qr';
+
+export type QrImageCommands = Partial<Record<QrKind, string | null>>;
+
+/** Rasterizes every uploaded QR image the template uses, once, before the (synchronous) payload
+ * builders run. Only types that are actually switched on are fetched, so an image left behind by
+ * a toggle being turned off costs nothing. Any that fail come back absent and the caller falls
+ * back to the generated code. */
+export async function buildQrImageCommands(
+  config: InvoiceTemplateConfig | undefined,
+  paperSize: ThermalPaperSize,
+): Promise<QrImageCommands> {
+  const custom = config?.qr_barcode.custom_images;
+  if (!custom) return {};
+  const enabled: Record<QrKind, boolean> = {
+    invoice_qr: config.qr_barcode.invoice_qr,
+    payment_qr: config.qr_barcode.payment_qr || config.payment_qr.enabled,
+    business_qr: config.qr_barcode.business_qr,
+    website_qr: config.qr_barcode.website_qr,
+    feedback_qr: config.qr_barcode.feedback_qr,
+  };
+  const kinds = (Object.keys(custom) as QrKind[]).filter((kind) => enabled[kind] && custom[kind]);
+  const built = await Promise.all(kinds.map((kind) => buildQrImageCommand(custom[kind] as string, paperSize)));
+  return Object.fromEntries(kinds.map((kind, i) => [kind, built[i]]));
+}
+
 /** Ported from InvoiceSuccessDialog.tsx's own (formerly private) buildReceiptPayload, unchanged —
  * kept in sync there via a direct re-export so a real invoice's receipt looks identical whether it
  * was auto-printed after checkout or manually reprinted later from the Invoices list. */
@@ -68,14 +97,19 @@ export function buildInvoiceReceiptPayload(
   invoice: Invoice,
   ctx: PrintContext,
   logoCommand: string | null,
+  qrImages: QrImageCommands = {},
 ): { business: ReceiptBusinessInfo; data: ReceiptData } | null {
   const { settings, template, promotionContent, tenant } = ctx;
   const companyName = tenant?.company_name ?? 'Receipt';
   const config = template?.config;
 
-  const qrCodes: { caption: string; data: string }[] = [];
+  const qrCodes: ReceiptQrCode[] = [];
   if (config?.qr_barcode.invoice_qr) {
-    qrCodes.push({ caption: 'Invoice QR', data: `Invoice:${invoice.invoice_number}|Amount:${invoice.total_amount.toFixed(2)}` });
+    qrCodes.push({
+      caption: 'Invoice QR',
+      data: `Invoice:${invoice.invoice_number}|Amount:${invoice.total_amount.toFixed(2)}`,
+      imageCommand: qrImages.invoice_qr,
+    });
   }
   if (config) {
     // An invoice with no outstanding figure is unpaid in full as far as the QR is concerned —
@@ -88,16 +122,20 @@ export function buildInvoiceReceiptPayload(
       payeeName: settings.upi_merchant_name || companyName,
       reference: invoice.invoice_number,
     });
-    if (paymentQr) qrCodes.push(paymentQr);
+    if (paymentQr) qrCodes.push({ ...paymentQr, imageCommand: qrImages.payment_qr });
   }
   if (config?.qr_barcode.business_qr) {
-    qrCodes.push({ caption: 'Business Card', data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}` });
+    qrCodes.push({
+      caption: 'Business Card',
+      data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}`,
+      imageCommand: qrImages.business_qr,
+    });
   }
   if (config?.qr_barcode.website_qr && settings.website) {
-    qrCodes.push({ caption: 'Visit Us', data: settings.website });
+    qrCodes.push({ caption: 'Visit Us', data: settings.website, imageCommand: qrImages.website_qr });
   }
   if (config?.qr_barcode.feedback_qr && settings.feedback_url) {
-    qrCodes.push({ caption: 'Feedback', data: settings.feedback_url });
+    qrCodes.push({ caption: 'Feedback', data: settings.feedback_url, imageCommand: qrImages.feedback_qr });
   }
 
   const footerSections = (config?.footer.sections ?? [])
@@ -205,12 +243,13 @@ function buildProvisionalReceiptPayload(
   snapshot: ProvisionalBillSnapshot,
   ctx: PrintContext,
   logoCommand: string | null,
+  qrImages: QrImageCommands = {},
 ): { business: ReceiptBusinessInfo; data: ReceiptData } {
   const { settings, template, promotionContent, tenant } = ctx;
   const companyName = tenant?.company_name ?? 'Receipt';
   const config = template?.config;
 
-  const qrCodes: { caption: string; data: string }[] = [];
+  const qrCodes: ReceiptQrCode[] = [];
   if (config) {
     // A provisional bill has taken no payment yet, so the whole total is what's due.
     const paymentQr = buildPaymentQrEntry({
@@ -220,13 +259,17 @@ function buildProvisionalReceiptPayload(
       vpa: settings.upi_vpa,
       payeeName: settings.upi_merchant_name || companyName,
     });
-    if (paymentQr) qrCodes.push(paymentQr);
+    if (paymentQr) qrCodes.push({ ...paymentQr, imageCommand: qrImages.payment_qr });
   }
   if (config?.qr_barcode.business_qr) {
-    qrCodes.push({ caption: 'Business Card', data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}` });
+    qrCodes.push({
+      caption: 'Business Card',
+      data: `${companyName}\n${tenant?.phone ?? ''}\n${tenant?.email ?? ''}`,
+      imageCommand: qrImages.business_qr,
+    });
   }
   if (config?.qr_barcode.website_qr && settings.website) {
-    qrCodes.push({ caption: 'Visit Us', data: settings.website });
+    qrCodes.push({ caption: 'Visit Us', data: settings.website, imageCommand: qrImages.website_qr });
   }
 
   const footerSections = (config?.footer.sections ?? [])
@@ -382,9 +425,10 @@ export async function printInvoiceSilently(invoiceId: string): Promise<SilentPri
     thermal && ctx.template?.config.branding.show_logo && ctx.settings.logo_url
       ? await buildLogoCommand(ctx.settings.logo_url, paperSize)
       : null;
+  const qrImages = thermal ? await buildQrImageCommands(ctx.template?.config, paperSize) : {};
   return dispatchSilentPrint(
     thermal,
-    () => buildInvoiceReceiptPayload(invoice, ctx, logoCommand),
+    () => buildInvoiceReceiptPayload(invoice, ctx, logoCommand, qrImages),
     paperSize,
     () => posApi.downloadInvoicePdf(invoiceId),
   );
@@ -401,9 +445,10 @@ export async function printProvisionalBillSilently(snapshot: ProvisionalBillSnap
   if (!thermal) return { ok: false, reason: 'non-thermal-preview' };
   const logoCommand =
     ctx.template?.config.branding.show_logo && ctx.settings.logo_url ? await buildLogoCommand(ctx.settings.logo_url, paperSize) : null;
+  const qrImages = await buildQrImageCommands(ctx.template?.config, paperSize);
   return dispatchSilentPrint(
     true,
-    () => buildProvisionalReceiptPayload(snapshot, ctx, logoCommand),
+    () => buildProvisionalReceiptPayload(snapshot, ctx, logoCommand, qrImages),
     paperSize,
     () => {
       throw new Error('unreachable: provisional bills never take the PDF path');

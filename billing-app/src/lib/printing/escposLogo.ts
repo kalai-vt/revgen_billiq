@@ -19,12 +19,27 @@ const LOGO_WIDTH_DOTS: Record<ThermalPaperSize, number> = {
 
 const MAX_LOGO_HEIGHT_DOTS = 200;
 
+/** A QR module is either ink or paper — there is no midtone to approximate, and error diffusion
+ * scatters stray dots through the quiet zone and finder patterns that stop a scanner locking on.
+ * So QR images get a hard threshold, deliberately not the Floyd–Steinberg pass a logo gets. */
+function toThreshold(rgba: Uint8ClampedArray, width: number, height: number): Uint8Array {
+  const bitmap = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    const alpha = rgba[i * 4 + 3] / 255;
+    // Transparent pixels are paper, not black, or a PNG with an alpha background prints solid.
+    const luminance =
+      255 - alpha * (255 - (0.299 * rgba[i * 4] + 0.587 * rgba[i * 4 + 1] + 0.114 * rgba[i * 4 + 2]));
+    bitmap[i] = luminance < 128 ? 1 : 0;
+  }
+  return bitmap;
+}
+
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Could not load logo image: ${url}`));
+    img.onerror = () => reject(new Error(`Could not load image: ${url}`));
     img.src = url;
   });
 }
@@ -112,6 +127,48 @@ export async function buildLogoCommand(logoUrl: string, paperSize: ThermalPaperS
     return rasterCommand(bitmap, widthDots, heightDots);
   } catch (err) {
     console.warn('Could not render logo for thermal printing:', err);
+    return null;
+  }
+}
+
+
+/** Square side, in dots, of an uploaded QR on the receipt. Large enough that each module survives
+ * as several dots at 203dpi — a QR printed too small is a QR nobody can scan. */
+const QR_SIZE_DOTS: Record<ThermalPaperSize, number> = {
+  '58mm': 240,
+  '80mm': 288,
+};
+
+/** Converts a tenant's uploaded QR image into an ESC/POS raster command.
+ *
+ * Separate from `buildLogoCommand` for two reasons that both matter to whether the code scans: it
+ * is squared rather than fitted to the full paper width, and it is thresholded rather than
+ * dithered (see `toThreshold`).
+ */
+export async function buildQrImageCommand(
+  imageUrl: string,
+  paperSize: ThermalPaperSize,
+): Promise<string | null> {
+  try {
+    const image = await loadImage(imageUrl);
+    const side = QR_SIZE_DOTS[paperSize];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, side, side);
+    // Nearest-neighbour: smoothing an already-small QR blurs module edges into greys that the
+    // threshold then has to guess at.
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, 0, 0, side, side);
+
+    const { data } = ctx.getImageData(0, 0, side, side);
+    return rasterCommand(toThreshold(data, side, side), side, side);
+  } catch (err) {
+    console.warn('Could not render QR image for thermal printing:', err);
     return null;
   }
 }
