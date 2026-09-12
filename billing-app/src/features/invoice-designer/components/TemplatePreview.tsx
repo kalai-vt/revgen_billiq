@@ -3,6 +3,7 @@ import type { InvoiceTemplateConfig, PreviewData, PromotionContent } from '@/fea
 import { cn } from '@/lib/utils';
 import { buildUpiUri, paymentQrEnabled, paymentQrVisibleForAmount } from '@/lib/upi';
 import { QrCode } from '@/features/invoice-designer/components/QrCode';
+import { Barcode } from '@/features/invoice-designer/components/Barcode';
 
 const BILLIQ_BRAND_COLOR = '#6C47FF';
 const PROMOTION_FONT_SIZE_PX: Record<InvoiceTemplateConfig['billiq_promotion']['font_size'], number> = {
@@ -140,15 +141,12 @@ function QrPlaceholder({ label, imageUrl, value }: { label: string; imageUrl?: s
   );
 }
 
-function BarcodePlaceholder() {
+/** The invoice number as a real Code 128 barcode — see components/Barcode.tsx for why this is
+ * not a drawing. `jsbarcode` renders the number under the bars itself, so no caption is added. */
+function BarcodePlaceholder({ value }: { value: string }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="flex h-10 items-end gap-px" aria-hidden>
-        {Array.from({ length: 28 }).map((_, i) => (
-          <div key={i} className="bg-current" style={{ width: (i % 5 === 0 ? 2 : 1), height: `${40 + ((i * 13) % 60)}%` }} />
-        ))}
-      </div>
-      <span className="text-[9px] text-muted-foreground">Barcode</span>
+      <Barcode value={value} />
     </div>
   );
 }
@@ -474,7 +472,7 @@ export function TemplatePreview({ config, branding, mode, data, promotionContent
                 value={branding.feedback_url}
               />
             )}
-            {config.qr_barcode.barcode && <BarcodePlaceholder />}
+            {config.qr_barcode.barcode && <BarcodePlaceholder value={data.number} />}
           </div>
           {(signature.show_authorized_signature || signature.show_customer_signature) && (
             <div className="flex gap-8">

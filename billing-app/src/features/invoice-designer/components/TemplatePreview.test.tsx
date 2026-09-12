@@ -312,3 +312,23 @@ describe('TemplatePreview — Payment QR', () => {
     expect(screen.getByText(/Add your UPI ID in Settings/i)).toBeInTheDocument();
   });
 });
+
+describe('TemplatePreview — barcode', () => {
+  it('renders a real Code 128 of the invoice number, not a drawing', async () => {
+    // Printed output, not a mockup: this used to be 28 bars of pseudo-random height, which reads
+    // as a barcode to a person and as nothing at all to a scanner.
+    render(
+      <TemplatePreview
+        config={{ ...baseConfig, qr_barcode: { ...baseConfig.qr_barcode, barcode: true } }}
+        branding={branding}
+        mode="a4"
+        data={buildSamplePreviewData('tax_invoice')}
+        promotionContent={null}
+      />,
+    );
+    const bars = await screen.findByRole('img', { name: /^Barcode / });
+    expect(bars.querySelector('svg')).toBeTruthy();
+    // Real bars carry explicit widths; the decorative version had none.
+    expect(bars.querySelectorAll('rect').length).toBeGreaterThan(10);
+  });
+});
