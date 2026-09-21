@@ -19,7 +19,7 @@ and registers a proper uninstaller in Windows' "Installed Apps" list.
 cd print-agent
 npm install
 npm run build
-npm test   # 33/33 should pass
+npm test   # 55/55 should pass (hardware-dependent cases self-skip when no printer is attached)
 
 # 2. Stage a clean production bundle (dist + prod-only node_modules, native deps included)
 Remove-Item -Recurse -Force release\stage -ErrorAction SilentlyContinue

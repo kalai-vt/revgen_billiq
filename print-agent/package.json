@@ -1,6 +1,6 @@
 {
   "name": "@revgenai/print-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "RevGenAI Print Agent — local background service that lets RevGenAI SaaS apps (BillIQ, SalesIQ, ...) print to local thermal/OS printers without QZ Tray.",
   "type": "module",

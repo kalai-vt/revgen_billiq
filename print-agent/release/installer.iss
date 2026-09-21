@@ -13,7 +13,7 @@
 ; Node runtime, then this step).
 
 #define MyAppName "RevGenAI Print Agent"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "RevGenAI"
 #define MyAppURL "https://revgenai.in"
 
