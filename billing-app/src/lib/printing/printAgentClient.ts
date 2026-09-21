@@ -57,10 +57,29 @@ export async function requestPairingCode(): Promise<PairingCodeResult> {
   return { code: data.code, expiresAt: data.expires_at };
 }
 
+/** Sized to the agent's own pairing page — one heading, one 6-digit field, one button — so the
+ * popup opens close to the content instead of a mostly-empty browser window. */
+const PAIRING_POPUP_FEATURES = 'popup=yes,width=480,height=560,noopener,noreferrer';
+
+/** A named target, so clicking "Pair" twice focuses the window already open rather than stacking
+ * a second one on top of it. */
+const PAIRING_POPUP_TARGET = 'revgenai-print-agent-pairing';
+
 /** Opens the agent's own local pairing page with the code pre-filled — the agent is always on
- * this same machine (127.0.0.1), so this is a same-computer new-tab, not a remote link. */
+ * this same machine (127.0.0.1), so this is a same-computer window, not a remote link.
+ *
+ * A popup rather than a tab purely so it reads as part of the Settings flow it was launched from.
+ * It deliberately stays the agent's *own* page on its own origin, and is not inlined into an
+ * in-app dialog: the agent's `/pair` endpoint is the one surface it exposes unauthenticated
+ * (pairing is how auth material gets established in the first place, so it cannot itself require
+ * auth), and a human acting on the agent's own page is what stops any other site the till happens
+ * to have open from silently pairing itself to this agent. See `print-agent/src/adminHttp.ts`'s
+ * header and `server.ts`'s note on why pairing never goes through the browser-facing socket.
+ *
+ * `noopener` keeps the cross-origin popup from reaching back into this app via `window.opener`;
+ * it also means `window.open` returns null here, so there is nothing to focus or inspect. */
 export function openAgentPairingPage(code: string): void {
-  window.open(`${AGENT_ADMIN_URL}/pair?code=${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
+  window.open(`${AGENT_ADMIN_URL}/pair?code=${encodeURIComponent(code)}`, PAIRING_POPUP_TARGET, PAIRING_POPUP_FEATURES);
 }
 
 interface AgentDeviceSummary {
