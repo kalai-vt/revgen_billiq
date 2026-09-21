@@ -68,11 +68,30 @@ idempotent (re-run it to repair flags someone toggled off) and refuses to run wh
 ## Deploying
 This is a single Vercel project (`rev-gen-ai/revgen-billiq`) hosting three services, all defined
 in the root `vercel.json`: `billing-app` (served under `/billiq`), `admin-portal` (served under
-`/admin`), and `backend` (the FastAPI API, served under `/api`). **Pushing to `main` deploys
-straight to production** — there's no CI gate blocking it today. `.github/workflows/ci.yml` runs
-backend tests + `pip-audit`, and a typecheck+build for both frontends, on every push/PR to `main`,
-but it and the Vercel deploy are independent pipelines: a failing CI run does not stop or roll back
-a Vercel deploy.
+`/admin`), and `backend` (the FastAPI API, served under `/api`).
+
+**Branches map to environments.** `dev` is the integration branch for development work; `main` is
+production. Feature branches merge into `dev`, and `dev` is promoted to `main` once it's stable.
+**Pushing to `main` deploys straight to production** — there's no CI gate blocking it today.
+`.github/workflows/ci.yml` runs backend tests + `pip-audit`, and a typecheck+build for both
+frontends, on every push/PR to either branch, but it and the Vercel deploy are independent
+pipelines: a failing CI run does not stop or roll back a Vercel deploy.
+
+**The `dev` environment needs its own databases — this is a safety requirement, not a preference.**
+Both schemas are migrated automatically on every cold start (see *Migrations apply automatically*
+below), so a `dev` deployment pointed at the production `REVGENIQ_DATABASE_URL` /
+`REVGENIQ_ADMIN_DATABASE_URL` will run in-development migrations against production data. Give
+`dev` its own Neon databases — `docs/disaster-recovery.md` §3 is the procedure for standing up a
+fresh environment's databases and Super Admin account.
+
+Beyond the two database URLs, these must hold different values on `dev` than on production:
+`REVGENIQ_ENVIRONMENT` (`development`, which also relaxes the production-only startup guards
+below), `REVGENIQ_JWT_SECRET` and `REVGENIQ_ADMIN_JWT_SECRET` (so a dev token can never
+authenticate against production), `REVGENIQ_COMMERCE_ENCRYPTION_KEY`, `CRON_SECRET`, the three
+public URLs used to build email links and the promotion QR code (`REVGENIQ_APP_URL`,
+`REVGENIQ_ADMIN_PORTAL_URL`, `REVGENIQ_API_BASE_URL`) plus `REVGENIQ_CORS_ORIGINS`, and the
+Razorpay keys (use Razorpay's test-mode credentials). Leave `REVGENIQ_EMAIL_PROVIDER=console` on
+`dev` so test signups print their verification emails to the logs instead of mailing real people.
 
 **Environment variables** — `backend/.env.example` is the source of truth for the full list; treat
 this README as a pointer to it, not a copy (copies drift). In production specifically, the app
