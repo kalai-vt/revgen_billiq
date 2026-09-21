@@ -84,6 +84,19 @@ $bytes = [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim())
 
 export class RawPrintError extends Error {}
 
+/** Raised when the spooler call never comes back — see PRINT_TIMEOUT_MS. */
+export class RawPrintTimeoutError extends RawPrintError {}
+
+/** Ceiling on the whole spawn → OpenPrinter → WritePrinter → close cycle.
+ *
+ * The P/Invoke calls above are synchronous and unbounded: OpenPrinter/StartDocPrinter against a
+ * wedged spooler service or an offline network-backed queue can block indefinitely, and with no
+ * bound here powershell.exe never exits and this promise never settles. server.ts `await`s
+ * adapter.print(), so that stalls every job queued behind it — the same failure mode rawSerial.ts
+ * documents for the Bluetooth path, on the primary print path. Bounding it turns a wedged spooler
+ * into an ordinary job failure the queue's retry path can act on. */
+const PRINT_TIMEOUT_MS = 12_000;
+
 /** Spawns the PowerShell helper above, passing the printer name via an environment variable
  * (never string-interpolated into the script — a printer name containing quote characters would
  * otherwise be a command-injection vector) and the bytes over stdin as base64, mirroring
@@ -96,11 +109,35 @@ export function sendRawBytesToPrinter(printerName: string, bytes: Uint8Array): P
       env: { ...process.env, REVGENAI_RAW_PRINT_TARGET: printerName },
     });
     let stderr = '';
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    // Guards every exit path: whichever of timeout/error/close fires first wins, and the loser is
+    // a no-op. Without this, killing the child on timeout would immediately re-enter via 'close'.
+    const settle = (act: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      act();
+    };
+
+    timer = setTimeout(() => {
+      settle(() => {
+        child.kill();
+        reject(
+          new RawPrintTimeoutError(
+            `Raw print to "${printerName}" timed out after ${PRINT_TIMEOUT_MS}ms — the printer or the Windows spooler is not responding.`,
+          ),
+        );
+      });
+    }, PRINT_TIMEOUT_MS);
+
     child.stderr.on('data', (chunk) => (stderr += chunk.toString()));
-    child.on('error', reject);
+    child.on('error', (err) => settle(() => reject(err)));
     child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new RawPrintError(stderr.trim() || `Raw print to "${printerName}" failed (exit ${code}).`));
+      settle(() => {
+        if (code === 0) resolve();
+        else reject(new RawPrintError(stderr.trim() || `Raw print to "${printerName}" failed (exit ${code}).`));
+      });
     });
     child.stdin.write(Buffer.from(bytes).toString('base64'));
     child.stdin.end();

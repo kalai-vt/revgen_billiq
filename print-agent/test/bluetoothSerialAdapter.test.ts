@@ -63,8 +63,27 @@ describe.skipIf(platform() !== 'win32')('BluetoothSerialAdapter (real Windows Bl
       console.warn('[test] No Bluetooth printer paired on this machine — skipping print() verification.');
       return;
     }
-    await expect(
-      adapter.print(target.printerId, { type: 'test_print', paperWidth: '58mm' }, await adapter.getCapabilities(target.printerId)),
-    ).resolves.toBeUndefined();
-  }, 15_000);
+    // "Paired" only means Windows still remembers the device — not that it is switched on and in
+    // range. An unreachable printer is therefore the same opportunistic skip as none being paired
+    // at all, and must not be reported as a code failure. Any other error still fails the test.
+    //
+    // Matched on message rather than error type because print() deliberately re-wraps whatever
+    // came back into one operator-facing message. Two shapes mean "the link never came up": the
+    // Windows SPP driver's own failure on $port.Open() (usually "The semaphore timeout period has
+    // expired", once the printer has been off long enough for it to give up), and rawSerial.ts's
+    // PRINT_TIMEOUT_MS backstop for the stacks where Open() never returns at all. A genuine
+    // defect — an unrenderable document, a bad paper width — reports differently and still fails.
+    const UNREACHABLE = /timed out after|semaphore timeout|calling "Open"|device is not ready|access is denied/i;
+    try {
+      await expect(
+        adapter.print(target.printerId, { type: 'test_print', paperWidth: '58mm' }, await adapter.getCapabilities(target.printerId)),
+      ).resolves.toBeUndefined();
+    } catch (err) {
+      const message = err instanceof Error ? (err.cause instanceof Error ? err.cause.message : err.message) : String(err);
+      if (!UNREACHABLE.test(message)) throw err;
+      console.warn(`[test] "${target.name}" is paired but did not respond (powered off, or out of range) — skipping print() verification.`);
+    }
+    // Must exceed rawSerial.ts's own PRINT_TIMEOUT_MS, so that its timeout fires first and is
+    // observable here as a rejection, instead of vitest killing the test at the same moment.
+  }, 20_000);
 });
